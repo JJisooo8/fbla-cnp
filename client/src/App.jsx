@@ -20,10 +20,6 @@ function App() {
   const [showDealsOnly, setShowDealsOnly] = useState(false);
   const [sortBy, setSortBy] = useState("rating");
 
-  // Location for Google Places search (latitude,longitude)
-  const [location, setLocation] = useState("37.7749,-122.4194"); // Default: San Francisco
-  const [locationName, setLocationName] = useState("San Francisco, CA");
-
   // Review form
   const [reviewForm, setReviewForm] = useState({
     author: "",
@@ -51,9 +47,9 @@ function App() {
   // Fetch initial data
   useEffect(() => {
     Promise.all([
-      fetch(`${API_URL}/businesses?location=${location}`).then(r => r.json()),
-      fetch(`${API_URL}/trending?location=${location}`).then(r => r.json()),
-      fetch(`${API_URL}/analytics?location=${location}`).then(r => r.json())
+      fetch(`${API_URL}/businesses`).then(r => r.json()),
+      fetch(`${API_URL}/trending`).then(r => r.json()),
+      fetch(`${API_URL}/analytics`).then(r => r.json())
     ])
       .then(([bizData, trendData, analyticsData]) => {
         setBusinesses(bizData);
@@ -64,15 +60,14 @@ function App() {
       })
       .catch(err => {
         console.error('Error fetching data:', err);
-        alert('Failed to fetch businesses. Make sure the backend has a Google Places API key configured.');
+        alert('Failed to fetch businesses from OpenStreetMap. Please try again.');
         setLoading(false);
       });
-  }, [location]);
+  }, []);
 
   // Apply filters and search
   useEffect(() => {
     const params = new URLSearchParams();
-    params.append("location", location);
     if (category !== "All") params.append("category", category);
     if (searchTerm) params.append("search", searchTerm);
     if (minRating) params.append("minRating", minRating);
@@ -83,7 +78,7 @@ function App() {
       .then(r => r.json())
       .then(data => setFilteredBusinesses(data))
       .catch(err => console.error(err));
-  }, [category, searchTerm, minRating, showDealsOnly, sortBy, location]);
+  }, [category, searchTerm, minRating, showDealsOnly, sortBy]);
 
   // Fetch recommendations when favorites change
   useEffect(() => {
@@ -91,13 +86,13 @@ function App() {
       fetch(`${API_URL}/recommendations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ favoriteIds: favorites, location })
+        body: JSON.stringify({ favoriteIds: favorites })
       })
         .then(r => r.json())
         .then(data => setRecommendations(data))
         .catch(err => console.error(err));
     }
-  }, [favorites, location]);
+  }, [favorites]);
 
   const toggleFavorite = (id) => {
     setFavorites(prev =>
@@ -189,9 +184,9 @@ function App() {
         <div style={styles.content}>
           {/* Hero Section */}
           <div style={styles.hero}>
-            <h2 style={styles.heroTitle}>Discover & Support Local Businesses</h2>
+            <h2 style={styles.heroTitle}>Discover & Support Local Businesses in Cumming, GA</h2>
             <p style={styles.heroSubtitle}>
-              Find the best local shops, restaurants, and services in your community
+              Explore the best local shops, restaurants, and services within 15 miles of Cumming, Georgia
             </p>
           </div>
 
@@ -264,32 +259,7 @@ function App() {
 
           {/* Filters */}
           <div style={styles.filtersSection}>
-            <h3 style={styles.sectionTitle}>Browse All Businesses</h3>
-
-            {/* Location Picker */}
-            <div style={styles.locationPicker}>
-              <span style={styles.locationLabel}>📍 Location:</span>
-              <select
-                value={locationName}
-                onChange={(e) => {
-                  const selectedOption = e.target.selectedOptions[0];
-                  setLocationName(selectedOption.text);
-                  setLocation(selectedOption.value);
-                }}
-                style={styles.locationSelect}
-              >
-                <option value="37.7749,-122.4194">San Francisco, CA</option>
-                <option value="34.0522,-118.2437">Los Angeles, CA</option>
-                <option value="40.7128,-74.0060">New York, NY</option>
-                <option value="41.8781,-87.6298">Chicago, IL</option>
-                <option value="29.7604,-95.3698">Houston, TX</option>
-                <option value="33.4484,-112.0740">Phoenix, AZ</option>
-                <option value="39.7392,-104.9903">Denver, CO</option>
-                <option value="47.6062,-122.3321">Seattle, WA</option>
-                <option value="42.3601,-71.0589">Boston, MA</option>
-                <option value="25.7617,-80.1918">Miami, FL</option>
-              </select>
-            </div>
+            <h3 style={styles.sectionTitle}>Browse All Businesses in Cumming, GA</h3>
 
             <div style={styles.filters}>
               <input
