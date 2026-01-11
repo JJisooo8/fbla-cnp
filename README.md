@@ -4,18 +4,22 @@
 
 Built for FBLA's Competitive Event: Byte-Sized Business Boost
 
+🆕 **Now powered by Google Places API!** LocalLink displays real businesses from Google Maps with live data, photos, reviews, and more.
+
 ---
 
 ## 🌟 Features
 
 ### Core Functionality
-- **Browse Businesses**: View 8 local businesses across Food, Retail, and Services categories
+- **Browse Real Businesses**: Powered by Google Places API - real restaurants, stores, and services from Google Maps
+- **Location Search**: Search businesses in 10 major US cities (San Francisco, LA, NYC, Chicago, Houston, etc.)
+- **Live Business Data**: Real ratings, review counts, photos, and hours from Google
 - **Smart Search**: Search by name, description, tags, or category with intelligent scoring
 - **Advanced Filters**: Filter by category, minimum rating, deals, and sort by rating/reviews/name
-- **Business Details**: View comprehensive information including address, hours, contact, and tags
+- **Business Details**: View comprehensive information including address, hours, contact, website, and Google Maps links
 - **Favorites System**: Save and bookmark favorite businesses (persisted in browser)
-- **Reviews & Ratings**: Submit reviews with spam protection verification
-- **Special Deals**: Highlight businesses offering special promotions
+- **Reviews & Ratings**: View Google reviews + submit local reviews with spam protection
+- **Open/Closed Status**: Real-time indicators showing if businesses are currently open
 
 ### Intelligent Features
 - **Personalized Recommendations**: AI-powered suggestions based on favorite businesses and categories
@@ -33,10 +37,13 @@ Built for FBLA's Competitive Event: Byte-Sized Business Boost
 ## 🏗️ Technical Architecture
 
 ### Backend (Node.js + Express)
+- **Google Places API Integration**: Fetches real business data from Google Maps
+- **Smart Caching**: 1-hour cache to minimize API costs and improve performance
 - **RESTful API** with modular endpoint structure
-- **8 Business Models** with rich attributes (rating, reviews, deals, tags, hours, contact)
+- **Location-Based Search**: Search businesses by coordinates with configurable radius
 - **Smart Algorithms**: Recommendation engine, trending calculator, search scoring
 - **Anti-Spam System**: UUID-based verification challenges with expiration
+- **Hybrid Reviews**: Combines Google reviews with user-submitted local reviews
 - **Data Validation**: Robust input validation and error responses
 
 ### Frontend (React + Vite)
@@ -71,6 +78,8 @@ GET  /api/verification/challenge      - Get anti-spam challenge
 ```
 
 ### Query Parameters
+- `location` - Location coordinates (latitude,longitude) for Google Places search
+- `radius` - Search radius in meters (default: 5000)
 - `category` - Filter by category (Food, Retail, Services)
 - `search` - Search term (searches name, description, tags, category)
 - `minRating` - Minimum rating threshold (e.g., 4, 4.5)
@@ -84,6 +93,7 @@ GET  /api/verification/challenge      - Get anti-spam challenge
 ### Prerequisites
 - Node.js (v16 or higher)
 - npm or yarn
+- **Google Places API Key** (required for real business data)
 
 ### Installation
 
@@ -104,6 +114,20 @@ GET  /api/verification/challenge      - Get anti-spam challenge
    npm install
    ```
 
+4. **Configure Google Places API**
+
+   📖 **See [GOOGLE_PLACES_SETUP.md](./GOOGLE_PLACES_SETUP.md) for detailed instructions**
+
+   Quick setup:
+   - Get API key from [Google Cloud Console](https://console.cloud.google.com/)
+   - Enable Places API
+   - Add key to `server/.env`:
+     ```env
+     GOOGLE_PLACES_API_KEY=your_api_key_here
+     DEFAULT_LOCATION=37.7749,-122.4194
+     SEARCH_RADIUS=5000
+     ```
+
 ### Running the Application
 
 1. **Start the Backend Server** (Terminal 1)
@@ -112,6 +136,8 @@ GET  /api/verification/challenge      - Get anti-spam challenge
    npm run dev
    ```
    Server runs on `http://localhost:3001`
+
+   ✅ Look for: `🗺️  Google Places API: ✅ Configured`
 
 2. **Start the Frontend** (Terminal 2)
    ```bash
