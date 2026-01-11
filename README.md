@@ -1,31 +1,31 @@
 # LocalLink - Byte-Sized Business Boost
 
-**A web-based application that helps users discover and support small, local businesses in their community.**
+**A web-based application that helps users discover and support small, local businesses in Cumming, Georgia.**
 
 Built for FBLA's Competitive Event: Byte-Sized Business Boost
 
-🆕 **Now powered by Google Places API!** LocalLink displays real businesses from Google Maps with live data, photos, reviews, and more.
+🆓 **Powered by OpenStreetMap!** LocalLink displays real businesses from OpenStreetMap - completely FREE with no API keys required!
 
 ---
 
 ## 🌟 Features
 
 ### Core Functionality
-- **Browse Real Businesses**: Powered by Google Places API - real restaurants, stores, and services from Google Maps
-- **Location Search**: Search businesses in 10 major US cities (San Francisco, LA, NYC, Chicago, Houston, etc.)
-- **Live Business Data**: Real ratings, review counts, photos, and hours from Google
-- **Smart Search**: Search by name, description, tags, or category with intelligent scoring
-- **Advanced Filters**: Filter by category, minimum rating, deals, and sort by rating/reviews/name
-- **Business Details**: View comprehensive information including address, hours, contact, website, and Google Maps links
+- **Browse Real Businesses**: Powered by OpenStreetMap - real restaurants, stores, and services in Cumming, GA
+- **15-Mile Coverage**: Discover businesses within a 15-mile radius of Cumming, Georgia
+- **Live Business Data**: Real addresses, phone numbers, hours, and websites from OpenStreetMap
+- **Smart Search**: Search by name, description, tags, or category
+- **Advanced Filters**: Filter by category, minimum rating, and sort by rating/reviews/name
+- **Business Details**: View comprehensive information including address, hours, contact, and website
 - **Favorites System**: Save and bookmark favorite businesses (persisted in browser)
-- **Reviews & Ratings**: View Google reviews + submit local reviews with spam protection
-- **Open/Closed Status**: Real-time indicators showing if businesses are currently open
+- **Reviews & Ratings**: Submit reviews with spam protection
+- **Category-Based Images**: Smart image selection based on business type
 
 ### Intelligent Features
 - **Personalized Recommendations**: AI-powered suggestions based on favorite businesses and categories
-- **Trending Businesses**: Smart algorithm combining ratings, reviews, and deals to surface popular businesses
-- **Analytics Dashboard**: Real-time stats showing total businesses, average rating, deal availability, and review counts
-- **Smart Search Scoring**: Weighted search algorithm prioritizing name matches, then tags, descriptions, and categories
+- **Trending Businesses**: Smart algorithm combining ratings and reviews to surface popular businesses
+- **Analytics Dashboard**: Real-time stats showing total businesses, average rating, and review counts
+- **Smart Filtering**: Efficient filtering and search across all business attributes
 
 ### Security & Validation
 - **Spam Prevention**: Math-based CAPTCHA challenge before submitting reviews
@@ -37,14 +37,20 @@ Built for FBLA's Competitive Event: Byte-Sized Business Boost
 ## 🏗️ Technical Architecture
 
 ### Backend (Node.js + Express)
-- **Google Places API Integration**: Fetches real business data from Google Maps
-- **Smart Caching**: 1-hour cache to minimize API costs and improve performance
+- **OpenStreetMap Integration**: Fetches real business data via Overpass API (FREE!)
+- **Smart Caching**: 1-hour cache to minimize API load and improve performance
 - **RESTful API** with modular endpoint structure
-- **Location-Based Search**: Search businesses by coordinates with configurable radius
+- **Location-Based Search**: Searches within 15-mile radius of Cumming, GA
 - **Smart Algorithms**: Recommendation engine, trending calculator, search scoring
 - **Anti-Spam System**: UUID-based verification challenges with expiration
-- **Hybrid Reviews**: Combines Google reviews with user-submitted local reviews
+- **Data Transformation**: Converts OSM data to user-friendly format
 - **Data Validation**: Robust input validation and error responses
+
+**Key Technologies:**
+- Express 5.2.1
+- Axios (for Overpass API calls)
+- Node-Cache (response caching)
+- Crypto (UUID generation)
 
 ### Frontend (React + Vite)
 - **Modern React**: Hooks-based architecture with functional components
@@ -52,6 +58,7 @@ Built for FBLA's Competitive Event: Byte-Sized Business Boost
 - **Responsive Design**: Clean, accessible UI optimized for presentations
 - **Local Storage**: Persistent favorites across sessions
 - **Real-time Updates**: Dynamic filtering and instant search results
+- **Category-Based Images**: Curated Unsplash images based on business type
 
 ---
 
@@ -78,8 +85,6 @@ GET  /api/verification/challenge      - Get anti-spam challenge
 ```
 
 ### Query Parameters
-- `location` - Location coordinates (latitude,longitude) for Google Places search
-- `radius` - Search radius in meters (default: 5000)
 - `category` - Filter by category (Food, Retail, Services)
 - `search` - Search term (searches name, description, tags, category)
 - `minRating` - Minimum rating threshold (e.g., 4, 4.5)
@@ -93,7 +98,7 @@ GET  /api/verification/challenge      - Get anti-spam challenge
 ### Prerequisites
 - Node.js (v16 or higher)
 - npm or yarn
-- **Google Places API Key** (required for real business data)
+- **No API keys required!** OpenStreetMap is completely free
 
 ### Installation
 
@@ -114,20 +119,6 @@ GET  /api/verification/challenge      - Get anti-spam challenge
    npm install
    ```
 
-4. **Configure Google Places API**
-
-   📖 **See [GOOGLE_PLACES_SETUP.md](./GOOGLE_PLACES_SETUP.md) for detailed instructions**
-
-   Quick setup:
-   - Get API key from [Google Cloud Console](https://console.cloud.google.com/)
-   - Enable Places API
-   - Add key to `server/.env`:
-     ```env
-     GOOGLE_PLACES_API_KEY=your_api_key_here
-     DEFAULT_LOCATION=37.7749,-122.4194
-     SEARCH_RADIUS=5000
-     ```
-
 ### Running the Application
 
 1. **Start the Backend Server** (Terminal 1)
@@ -137,7 +128,13 @@ GET  /api/verification/challenge      - Get anti-spam challenge
    ```
    Server runs on `http://localhost:3001`
 
-   ✅ Look for: `🗺️  Google Places API: ✅ Configured`
+   ✅ Look for:
+   ```
+   🗺️  Data Source: OpenStreetMap (FREE!)
+   📍 Location: Cumming, Georgia
+   📏 Search radius: 15 miles (24140 meters)
+   🆓 No API key required!
+   ```
 
 2. **Start the Frontend** (Terminal 2)
    ```bash
@@ -156,173 +153,244 @@ GET  /api/verification/challenge      - Get anti-spam challenge
 ### Browsing Businesses
 1. View trending businesses and analytics on the homepage
 2. Use the search bar to find specific businesses
-3. Apply filters: category, minimum rating, deals only
+3. Apply filters: category, minimum rating
 4. Sort results by rating, review count, or name
 5. Click any business card to view full details
 
 ### Viewing Business Details
 1. Click "View Details" or the business name/image
-2. See comprehensive info: address, phone, hours, tags
+2. See comprehensive info: address, phone, hours, website
 3. View current rating and review count
-4. Check for special deals and promotions
-5. Read customer reviews
+4. Read customer reviews
+5. Submit your own review
 
-### Saving Favorites
-1. Click the heart icon (🤍) on any business card
-2. Heart turns red (❤️) when favorited
-3. Access all favorites from the "Favorites" tab in header
-4. Favorites persist across browser sessions
+### Managing Favorites
+1. Click the heart icon on any business card
+2. View all favorites in the Favorites tab
+3. Favorites are saved automatically in your browser
 
-### Writing Reviews
-1. Open any business detail page
-2. Click "Write a Review" button
-3. Enter your name (min 2 characters)
-4. Select rating (1-5 stars using slider)
-5. Write comment (min 10 characters)
-6. Complete verification challenge (simple math problem)
-7. Submit review - rating updates instantly
-
-### Getting Recommendations
-- Add businesses to favorites
-- View "Recommended For You" section on homepage
-- Algorithm analyzes your favorites and suggests similar businesses
-- Recommendations update as you add more favorites
+### Submitting Reviews
+1. Open a business detail page
+2. Click "Write a Review"
+3. Fill out the form: name, rating (1-5 stars), comment
+4. Solve the simple math challenge (spam prevention)
+5. Submit your review
 
 ---
 
-## 📊 Business Data Model
+## 📊 Data Source: OpenStreetMap
 
-Each business includes:
-- **Basic Info**: name, category, description
-- **Ratings**: rating (1-5), review count, individual reviews
-- **Contact**: address, phone, hours
-- **Visual**: image URL
-- **Marketing**: deals/coupons, tags, price range
-- **Reviews**: author, rating, comment, date
+### Why OpenStreetMap?
+- ✅ **Completely FREE** - No API keys, no billing, no quotas
+- ✅ **Real Data** - Actual businesses from community-contributed map data
+- ✅ **No Usage Limits** - Use as much as you need
+- ✅ **Privacy-Friendly** - No tracking or personal data collection
+- ✅ **Open Source** - Community-driven, collaborative data
+
+### How It Works
+1. **Overpass API**: We query OpenStreetMap data via the Overpass API
+2. **15-Mile Radius**: Searches businesses around Cumming, GA (34.2073, -84.1402)
+3. **Business Types**: Restaurants, cafes, shops, services, and more
+4. **Data Transformation**: Converts OSM tags to user-friendly business profiles
+5. **Caching**: Results cached for 1 hour for better performance
+
+### OSM Data Categories
+- **Food**: restaurants, cafes, fast_food, bars, pubs, bakeries
+- **Retail**: shops, supermarkets, convenience stores, boutiques, bookstores
+- **Services**: pharmacies, salons, gyms, banks, auto repair, veterinarians
 
 ---
 
-## 🔒 Security Features
+## 🖼️ Images & Photos
+
+Since OpenStreetMap doesn't include photos, LocalLink uses:
+- **Curated Unsplash Images**: High-quality, category-appropriate images
+- **Smart Selection**: Images chosen based on business type (e.g., coffee shops get cafe images)
+- **Consistent Branding**: Professional look across all business cards
+
+---
+
+## 💡 Intelligent Features Explained
+
+### Personalized Recommendations
+- Analyzes your favorited businesses
+- Identifies category preferences
+- Scores all businesses based on:
+  - Category match (highest weight)
+  - High ratings (4.5+ stars)
+  - Popularity (review count)
+- Returns top 4 personalized suggestions
+
+### Trending Algorithm
+```javascript
+trendScore = rating × log₁₀(reviewCount + 1) × 10
+```
+- Balances rating quality with popularity
+- Surfaces businesses with both high ratings AND many reviews
+- Top 3 trending businesses displayed
+
+### Analytics Dashboard
+Real-time statistics:
+- Total businesses in Cumming area
+- Average rating across all businesses
+- Total review count
+- Breakdown by category (Food, Retail, Services)
+
+---
+
+## 🛡️ Security Features
 
 ### Review Spam Prevention
-- Math-based verification challenge (e.g., "What is 7 + 3?")
-- Challenges expire after 5 minutes
-- One-time use: challenge deleted after successful verification
-- Server-side validation prevents bypassing
+- Math-based CAPTCHA (e.g., "What is 7 + 3?")
+- UUID-based challenge system
+- 5-minute challenge expiration
+- One-time use (challenge deleted after verification)
 
 ### Input Validation
 - Author name: minimum 2 characters
-- Rating: must be 1-5
+- Rating: must be 1-5 stars
 - Comment: minimum 10 characters
-- All inputs sanitized and validated server-side
+- All inputs sanitized and trimmed
+
+### Error Handling
+- Graceful error messages for users
+- Detailed server-side logging
+- Network error recovery
+- Cache fallback mechanisms
 
 ---
 
-## 🎯 Judging Demonstration Tips
-
-1. **Start with Homepage**: Showcase analytics, trending, and recommendations
-2. **Use Search**: Demonstrate smart search (try "coffee", "repair", "pet")
-3. **Apply Filters**: Show category filtering, rating filters, deals toggle
-4. **View Details**: Click a business to show comprehensive information
-5. **Add Favorites**: Heart several businesses to trigger recommendations
-6. **Submit Review**: Walk through the review process with verification
-7. **Check Favorites**: Show persistence by navigating to Favorites tab
-
-### Key Features to Highlight
-- ✅ Real-time search with smart scoring
-- ✅ Personalized recommendations based on favorites
-- ✅ Trending algorithm combining multiple factors
-- ✅ Spam prevention with verification system
-- ✅ Clean, professional UI suitable for all ages
-- ✅ Persistent data (favorites saved locally)
-- ✅ Comprehensive business information
-- ✅ Analytics dashboard
-
----
-
-## 🛠️ Technology Stack
-
-**Frontend:**
-- React 19.2.0
-- Vite 7.2.4
-- CSS (inline styles for component encapsulation)
-
-**Backend:**
-- Node.js
-- Express 5.2.1
-- CORS enabled
-- Crypto (UUID generation)
-
-**Development:**
-- Nodemon (backend auto-reload)
-- ESLint (code quality)
-
----
-
-## 📁 Project Structure
+## 📂 Project Structure
 
 ```
 fbla-cnp/
-├── client/                 # React frontend
+├── client/                    # React frontend
 │   ├── src/
-│   │   ├── App.jsx        # Main application component
-│   │   ├── main.jsx       # React entry point
-│   │   └── index.css      # Global styles
-│   ├── index.html         # HTML template
-│   └── package.json       # Frontend dependencies
-├── server/                 # Node/Express backend
-│   ├── index.js           # API server with all endpoints
-│   └── package.json       # Backend dependencies
-├── README.md              # This file
-└── .gitignore            # Git ignore rules
+│   │   ├── App.jsx           # Main application component
+│   │   ├── main.jsx          # React entry point
+│   │   └── index.css         # Global styles
+│   ├── package.json
+│   └── vite.config.js
+├── server/                    # Node.js backend
+│   ├── index.js              # Express server + Overpass API integration
+│   └── package.json
+└── README.md
 ```
 
 ---
 
-## 🎓 FBLA Compliance
+## 🎯 FBLA Competition Alignment
 
-This project fulfills all requirements for the **Byte-Sized Business Boost** prompt:
+### "Byte-Sized Business Boost" Requirements
+✅ **Local Business Focus**: Exclusively serves Cumming, GA businesses
+✅ **Discovery Platform**: Browse, search, and filter local establishments
+✅ **Community Engagement**: Reviews, ratings, and favorites
+✅ **Intelligent Features**: Recommendations and trending algorithms
+✅ **User-Friendly**: Clean, accessible interface
+✅ **Real Data**: Actual businesses from OpenStreetMap
+✅ **Scalable Architecture**: Modular, well-documented code
 
-✅ **Web-based application**: Runs in browser, no installation required  
-✅ **Local business directory**: 8 businesses across 3 categories  
-✅ **Search & filter**: Multiple filter options and smart search  
-✅ **Business details**: Comprehensive information pages  
-✅ **User reviews**: Review system with spam prevention  
-✅ **Deals/coupons**: Special offers highlighted throughout  
-✅ **Clean UI**: Professional, accessible design  
-✅ **Intelligent features**: Recommendations, trending, analytics  
-✅ **Secure**: Input validation and anti-spam measures  
-✅ **Standalone**: Fully functional without external dependencies  
-
----
-
-## 🚧 Future Enhancements
-
-Potential features for expansion:
-- User accounts and authentication
-- Business owner portal to manage listings
-- Photo uploads for reviews
-- Map integration for locations
-- Email notifications for new deals
-- Social sharing capabilities
-- Mobile app version
-- Advanced analytics dashboard
+### Demonstration Tips
+1. **Show Real Data**: Highlight that these are actual Cumming, GA businesses
+2. **Demo Recommendations**: Add favorites to show personalized suggestions
+3. **Test Search**: Search for specific business types (e.g., "pizza", "pharmacy")
+4. **Submit a Review**: Demonstrate the verification system
+5. **Show Analytics**: Display the dashboard with real statistics
+6. **Highlight FREE Aspect**: No API costs = sustainable solution
 
 ---
 
-## 📞 Support
+## 🔧 Customization
 
-For questions or issues:
-1. Check this README thoroughly
-2. Review code comments in App.jsx and server/index.js
-3. Test all API endpoints using the browser or Postman
+### Change Location
+Edit `server/index.js`:
+```javascript
+const CUMMING_GA_LAT = 34.2073;  // Your latitude
+const CUMMING_GA_LON = -84.1402;  // Your longitude
+const SEARCH_RADIUS_METERS = 24140; // 15 miles
+```
+
+### Change Search Radius
+Adjust the radius (in meters):
+```javascript
+const SEARCH_RADIUS_METERS = 16093; // 10 miles
+const SEARCH_RADIUS_METERS = 32186; // 20 miles
+```
+
+### Customize Images
+Edit the `getCategoryImage()` function in `server/index.js` to use your own image URLs.
 
 ---
 
-## 📄 License
+## 🐛 Troubleshooting
 
-Created for FBLA Competitive Events - Educational Use
+### "Failed to fetch businesses" Error
+
+**Cause**: Overpass API timeout or network issue
+
+**Solution**:
+1. Wait a few seconds and refresh the page
+2. Check your internet connection
+3. The Overpass API may be temporarily busy - try again in a moment
+
+### No businesses showing up
+
+**Possible causes**:
+1. **Limited OSM data in area** - Some areas have sparse OpenStreetMap data
+2. **Filters too restrictive** - Try removing filters
+3. **Cache issue** - Restart the backend server
+
+### Slow initial load
+
+**Cause**: First query to Overpass API can be slow
+
+**Solution**:
+- Wait 10-15 seconds for initial load
+- Subsequent loads will be fast (cached for 1 hour)
+- Results are cached automatically
 
 ---
 
-**Made with ❤️ for supporting local businesses**
+## 🌟 Key Advantages
+
+### vs. Google Places API
+- ✅ **FREE** (no billing, no API key)
+- ✅ **No usage limits**
+- ✅ **Privacy-friendly**
+- ❌ Photos not included (we use Unsplash)
+- ❌ Reviews not included (we provide local review system)
+
+### vs. Sample Data
+- ✅ **Real businesses** from OpenStreetMap
+- ✅ **Up-to-date information**
+- ✅ **Actual addresses and contacts**
+- ✅ **Community-verified data**
+
+---
+
+## 📝 License
+
+This project is created for educational purposes as part of FBLA's "Byte-Sized Business Boost" competitive event.
+
+---
+
+## 🙏 Data Attribution
+
+Business data © OpenStreetMap contributors
+- Data available under the Open Database License
+- Learn more: https://www.openstreetmap.org/copyright
+- Images from Unsplash (free to use)
+
+---
+
+## 📧 Support
+
+For technical issues or questions:
+1. Check the Troubleshooting section above
+2. Verify both frontend and backend servers are running
+3. Check browser console for detailed error messages
+4. Ensure internet connection is stable
+
+---
+
+**Built with ❤️ for FBLA by showcasing real Cumming, Georgia businesses!**
