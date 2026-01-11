@@ -20,6 +20,10 @@ function App() {
   const [showDealsOnly, setShowDealsOnly] = useState(false);
   const [sortBy, setSortBy] = useState("rating");
 
+  // Location for Google Places search (latitude,longitude)
+  const [location, setLocation] = useState("37.7749,-122.4194"); // Default: San Francisco
+  const [locationName, setLocationName] = useState("San Francisco, CA");
+
   // Review form
   const [reviewForm, setReviewForm] = useState({
     author: "",
@@ -47,9 +51,9 @@ function App() {
   // Fetch initial data
   useEffect(() => {
     Promise.all([
-      fetch(`${API_URL}/businesses`).then(r => r.json()),
-      fetch(`${API_URL}/trending`).then(r => r.json()),
-      fetch(`${API_URL}/analytics`).then(r => r.json())
+      fetch(`${API_URL}/businesses?location=${location}`).then(r => r.json()),
+      fetch(`${API_URL}/trending?location=${location}`).then(r => r.json()),
+      fetch(`${API_URL}/analytics?location=${location}`).then(r => r.json())
     ])
       .then(([bizData, trendData, analyticsData]) => {
         setBusinesses(bizData);
@@ -59,14 +63,16 @@ function App() {
         setLoading(false);
       })
       .catch(err => {
-        console.error(err);
+        console.error('Error fetching data:', err);
+        alert('Failed to fetch businesses. Make sure the backend has a Google Places API key configured.');
         setLoading(false);
       });
-  }, []);
+  }, [location]);
 
   // Apply filters and search
   useEffect(() => {
     const params = new URLSearchParams();
+    params.append("location", location);
     if (category !== "All") params.append("category", category);
     if (searchTerm) params.append("search", searchTerm);
     if (minRating) params.append("minRating", minRating);
@@ -77,7 +83,7 @@ function App() {
       .then(r => r.json())
       .then(data => setFilteredBusinesses(data))
       .catch(err => console.error(err));
-  }, [category, searchTerm, minRating, showDealsOnly, sortBy]);
+  }, [category, searchTerm, minRating, showDealsOnly, sortBy, location]);
 
   // Fetch recommendations when favorites change
   useEffect(() => {
@@ -85,13 +91,13 @@ function App() {
       fetch(`${API_URL}/recommendations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ favoriteIds: favorites })
+        body: JSON.stringify({ favoriteIds: favorites, location })
       })
         .then(r => r.json())
         .then(data => setRecommendations(data))
         .catch(err => console.error(err));
     }
-  }, [favorites]);
+  }, [favorites, location]);
 
   const toggleFavorite = (id) => {
     setFavorites(prev =>
@@ -259,6 +265,32 @@ function App() {
           {/* Filters */}
           <div style={styles.filtersSection}>
             <h3 style={styles.sectionTitle}>Browse All Businesses</h3>
+
+            {/* Location Picker */}
+            <div style={styles.locationPicker}>
+              <span style={styles.locationLabel}>📍 Location:</span>
+              <select
+                value={locationName}
+                onChange={(e) => {
+                  const selectedOption = e.target.selectedOptions[0];
+                  setLocationName(selectedOption.text);
+                  setLocation(selectedOption.value);
+                }}
+                style={styles.locationSelect}
+              >
+                <option value="37.7749,-122.4194">San Francisco, CA</option>
+                <option value="34.0522,-118.2437">Los Angeles, CA</option>
+                <option value="40.7128,-74.0060">New York, NY</option>
+                <option value="41.8781,-87.6298">Chicago, IL</option>
+                <option value="29.7604,-95.3698">Houston, TX</option>
+                <option value="33.4484,-112.0740">Phoenix, AZ</option>
+                <option value="39.7392,-104.9903">Denver, CO</option>
+                <option value="47.6062,-122.3321">Seattle, WA</option>
+                <option value="42.3601,-71.0589">Boston, MA</option>
+                <option value="25.7617,-80.1918">Miami, FL</option>
+              </select>
+            </div>
+
             <div style={styles.filters}>
               <input
                 type="text"
@@ -424,8 +456,45 @@ function App() {
                 </div>
                 <div style={styles.infoItem}>
                   <div style={styles.infoLabel}>🕐 Hours</div>
-                  <div style={styles.infoValue}>{selectedBusiness.hours}</div>
+                  <div style={styles.infoValue}>
+                    {selectedBusiness.hours}
+                    {selectedBusiness.isOpenNow !== undefined && (
+                      <span style={selectedBusiness.isOpenNow ? styles.openNow : styles.closedNow}>
+                        {selectedBusiness.isOpenNow ? ' • Open Now' : ' • Closed'}
+                      </span>
+                    )}
+                  </div>
                 </div>
+                {selectedBusiness.website && (
+                  <div style={styles.infoItem}>
+                    <div style={styles.infoLabel}>🌐 Website</div>
+                    <div style={styles.infoValue}>
+                      <a
+                        href={selectedBusiness.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={styles.link}
+                      >
+                        Visit Website
+                      </a>
+                    </div>
+                  </div>
+                )}
+                {selectedBusiness.googleMapsUrl && (
+                  <div style={styles.infoItem}>
+                    <div style={styles.infoLabel}>🗺️ Directions</div>
+                    <div style={styles.infoValue}>
+                      <a
+                        href={selectedBusiness.googleMapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={styles.link}
+                      >
+                        Open in Google Maps
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div style={styles.tags}>
@@ -1229,6 +1298,45 @@ const styles = {
     fontWeight: "500",
     cursor: "pointer",
     transition: "background-color 0.2s"
+  },
+  locationPicker: {
+    display: "flex",
+    alignItems: "center",
+    gap: "1rem",
+    padding: "1rem",
+    backgroundColor: "#fff",
+    borderRadius: "8px",
+    marginBottom: "1rem",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+  },
+  locationLabel: {
+    fontSize: "1rem",
+    fontWeight: "500",
+    color: "#2c3e50"
+  },
+  locationSelect: {
+    padding: "0.5rem 1rem",
+    border: "2px solid #e9ecef",
+    borderRadius: "8px",
+    fontSize: "1rem",
+    cursor: "pointer",
+    backgroundColor: "#fff",
+    flex: 1,
+    maxWidth: "300px"
+  },
+  openNow: {
+    color: "#27ae60",
+    fontWeight: "600"
+  },
+  closedNow: {
+    color: "#e74c3c",
+    fontWeight: "600"
+  },
+  link: {
+    color: "#3498db",
+    textDecoration: "none",
+    fontWeight: "500",
+    transition: "color 0.2s"
   },
   footer: {
     backgroundColor: "#2c3e50",
