@@ -199,6 +199,8 @@ function App() {
     .slice(0, 4);
 
   const categoryCounts = analytics?.byCategory || {};
+  const totalCategoryCounts = analytics?.totalByCategory || {};
+  const totalBusinessesCount = analytics?.totalBusinesses || 0;
   const topRated = analytics?.topRated || [];
 
   return (
@@ -256,16 +258,12 @@ function App() {
                 <div style={styles.statLabel}>Top Businesses Cached (Local Memory)</div>
               </div>
               <div style={styles.statCard}>
-                <div style={styles.statNumber}>⭐ {analytics.avgRating}</div>
-                <div style={styles.statLabel}>Average Rating</div>
+                <div style={styles.statNumber}>{totalBusinessesCount}</div>
+                <div style={styles.statLabel}>Businesses in Scope</div>
               </div>
               <div style={styles.statCard}>
                 <div style={styles.statNumber}>{analytics.dealsAvailable}</div>
                 <div style={styles.statLabel}>Active Deals</div>
-              </div>
-              <div style={styles.statCard}>
-                <div style={styles.statNumber}>{analytics.totalReviews}</div>
-                <div style={styles.statLabel}>Total Reviews</div>
               </div>
             </div>
           )}
@@ -284,7 +282,47 @@ function App() {
                     <img src={biz.image} alt={biz.name} style={styles.trendingImage} />
                     <div style={styles.trendingContent}>
                       <h4 style={styles.trendingName}>{biz.name}</h4>
-                      <div style={styles.rating}>⭐ {biz.rating}</div>
+                      {biz.rating > 0 ? (
+                        <div style={styles.rating}>⭐ {biz.rating.toFixed(1)}</div>
+                      ) : (
+                        <div style={styles.noRating}>No ratings yet</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Local Gems */}
+          {localGems.length > 0 && (
+            <div style={styles.section}>
+              <h3 style={styles.sectionTitle}>✨ Local Gems</h3>
+              <p style={styles.sectionSubtitle}>
+                Handpicked spots with strong local impact and standout ratings.
+              </p>
+              <div style={styles.recommendGrid}>
+                {localGems.map(biz => (
+                  <div
+                    key={biz.id}
+                    style={styles.recommendCard}
+                    onClick={() => viewBusiness(biz)}
+                  >
+                    <img src={biz.image} alt={biz.name} style={styles.cardImage} />
+                    <div style={styles.cardContent}>
+                      <div style={styles.cardHeader}>
+                        <h4 style={styles.cardTitle}>{biz.name}</h4>
+                        <span style={styles.localBadge}>Local Favorite</span>
+                      </div>
+                      {biz.rating > 0 ? (
+                        <div style={styles.cardRating}>⭐ {biz.rating.toFixed(1)}</div>
+                      ) : (
+                        <div style={styles.noRating}>No ratings yet</div>
+                      )}
+                      <p style={styles.cardCategory}>{biz.category}</p>
+                      {biz.deal && (
+                        <div style={styles.dealPill}>🎁 {biz.deal}</div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -338,7 +376,11 @@ function App() {
                     <img src={biz.image} alt={biz.name} style={styles.cardImage} />
                     <div style={styles.cardContent}>
                       <h4 style={styles.cardTitle}>{biz.name}</h4>
-                      <div style={styles.cardRating}>⭐ {biz.rating}</div>
+                      {biz.rating > 0 ? (
+                        <div style={styles.cardRating}>⭐ {biz.rating.toFixed(1)}</div>
+                      ) : (
+                        <div style={styles.noRating}>No ratings yet</div>
+                      )}
                       <p style={styles.cardCategory}>{biz.category}</p>
                     </div>
                   </div>
@@ -404,6 +446,9 @@ function App() {
           {/* Filters */}
           <div style={styles.filtersSection}>
             <h3 style={styles.sectionTitle}>Browse All Businesses in Cumming, GA</h3>
+            <p style={styles.sectionSubtitle}>
+              Showing top {filteredBusinesses.length} results of {totalBusinessesCount} businesses.
+            </p>
 
             <div style={styles.filters}>
               <input
@@ -420,6 +465,9 @@ function App() {
                 style={styles.select}
               >
                 <option value="All">All</option>
+                <option value="Food">Food ({totalCategoryCounts.Food || 0})</option>
+                <option value="Retail">Retail ({totalCategoryCounts.Retail || 0})</option>
+                <option value="Services">Services ({totalCategoryCounts.Services || 0})</option>
                 <option value="Food">Food ({categoryCounts.Food || 0})</option>
                 <option value="Retail">Retail ({categoryCounts.Retail || 0})</option>
                 <option value="Services">Services ({categoryCounts.Services || 0})</option>
@@ -488,6 +536,14 @@ function App() {
                     
                     <div style={styles.businessMeta}>
                       <span style={styles.category}>{biz.category}</span>
+                      {biz.rating > 0 ? (
+                        <span style={styles.rating}>⭐ {biz.rating.toFixed(1)}</span>
+                      ) : (
+                        <span style={styles.noRating}>No ratings yet</span>
+                      )}
+                      <span style={styles.reviews}>
+                        {biz.reviewCount > 0 ? `(${biz.reviewCount} reviews)` : "No reviews yet"}
+                      </span>
                       <span style={styles.rating}>⭐ {biz.rating}</span>
                       <span style={styles.reviews}>({biz.reviewCount} reviews)</span>
                       {biz.deal && <span style={styles.dealBadge}>Deal</span>}
@@ -551,9 +607,15 @@ function App() {
               </div>
 
               <div style={styles.ratingSection}>
-                <div style={styles.bigRating}>⭐ {selectedBusiness.rating}</div>
+                {selectedBusiness.rating > 0 ? (
+                  <div style={styles.bigRating}>⭐ {selectedBusiness.rating.toFixed(1)}</div>
+                ) : (
+                  <div style={styles.noRating}>No ratings yet</div>
+                )}
                 <div style={styles.reviewCount}>
-                  {selectedBusiness.reviewCount} reviews
+                  {selectedBusiness.reviewCount > 0
+                    ? `${selectedBusiness.reviewCount} reviews`
+                    : "No reviews yet"}
                 </div>
               </div>
 
@@ -765,7 +827,11 @@ function App() {
                       
                       <div style={styles.businessMeta}>
                         <span style={styles.category}>{biz.category}</span>
-                        <span style={styles.rating}>⭐ {biz.rating}</span>
+                      {biz.rating > 0 ? (
+                        <span style={styles.rating}>⭐ {biz.rating.toFixed(1)}</span>
+                      ) : (
+                        <span style={styles.noRating}>No ratings yet</span>
+                      )}
                       </div>
 
                       <p style={styles.description}>{biz.description}</p>
@@ -1019,6 +1085,11 @@ const styles = {
     fontSize: "0.9rem",
     color: "#f39c12",
     marginBottom: "0.25rem"
+  },
+  noRating: {
+    fontSize: "0.85rem",
+    color: "#718096",
+    fontWeight: "500"
   },
   cardCategory: {
     fontSize: "0.85rem",
