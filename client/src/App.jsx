@@ -18,7 +18,7 @@ function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [minRating, setMinRating] = useState("");
   const [showDealsOnly, setShowDealsOnly] = useState(false);
-  const [sortBy, setSortBy] = useState("rating");
+  const [sortBy, setSortBy] = useState("local");
 
   // Review form
   const [reviewForm, setReviewForm] = useState({
@@ -60,7 +60,7 @@ function App() {
       })
       .catch(err => {
         console.error('Error fetching data:', err);
-        alert('Failed to fetch businesses from OpenStreetMap. Please try again.');
+        alert('Failed to fetch business data. Please try again.');
         setLoading(false);
       });
   }, []);
@@ -73,6 +73,7 @@ function App() {
     if (minRating) params.append("minRating", minRating);
     if (showDealsOnly) params.append("hasDeals", "true");
     if (sortBy) params.append("sort", sortBy);
+    params.append("limit", "30");
 
     fetch(`${API_URL}/businesses?${params}`)
       .then(r => r.json())
@@ -224,7 +225,7 @@ function App() {
           <div style={styles.hero}>
             <h2 style={styles.heroTitle}>Discover & Support Local Businesses in Cumming, GA</h2>
             <p style={styles.heroSubtitle}>
-              Explore the best local shops, restaurants, and services within 15 miles of Cumming, Georgia
+              Explore the best local shops, restaurants, and services within 10 miles of Cumming, Georgia
             </p>
             <div style={styles.heroActions}>
               <button style={styles.heroPrimary} onClick={() => setView("home")}>
@@ -243,8 +244,8 @@ function App() {
           {analytics && (
             <div style={styles.statsGrid}>
               <div style={styles.statCard}>
-                <div style={styles.statNumber}>{analytics.totalBusinesses}</div>
-                <div style={styles.statLabel}>Local Businesses</div>
+                <div style={styles.statNumber}>{analytics.cachedBusinesses}</div>
+                <div style={styles.statLabel}>Top Businesses Cached (Local Memory)</div>
               </div>
               <div style={styles.statCard}>
                 <div style={styles.statNumber}>⭐ {analytics.avgRating}</div>
