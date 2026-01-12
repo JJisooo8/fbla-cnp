@@ -64,7 +64,7 @@ function mapOSMTypeToCategory(tags) {
 
 // Get category-appropriate image
 function getCategoryImage(category, tags) {
-  const { amenity, shop, cuisine } = tags;
+  const { amenity, shop, cuisine, leisure } = tags;
 
   // Food images based on type
   if (category === 'Food') {
