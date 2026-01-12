@@ -90,9 +90,44 @@
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.1);
   --shadow-xl: 0 8px 24px rgba(31, 78, 140, 0.12);
+  --shadow-2xl: 0 12px 40px rgba(31, 78, 140, 0.18);
+
+  /* Layered Shadows for Depth (innovative!) */
+  --shadow-layered:
+    0 2px 4px rgba(31, 78, 140, 0.06),
+    0 4px 12px rgba(31, 78, 140, 0.08),
+    0 8px 24px rgba(31, 78, 140, 0.1);
+
+  --shadow-layered-hover:
+    0 4px 8px rgba(31, 78, 140, 0.08),
+    0 8px 20px rgba(31, 78, 140, 0.12),
+    0 16px 40px rgba(31, 78, 140, 0.15);
+
+  /* Colored Shadows for Brand Elements */
+  --shadow-gold: 0 4px 20px rgba(249, 178, 51, 0.3);
+  --shadow-gold-hover: 0 6px 30px rgba(249, 178, 51, 0.4);
 
   /* Focus Shadow (Accessibility) */
   --shadow-focus: 0 0 0 3px var(--color-secondary-700);
+
+  /* ========================================
+     GRADIENTS (Innovative Visual Effects)
+     ======================================== */
+  --gradient-primary: linear-gradient(135deg, var(--color-primary-900) 0%, var(--color-primary-700) 50%, var(--color-primary-500) 100%);
+  --gradient-primary-hover: linear-gradient(135deg, var(--color-primary-700) 0%, var(--color-primary-500) 50%, #3d85d8 100%);
+
+  --gradient-gold: linear-gradient(135deg, #f5a623 0%, var(--color-secondary-700) 50%, #ffc654 100%);
+  --gradient-gold-shine: linear-gradient(135deg, #f5a623 0%, var(--color-secondary-700) 30%, #ffe59d 60%, var(--color-secondary-700) 100%);
+
+  --gradient-card: linear-gradient(145deg, rgba(255, 255, 255, 1) 0%, rgba(247, 250, 252, 1) 100%);
+  --gradient-subtle: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, rgba(31, 78, 140, 0.02) 100%);
+
+  /* Mesh Gradients for Background */
+  --gradient-mesh-bg:
+    radial-gradient(at 0% 0%, rgba(31, 78, 140, 0.03) 0, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(249, 178, 51, 0.03) 0, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(31, 78, 140, 0.02) 0, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(249, 178, 51, 0.02) 0, transparent 50%);
 
   /* ========================================
      BORDER RADIUS
@@ -113,9 +148,21 @@
   /* ========================================
      TRANSITIONS & ANIMATIONS
      ======================================== */
-  --transition-fast: 150ms ease-in-out;
-  --transition-base: 250ms ease-in-out;
-  --transition-slow: 350ms ease-in-out;
+
+  /* 🎨 CUSTOMIZE ANIMATION SPEEDS HERE!
+     Change these values to speed up or slow down ALL site animations.
+     Examples:
+     - Fast animations: 150ms, 250ms, 350ms
+     - Medium animations (current): 300ms, 500ms, 700ms
+     - Slow animations: 500ms, 800ms, 1200ms
+  */
+  --transition-fast: 300ms ease-in-out;    /* Quick interactions (hover, focus) */
+  --transition-base: 500ms ease-in-out;    /* Standard animations (cards, buttons) */
+  --transition-slow: 700ms ease-in-out;    /* Dramatic effects (modals, page transitions) */
+
+  /* Specialized animation curves */
+  --transition-bounce: 500ms cubic-bezier(0.68, -0.55, 0.265, 1.55);  /* Bouncy effect */
+  --transition-smooth: 500ms cubic-bezier(0.4, 0, 0.2, 1);  /* Material design smooth */
 
   /* ========================================
      LAYOUT DIMENSIONS
