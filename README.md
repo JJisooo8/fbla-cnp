@@ -4,7 +4,7 @@
 
 Built for FBLA's Competitive Event: Byte-Sized Business Boost
 
-🆓 **Powered by OpenStreetMap!** LocalLink displays real businesses from OpenStreetMap - completely FREE with no API keys required!
+🗺️ **Powered by OpenStreetMap + Yelp!** LocalLink displays real businesses from OpenStreetMap with optional Yelp enrichment for websites, hours, and photos.
 
 ---
 
@@ -12,19 +12,19 @@ Built for FBLA's Competitive Event: Byte-Sized Business Boost
 
 ### Core Functionality
 - **Browse Real Businesses**: Powered by OpenStreetMap - real restaurants, stores, and services in Cumming, GA
-- **15-Mile Coverage**: Discover businesses within a 15-mile radius of Cumming, Georgia
-- **Live Business Data**: Real addresses, phone numbers, hours, and websites from OpenStreetMap
+- **10-Mile Coverage**: Discover businesses within a 10-mile radius of Cumming, Georgia
+- **Live Business Data**: Real addresses, phone numbers, hours, and websites (OSM with optional Yelp enrichment)
 - **Smart Search**: Search by name, description, tags, or category
 - **Advanced Filters**: Filter by category, minimum rating, and sort by rating/reviews/name
 - **Business Details**: View comprehensive information including address, hours, contact, and website
 - **Favorites System**: Save and bookmark favorite businesses (persisted in browser)
-- **Reviews & Ratings**: Submit reviews with spam protection
-- **Category-Based Images**: Smart image selection based on business type
+- **Reviews & Ratings**: Submit reviews with spam protection (only user-submitted reviews are stored)
+- **Business Photos**: Uses Yelp images when available; optional Bing image search fills gaps
 
 ### Intelligent Features
 - **Personalized Recommendations**: AI-powered suggestions based on favorite businesses and categories
-- **Trending Businesses**: Smart algorithm combining ratings and reviews to surface popular businesses
-- **Analytics Dashboard**: Real-time stats showing total businesses, average rating, and review counts
+- **Trending Businesses**: Smart algorithm combining local ratings and reviews to surface popular businesses
+- **Analytics Dashboard**: Real-time stats showing total businesses and local review totals
 - **Smart Filtering**: Efficient filtering and search across all business attributes
 
 ### Security & Validation
@@ -37,10 +37,10 @@ Built for FBLA's Competitive Event: Byte-Sized Business Boost
 ## 🏗️ Technical Architecture
 
 ### Backend (Node.js + Express)
-- **OpenStreetMap Integration**: Fetches real business data via Overpass API (FREE!)
+- **OpenStreetMap + Yelp Integration**: Fetches real business data via Overpass API with optional Yelp enrichment
 - **Smart Caching**: 1-hour cache to minimize API load and improve performance
 - **RESTful API** with modular endpoint structure
-- **Location-Based Search**: Searches within 15-mile radius of Cumming, GA
+- **Location-Based Search**: Searches within 10-mile radius of Cumming, GA
 - **Smart Algorithms**: Recommendation engine, trending calculator, search scoring
 - **Anti-Spam System**: UUID-based verification challenges with expiration
 - **Data Transformation**: Converts OSM data to user-friendly format
@@ -58,7 +58,7 @@ Built for FBLA's Competitive Event: Byte-Sized Business Boost
 - **Responsive Design**: Clean, accessible UI optimized for presentations
 - **Local Storage**: Persistent favorites across sessions
 - **Real-time Updates**: Dynamic filtering and instant search results
-- **Category-Based Images**: Curated Unsplash images based on business type
+- **Business Photos**: Uses Yelp images, with optional Bing image search for missing photos
 
 ---
 
@@ -98,7 +98,7 @@ GET  /api/verification/challenge      - Get anti-spam challenge
 ### Prerequisites
 - Node.js (v16 or higher)
 - npm or yarn
-- **No API keys required!** OpenStreetMap is completely free
+- **Optional API keys:** Yelp for enrichment and Bing Image Search for photos
 
 ### Installation
 
@@ -132,8 +132,9 @@ GET  /api/verification/challenge      - Get anti-spam challenge
    ```
    🗺️  Data Source: OpenStreetMap (FREE!)
    📍 Location: Cumming, Georgia
-   📏 Search radius: 15 miles (24140 meters)
-   🆓 No API key required!
+   📏 Search radius: 10 miles (16093 meters)
+   🧭 Yelp enrichment: enabled/disabled
+   🖼️  Bing image search: enabled/disabled
    ```
 
 2. **Start the Frontend** (Terminal 2)
@@ -154,13 +155,13 @@ GET  /api/verification/challenge      - Get anti-spam challenge
 1. View trending businesses and analytics on the homepage
 2. Use the search bar to find specific businesses
 3. Apply filters: category, minimum rating
-4. Sort results by rating, review count, or name
+4. Sort results by rating, review count, or name (local reviews only)
 5. Click any business card to view full details
 
 ### Viewing Business Details
 1. Click "View Details" or the business name/image
 2. See comprehensive info: address, phone, hours, website
-3. View current rating and review count
+3. View current rating and review count (local only)
 4. Read customer reviews
 5. Submit your own review
 
@@ -189,7 +190,7 @@ GET  /api/verification/challenge      - Get anti-spam challenge
 
 ### How It Works
 1. **Overpass API**: We query OpenStreetMap data via the Overpass API
-2. **15-Mile Radius**: Searches businesses around Cumming, GA (34.2073, -84.1402)
+2. **10-Mile Radius**: Searches businesses around Cumming, GA (34.2073, -84.1402)
 3. **Business Types**: Restaurants, cafes, shops, services, and more
 4. **Data Transformation**: Converts OSM tags to user-friendly business profiles
 5. **Caching**: Results cached for 1 hour for better performance
@@ -199,14 +200,29 @@ GET  /api/verification/challenge      - Get anti-spam challenge
 - **Retail**: shops, supermarkets, convenience stores, boutiques, bookstores
 - **Services**: pharmacies, salons, gyms, banks, auto repair, veterinarians
 
+### Optional Yelp + Bing Setup
+LocalLink can optionally enrich data with Yelp (websites/hours/photos) and fill missing photos with Bing Image Search.
+
+Add these environment variables before starting the server:
+
+```
+export YELP_API_KEY="your-yelp-api-key"
+export BING_IMAGE_SEARCH_KEY="your-bing-search-key"
+export BING_IMAGE_SEARCH_ENDPOINT="https://api.bing.microsoft.com/v7.0/images/search"
+```
+
+Notes:
+- `BING_IMAGE_SEARCH_ENDPOINT` is optional; the default shown above is used if omitted.
+- If you do not set these variables, LocalLink still works using OpenStreetMap data only.
+
 ---
 
 ## 🖼️ Images & Photos
 
 Since OpenStreetMap doesn't include photos, LocalLink uses:
-- **Curated Unsplash Images**: High-quality, category-appropriate images
-- **Smart Selection**: Images chosen based on business type (e.g., coffee shops get cafe images)
-- **Consistent Branding**: Professional look across all business cards
+- **Yelp Photos (optional)**: Uses Yelp images when an API key is provided
+- **Bing Image Search (optional)**: Fills in missing photos with Bing Image Search
+- **Curated Fallbacks**: Category-appropriate images when no external photo is available
 
 ---
 
@@ -225,15 +241,13 @@ Since OpenStreetMap doesn't include photos, LocalLink uses:
 ```javascript
 trendScore = rating × log₁₀(reviewCount + 1) × 10
 ```
-- Balances rating quality with popularity
-- Surfaces businesses with both high ratings AND many reviews
+- Uses only locally submitted ratings and reviews
 - Top 3 trending businesses displayed
 
 ### Analytics Dashboard
 Real-time statistics:
 - Total businesses in Cumming area
-- Average rating across all businesses
-- Total review count
+- Total local review count
 - Breakdown by category (Food, Retail, Services)
 
 ---
