@@ -1023,6 +1023,12 @@ app.get("/api/businesses/:id", async (req, res) => {
       business.image = getCategoryImage(business.category, {});
     }
 
+    // Always get fresh reviews for the detail view
+    const localReviewSummary = getLocalReviewSummary(businessId);
+    business.reviews = localReviewSummary.reviews;
+    business.rating = localReviewSummary.rating;
+    business.reviewCount = localReviewSummary.reviewCount;
+
     res.json(business);
   } catch (error) {
     console.error('Error in /api/businesses/:id:', error);
