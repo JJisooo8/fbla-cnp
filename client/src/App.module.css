@@ -114,6 +114,11 @@
   position: relative;
   overflow: hidden;
   box-shadow: var(--shadow-layered);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 .hero::before {
@@ -230,17 +235,20 @@
 }
 
 .scrollArrow {
-  font-size: 3rem;
+  font-size: 5rem;
   color: var(--color-secondary-700);
   cursor: pointer;
-  transition: all var(--transition-base);
+  transition: all 0.8s ease-in-out;
   font-weight: var(--font-bold);
   line-height: 1;
-  animation: bounce 2s infinite;
+  animation: fadeInOut 3s ease-in-out infinite;
+  margin-top: var(--space-8);
 }
 
 .scrollArrow:hover {
   color: var(--color-secondary-500);
+  transform: scale(1.2);
+  animation: fadeInOut 1.5s ease-in-out infinite;
 }
 
 /* ========================================
@@ -260,7 +268,7 @@
   border-radius: var(--radius-lg);
   text-align: center;
   box-shadow: var(--shadow-layered);
-  transition: all var(--transition-base);
+  transition: all 0.9s ease-in-out;
   cursor: default;
   border: 1px solid rgba(31, 78, 140, 0.08);
   position: relative;
@@ -277,12 +285,12 @@
   background: var(--gradient-gold);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform var(--transition-base);
+  transition: transform 0.9s ease-in-out;
 }
 
 .statCard:hover {
   box-shadow: var(--shadow-layered-hover);
-  transform: translateY(-4px);
+  transform: translateY(-4px) scale(1.02);
   border-color: var(--color-secondary-700);
 }
 
@@ -343,7 +351,7 @@
   border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
-  transition: all var(--transition-base);
+  transition: all 0.9s ease-in-out;
   box-shadow: var(--shadow-layered);
   border: 2px solid rgba(31, 78, 140, 0.08);
   position: relative;
@@ -360,12 +368,12 @@
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 0;
-  transition: opacity var(--transition-base);
+  transition: opacity 0.9s ease-in-out;
 }
 
 .trendingCard:hover {
   box-shadow: var(--shadow-layered-hover);
-  transform: translateY(-6px);
+  transform: translateY(-6px) scale(1.03);
 }
 
 .trendingCard:hover::after {
@@ -376,11 +384,11 @@
   width: 100%;
   height: 200px;
   object-fit: cover;
-  transition: transform var(--transition-base);
+  transition: transform 0.9s ease-in-out;
 }
 
 .trendingCard:hover .trendingImage {
-  transform: scale(1.08);
+  transform: scale(1.02);
 }
 
 .trendingContent {
@@ -412,7 +420,7 @@
   border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
-  transition: all var(--transition-base);
+  transition: all 0.9s ease-in-out;
   box-shadow: var(--shadow-layered);
   border: 2px solid rgba(31, 78, 140, 0.08);
   position: relative;
@@ -429,12 +437,12 @@
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 0;
-  transition: opacity var(--transition-base);
+  transition: opacity 0.9s ease-in-out;
 }
 
 .recommendCard:hover {
   box-shadow: var(--shadow-layered-hover);
-  transform: translateY(-6px);
+  transform: translateY(-6px) scale(1.03);
 }
 
 .recommendCard:hover::after {
@@ -445,11 +453,11 @@
   width: 100%;
   height: 150px;
   object-fit: cover;
-  transition: transform var(--transition-base);
+  transition: transform 0.9s ease-in-out;
 }
 
 .recommendCard:hover .cardImage {
-  transform: scale(1.08);
+  transform: scale(1.02);
 }
 
 .cardContent {
@@ -527,7 +535,7 @@
   border-radius: var(--radius-lg);
   padding: var(--space-6);
   box-shadow: var(--shadow-layered);
-  transition: all var(--transition-base);
+  transition: all 0.9s ease-in-out;
   border: 1px solid rgba(31, 78, 140, 0.08);
   position: relative;
   overflow: hidden;
@@ -543,12 +551,12 @@
   background: var(--gradient-primary);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform var(--transition-base);
+  transition: transform 0.9s ease-in-out;
 }
 
 .insightCard:hover {
   box-shadow: var(--shadow-layered-hover);
-  transform: translateY(-4px);
+  transform: translateY(-4px) scale(1.02);
   border-color: var(--color-primary-500);
 }
 
@@ -691,9 +699,10 @@
   border-radius: var(--radius-lg);
   overflow: hidden;
   box-shadow: var(--shadow-layered);
-  transition: all var(--transition-base);
+  transition: all 0.9s ease-in-out;
   border: 2px solid rgba(31, 78, 140, 0.08);
   position: relative;
+  cursor: pointer;
 }
 
 .businessCard::after {
@@ -707,12 +716,12 @@
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   opacity: 0;
-  transition: opacity var(--transition-base);
+  transition: opacity 0.9s ease-in-out;
 }
 
 .businessCard:hover {
   box-shadow: var(--shadow-layered-hover);
-  transform: translateY(-6px);
+  transform: translateY(-6px) scale(1.03);
 }
 
 .businessCard:hover::after {
@@ -723,12 +732,11 @@
   width: 100%;
   height: 200px;
   object-fit: cover;
-  cursor: pointer;
-  transition: transform var(--transition-base);
+  transition: transform 0.9s ease-in-out;
 }
 
 .businessCard:hover .businessImage {
-  transform: scale(1.08);
+  transform: scale(1.02);
 }
 
 .businessContent {
@@ -747,12 +755,7 @@
   font-weight: var(--font-semibold);
   margin: 0;
   color: var(--color-gray-700);
-  cursor: pointer;
-  transition: color var(--transition-fast);
-}
-
-.businessName:hover {
-  color: var(--color-primary-700);
+  transition: color 0.9s ease-in-out;
 }
 
 .favoriteBtn {

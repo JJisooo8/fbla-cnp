@@ -82,9 +82,9 @@ function mapOSMTypeToCategory(tags) {
   }
 
   // Retail category
-  const retailShops = ['supermarket', 'convenience', 'department_store', 'general', 'mall', 'clothes', 'shoes', 'jewelry', 'books', 'gift', 'furniture', 'electronics', 'mobile_phone', 'computer', 'toys', 'sports', 'bicycle', 'car', 'florist', 'garden_centre', 'pet', 'hardware', 'art'];
+  const retailShops = ['supermarket', 'convenience', 'department_store', 'general', 'mall', 'clothes', 'shoes', 'jewelry', 'books', 'gift', 'furniture', 'electronics', 'mobile_phone', 'computer', 'toys', 'sports', 'bicycle', 'car', 'florist', 'garden_centre', 'pet', 'hardware', 'art', 'variety_store', 'cosmetics', 'doityourself', 'stationery'];
 
-  if (retailShops.includes(shop) || shop) {
+  if (retailShops.includes(shop)) {
     return 'Retail';
   }
 
