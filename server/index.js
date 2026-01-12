@@ -46,7 +46,7 @@ function mapOSMTypeToCategory(tags) {
   }
 
   // Services category
-  const serviceAmenities = ['pharmacy', 'clinic', 'dentist', 'doctors', 'hospital', 'veterinary', 'bank', 'post_office', 'fuel', 'charging_station', 'car_wash', 'car_rental', 'bicycle_rental', 'parking'];
+  const serviceAmenities = ['pharmacy', 'clinic', 'dentist', 'doctors', 'hospital', 'veterinary', 'bank', 'post_office', 'fuel', 'charging_station', 'car_wash', 'car_rental', 'bicycle_rental'];
   const serviceCraft = ['carpenter', 'electrician', 'gardener', 'hvac', 'painter', 'plumber', 'shoemaker', 'tailor'];
   const serviceShops = ['hairdresser', 'beauty', 'laundry', 'dry_cleaning', 'travel_agency', 'estate_agent'];
 
@@ -138,6 +138,113 @@ function generateMockReviewCount() {
   return Math.floor(Math.random() * 200) + 10; // Random between 10 and 210
 }
 
+// Detect if a business is a major chain/franchise
+function isChainBusiness(name, tags) {
+  if (!name) return false;
+
+  const nameLower = name.toLowerCase();
+
+  // Major national/international chains to filter
+  const chainKeywords = [
+    'walmart', 'target', 'costco', 'publix', 'kroger', 'whole foods',
+    'cvs', 'walgreens', 'rite aid', 'dollar general', 'dollar tree',
+    'mcdonald', 'burger king', 'wendy', 'taco bell', 'kfc', 'subway',
+    'starbucks', 'dunkin', 'chick-fil-a', 'chipotle', 'panera',
+    'home depot', 'lowe', 'best buy', 'petsmart', 'petco',
+    'tj maxx', 'marshalls', 'ross', 'old navy', 'gap',
+    'shell', 'chevron', 'exxon', 'bp', 'mobil', 'marathon', 'circle k',
+    'bank of america', 'wells fargo', 'chase', 'citibank',
+    'at&t', 'verizon', 't-mobile', 'sprint',
+    '7-eleven', 'circle k', 'speedway', 'wawa'
+  ];
+
+  // Check if name contains any chain keywords
+  for (const keyword of chainKeywords) {
+    if (nameLower.includes(keyword)) {
+      return true;
+    }
+  }
+
+  // Check for chain indicators in tags
+  if (tags.brand && chainKeywords.some(k => tags.brand.toLowerCase().includes(k))) {
+    return true;
+  }
+
+  return false;
+}
+
+// Calculate relevancy score for a business
+// Higher scores = more relevant (local, family-owned, startups)
+function calculateRelevancyScore(name, tags, reviewCount) {
+  let score = 50; // Base score
+
+  // MAJOR PENALTY: Chain businesses
+  if (isChainBusiness(name, tags)) {
+    score -= 50; // Penalty for chains (but not complete exclusion)
+  }
+
+  // BONUS: Craft businesses (likely family-owned)
+  if (tags.craft) {
+    score += 40; // Carpenters, electricians, plumbers are usually local
+  }
+
+  // BONUS: Independent indicators
+  if (tags['brand:wikidata'] === undefined && tags.brand === undefined) {
+    score += 20; // No brand tag suggests independent
+  }
+
+  // BONUS: Smaller operations (likely local)
+  if (reviewCount < 50) {
+    score += 15; // Newer or smaller businesses
+  } else if (reviewCount < 100) {
+    score += 10;
+  } else if (reviewCount > 200) {
+    score -= 5; // Very popular might indicate chain
+  }
+
+  // BONUS: Family/local keywords in name
+  const nameLower = (name || '').toLowerCase();
+  const localKeywords = ['family', 'local', 'hometown', 'mom', 'pop', '& son', '& daughter', 'brothers', 'sisters'];
+  if (localKeywords.some(k => nameLower.includes(k))) {
+    score += 30;
+  }
+
+  // BONUS: Personal names in business (Joe's, Maria's, Smith's)
+  if (nameLower.match(/\w+'s\s/) || nameLower.match(/^[A-Z][a-z]+'s/)) {
+    score += 25;
+  }
+
+  // BONUS: Specific local business types
+  const shopType = tags.shop || '';
+  const amenityType = tags.amenity || '';
+
+  // Local favorites
+  if (['deli', 'butcher', 'bakery', 'farm', 'cheese', 'chocolate', 'confectionery', 'coffee', 'tea'].includes(shopType)) {
+    score += 15;
+  }
+
+  if (['cafe', 'restaurant'].includes(amenityType) && !isChainBusiness(name, tags)) {
+    score += 15;
+  }
+
+  // BONUS: Has website (shows professionalism for small business)
+  if (tags.website || tags['contact:website']) {
+    score += 10;
+  }
+
+  // PENALTY: Parking lots, ATMs, vending machines (not real businesses)
+  if (amenityType === 'parking' || amenityType === 'atm' || amenityType === 'vending_machine') {
+    score -= 200; // Essentially exclude these
+  }
+
+  // PENALTY: Utilities and infrastructure
+  if (amenityType === 'fuel' && !tags.shop) {
+    score -= 10; // Gas stations are less interesting unless they have a shop
+  }
+
+  return score;
+}
+
 // Transform OSM data to our business format
 function transformOSMToBusiness(osmElement) {
   const tags = osmElement.tags || {};
@@ -176,12 +283,15 @@ function transformOSMToBusiness(osmElement) {
   if (tags.takeaway === 'yes') businessTags.push('Takeout');
   if (tags.delivery === 'yes') businessTags.push('Delivery');
 
+  const reviewCount = generateMockReviewCount();
+  const rating = parseFloat(generateMockRating());
+
   const business = {
     id,
     name,
     category,
-    rating: parseFloat(generateMockRating()),
-    reviewCount: generateMockReviewCount(),
+    rating,
+    reviewCount,
     description,
     address,
     phone: tags.phone || tags['contact:phone'] || 'Phone not available',
@@ -195,7 +305,9 @@ function transformOSMToBusiness(osmElement) {
     osmId: osmElement.id,
     lat: osmElement.lat || osmElement.center?.lat,
     lon: osmElement.lon || osmElement.center?.lon,
-    reviews: []
+    reviews: [],
+    relevancyScore: calculateRelevancyScore(name, tags, reviewCount),
+    isChain: isChainBusiness(name, tags)
   };
 
   // Add local reviews if any
@@ -216,12 +328,12 @@ async function fetchOSMBusinesses(lat = CUMMING_GA_LAT, lon = CUMMING_GA_LON, ra
 
   try {
     // Overpass QL query to get businesses
-    // We'll query for amenities and shops within the radius
+    // Exclude parking lots, ATMs, and other non-businesses
     const query = `
       [out:json][timeout:25];
       (
-        node["amenity"](around:${radius},${lat},${lon});
-        way["amenity"](around:${radius},${lat},${lon});
+        node["amenity"]["amenity"!="parking"]["amenity"!="atm"]["amenity"!="vending_machine"]["amenity"!="bench"]["amenity"!="waste_basket"](around:${radius},${lat},${lon});
+        way["amenity"]["amenity"!="parking"]["amenity"!="atm"]["amenity"!="vending_machine"]["amenity"!="bench"]["amenity"!="waste_basket"](around:${radius},${lat},${lon});
         node["shop"](around:${radius},${lat},${lon});
         way["shop"](around:${radius},${lat},${lon});
         node["craft"](around:${radius},${lat},${lon});
@@ -248,10 +360,21 @@ async function fetchOSMBusinesses(lat = CUMMING_GA_LAT, lon = CUMMING_GA_LON, ra
     const businesses = elements
       .filter(el => el.tags && (el.tags.name || el.tags.amenity || el.tags.shop))
       .map(el => transformOSMToBusiness(el))
-      .filter(b => b.category !== 'Other'); // Filter out uncategorized
+      .filter(b => b.category !== 'Other') // Filter out uncategorized
+      .filter(b => b.relevancyScore > -150); // Filter out only non-businesses (parking, ATMs, etc.)
 
-    // Limit to reasonable number
-    const limitedBusinesses = businesses.slice(0, 100);
+    // Sort by relevancy score (highest first) to prioritize local/family-owned
+    businesses.sort((a, b) => b.relevancyScore - a.relevancyScore);
+
+    // Increase limit to 500 to include some chains for searchability
+    const limitedBusinesses = businesses.slice(0, 500);
+
+    const chainCount = limitedBusinesses.filter(b => b.isChain).length;
+    const localCount = limitedBusinesses.filter(b => !b.isChain).length;
+
+    console.log(`📊 Filtered to ${limitedBusinesses.length} relevant businesses`);
+    console.log(`🎯 Top business: ${limitedBusinesses[0]?.name} (score: ${limitedBusinesses[0]?.relevancyScore})`);
+    console.log(`🏪 ${localCount} local businesses, ${chainCount} chains`);
 
     cache.set(cacheKey, limitedBusinesses);
     return limitedBusinesses;

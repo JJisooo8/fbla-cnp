@@ -100,6 +100,36 @@ function App() {
     );
   };
 
+  // Deduplicate chain businesses for front page display
+  // Only show one instance of each chain unless user is searching
+  const deduplicateChains = (businesses) => {
+    if (searchTerm.trim()) {
+      // If user is searching, show all results including chains
+      return businesses;
+    }
+
+    const seen = new Set();
+    const deduped = [];
+
+    for (const biz of businesses) {
+      if (biz.isChain) {
+        // For chains, use the base name (e.g., "Publix" instead of "Publix Super Market #123")
+        const baseName = biz.name.split(/[#\d]/)[0].trim().toLowerCase();
+
+        if (!seen.has(baseName)) {
+          seen.add(baseName);
+          deduped.push(biz);
+        }
+        // Skip duplicate chains
+      } else {
+        // Always show local/independent businesses
+        deduped.push(biz);
+      }
+    }
+
+    return deduped;
+  };
+
   const viewBusiness = (business) => {
     setSelectedBusiness(business);
     setView("business");
@@ -217,7 +247,7 @@ function App() {
             <div style={styles.section}>
               <h3 style={styles.sectionTitle}>🔥 Trending Now</h3>
               <div style={styles.trendingGrid}>
-                {trending.map(biz => (
+                {trending.filter(biz => !biz.isChain).slice(0, 3).map(biz => (
                   <div
                     key={biz.id}
                     style={styles.trendingCard}
@@ -317,7 +347,7 @@ function App() {
             {filteredBusinesses.length === 0 ? (
               <div style={styles.noResults}>No businesses found. Try adjusting your filters.</div>
             ) : (
-              filteredBusinesses.map(biz => (
+              deduplicateChains(filteredBusinesses).map(biz => (
                 <div key={biz.id} style={styles.businessCard}>
                   <img
                     src={biz.image}
