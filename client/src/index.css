@@ -78,6 +78,15 @@ body {
   }
 }
 
+@keyframes fadeInOut {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 /* Hover effects for buttons (reduced intensity for performance) */
 button {
   transition: all var(--transition-base);

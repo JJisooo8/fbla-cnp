@@ -258,13 +258,6 @@ function App() {
               Connecting you with the heart of Cumming, Georgia's business community.
             </p>
             <div className={styles.heroActions}>
-              <button
-                className={styles.heroSecondary}
-                onClick={() => setView("favorites")}
-                aria-label="View your favorite businesses"
-              >
-                View Favorites
-              </button>
               <div
                 className={styles.scrollArrow}
                 onClick={() => {
@@ -529,29 +522,31 @@ function App() {
               </div>
             ) : (
               deduplicateChains(filteredBusinesses).map(biz => (
-                <article key={biz.id} className={styles.businessCard}>
+                <article
+                  key={biz.id}
+                  className={styles.businessCard}
+                  onClick={() => viewBusiness(biz)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
+                >
                   <img
                     src={biz.image}
                     alt={`${biz.name} storefront`}
                     className={styles.businessImage}
-                    onClick={() => viewBusiness(biz)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
                   />
                   <div className={styles.businessContent}>
                     <div className={styles.businessHeader}>
                       <h3
                         className={styles.businessName}
-                        onClick={() => viewBusiness(biz)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
                       >
                         {biz.name}
                       </h3>
                       <button
-                        onClick={() => toggleFavorite(biz.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavorite(biz.id);
+                        }}
                         className={styles.favoriteBtn}
                         aria-label={favorites.includes(biz.id) ? `Remove ${biz.name} from favorites` : `Add ${biz.name} to favorites`}
                         aria-pressed={favorites.includes(biz.id)}
@@ -582,7 +577,10 @@ function App() {
                     )}
 
                     <button
-                      onClick={() => viewBusiness(biz)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        viewBusiness(biz);
+                      }}
                       className={styles.viewButton}
                       aria-label={`View details for ${biz.name}`}
                     >
@@ -839,29 +837,31 @@ function App() {
               {businesses
                 .filter(b => favorites.includes(b.id))
                 .map(biz => (
-                  <article key={biz.id} className={styles.businessCard}>
+                  <article
+                    key={biz.id}
+                    className={styles.businessCard}
+                    onClick={() => viewBusiness(biz)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
+                  >
                     <img
                       src={biz.image}
                       alt={`${biz.name} storefront`}
                       className={styles.businessImage}
-                      onClick={() => viewBusiness(biz)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
                     />
                     <div className={styles.businessContent}>
                       <div className={styles.businessHeader}>
                         <h3
                           className={styles.businessName}
-                          onClick={() => viewBusiness(biz)}
-                          role="button"
-                          tabIndex={0}
-                          onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
                         >
                           {biz.name}
                         </h3>
                         <button
-                          onClick={() => toggleFavorite(biz.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavorite(biz.id);
+                          }}
                           className={styles.favoriteBtn}
                           aria-label={`Remove ${biz.name} from favorites`}
                           aria-pressed="true"
@@ -882,7 +882,10 @@ function App() {
                       <p className={styles.description}>{biz.description}</p>
 
                       <button
-                        onClick={() => viewBusiness(biz)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          viewBusiness(biz);
+                        }}
                         className={styles.viewButton}
                         aria-label={`View details for ${biz.name}`}
                       >
