@@ -1,3 +1,6 @@
+/* Import Design Tokens */
+@import './design-tokens.css';
+
 * {
   margin: 0;
   padding: 0;
@@ -6,12 +9,13 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f5f5f5;
+  background-color: var(--color-gray-100);
+  color: var(--color-gray-900);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
   scroll-behavior: smooth;
 }
 
@@ -74,59 +78,72 @@ body {
   }
 }
 
-/* Hover effects for buttons */
+/* Hover effects for buttons (reduced intensity for performance) */
 button {
-  transition: all 0.3s ease;
+  transition: all var(--transition-base);
+  cursor: pointer;
 }
 
 button:hover {
-  transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 6px 16px rgba(31, 78, 140, 0.15);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
 }
 
 button:active {
-  transform: translateY(0) scale(0.98);
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
 }
 
-/* Input focus effects */
-input:focus,
-textarea:focus,
-select:focus {
-  border-color: #1F4E8C !important;
-  box-shadow: 0 0 0 3px rgba(31, 78, 140, 0.1);
+/* Focus states for accessibility (WCAG 2.4.7) */
+*:focus {
   outline: none;
 }
 
-/* Card hover effects with grow animation */
+*:focus-visible {
+  outline: 3px solid var(--color-secondary-700);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Input focus effects */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  border-color: var(--color-primary-700) !important;
+  box-shadow: var(--shadow-focus);
+}
+
+/* Card hover effects (reduced intensity from 8px to 4px for performance) */
 [style*="businessCard"]:hover,
 [style*="trendingCard"]:hover,
 [style*="recommendCard"]:hover,
 [style*="statCard"]:hover,
 [style*="insightCard"]:hover {
-  transform: translateY(-8px) scale(1.02);
-  box-shadow: 0 12px 32px rgba(31, 78, 140, 0.15) !important;
-  border-color: #F9B233 !important;
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg) !important;
+  border-color: var(--color-secondary-700) !important;
 }
 
-/* Image hover effects */
+/* Image hover effects (reduced from 1.05 to 1.03) */
 img {
-  transition: transform 0.3s ease;
+  transition: transform var(--transition-base);
 }
 
 [style*="businessCard"]:hover img,
 [style*="trendingCard"]:hover img,
 [style*="recommendCard"]:hover img {
-  transform: scale(1.05);
+  transform: scale(1.03);
 }
 
 /* Link hover effects */
 a {
-  transition: all 0.3s ease;
+  transition: all var(--transition-base);
+  text-decoration: none;
 }
 
 a:hover {
-  color: #F9B233 !important;
-  transform: translateX(3px);
+  color: var(--color-secondary-900) !important;
+  text-decoration: underline;
 }
 
 /* Scrollbar styling */
@@ -135,26 +152,113 @@ a:hover {
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--color-gray-100);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #1F4E8C 0%, #2a6bb8 100%);
-  border-radius: 5px;
+  background: linear-gradient(180deg, var(--color-primary-700) 0%, var(--color-primary-500) 100%);
+  border-radius: var(--radius-sm);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #163a6d 0%, #1F4E8C 100%);
+  background: linear-gradient(180deg, var(--color-primary-900) 0%, var(--color-primary-700) 100%);
 }
 
-/* Parallax scroll effect for hero section */
-[style*="hero"] {
-  background-attachment: fixed;
-  background-size: cover;
-  background-position: center;
-}
-
-/* Smooth fade-in for sections */
+/* Smooth fade-in for sections (removed parallax for mobile performance) */
 [style*="section"] {
   animation: fadeIn 0.8s ease-out;
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Button Variants */
+.btn-primary {
+  background-color: var(--color-primary-700);
+  color: var(--color-white);
+  padding: var(--space-3) var(--space-6);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-500);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+.btn-secondary {
+  background-color: var(--color-gray-100);
+  color: var(--color-gray-700);
+  padding: var(--space-3) var(--space-6);
+  border: var(--border-width) solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  transition: all var(--transition-base);
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-white);
+  border-color: var(--color-primary-700);
+  transform: translateY(-2px);
+}
+
+.btn-accent {
+  background-color: var(--color-secondary-700);
+  color: var(--color-primary-900);
+  padding: var(--space-3) var(--space-6);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: var(--font-semibold);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-base);
+  cursor: pointer;
+}
+
+.btn-accent:hover {
+  background-color: var(--color-secondary-500);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
+}
+
+/* Card Base */
+.card {
+  background-color: var(--color-white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-6);
+  transition: all var(--transition-base);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-4px);
+}
+
+/* Skip Link (Accessibility) */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-primary-700);
+  color: var(--color-white);
+  padding: var(--space-2) var(--space-4);
+  text-decoration: none;
+  z-index: var(--z-modal);
+  border-radius: var(--radius-md);
+  font-weight: var(--font-semibold);
+}
+
+.skip-link:focus {
+  top: var(--space-4);
+  left: var(--space-4);
 }
