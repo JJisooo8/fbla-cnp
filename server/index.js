@@ -6,6 +6,10 @@ import NodeCache from "node-cache";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+
+// Load environment variables
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1213,14 +1217,24 @@ app.get("/api/analytics", async (req, res) => {
 
     const dealsAvailable = businesses.filter(b => b.deal).length;
 
+    // Count total user reviews
+    let totalUserReviews = 0;
+    for (const reviews of localReviews.values()) {
+      totalUserReviews += reviews.length;
+    }
+
+    // Count businesses with 4+ star ratings
+    const topRatedCount = businesses.filter(b => b.rating >= 4).length;
+
     res.json({
       totalBusinesses,
-      cachedBusinesses: totalBusinesses,
       avgRating: Math.round(avgRating * 10) / 10,
       totalByCategory,
       byCategory,
       topRated,
-      dealsAvailable
+      dealsAvailable,
+      totalUserReviews,
+      topRatedCount
     });
   } catch (error) {
     console.error('Error fetching analytics:', error);
