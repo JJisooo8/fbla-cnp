@@ -1,9 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 
 const API_URL = "http://localhost:3001/api";
 
+// FBLA Brand Colors
+const COLORS = {
+  navyBlue: "#1e3a8a",
+  darkBlue: "#1e40af",
+  gold: "#f59e0b",
+  lightGold: "#fbbf24",
+  white: "#ffffff",
+  lightGray: "#f3f4f6",
+  darkGray: "#6b7280",
+  textDark: "#1f2937"
+};
+
 function App() {
-  const [view, setView] = useState("home"); // home, business, favorites
+  const [view, setView] = useState("home");
   const [businesses, setBusinesses] = useState([]);
   const [filteredBusinesses, setFilteredBusinesses] = useState([]);
   const [selectedBusiness, setSelectedBusiness] = useState(null);
@@ -13,15 +25,14 @@ function App() {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
-  
-  // Filters
+  const [scrollY, setScrollY] = useState(0);
+
   const [category, setCategory] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
   const [minRating, setMinRating] = useState("");
   const [showDealsOnly, setShowDealsOnly] = useState(false);
   const [sortBy, setSortBy] = useState("local");
 
-  // Review form
   const [reviewForm, setReviewForm] = useState({
     author: "",
     rating: 5,
@@ -32,6 +43,15 @@ function App() {
   const [verificationChallenge, setVerificationChallenge] = useState(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
 
+  const contentRef = useRef(null);
+
+  // Parallax scroll effect
+  useEffect(() => {
+    const handleScroll = () => setScrollY(window.scrollY);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   // Load favorites from localStorage
   useEffect(() => {
     const saved = localStorage.getItem("locallink_favorites");
@@ -40,12 +60,10 @@ function App() {
     }
   }, []);
 
-  // Save favorites to localStorage
   useEffect(() => {
     localStorage.setItem("locallink_favorites", JSON.stringify(favorites));
   }, [favorites]);
 
-  // Fetch initial data
   useEffect(() => {
     Promise.all([
       fetch(`${API_URL}/businesses`).then(r => r.json()),
@@ -66,7 +84,6 @@ function App() {
       });
   }, []);
 
-  // Apply filters and search
   useEffect(() => {
     const params = new URLSearchParams();
     if (category !== "All") params.append("category", category);
@@ -82,7 +99,6 @@ function App() {
       .catch(err => console.error(err));
   }, [category, searchTerm, minRating, showDealsOnly, sortBy]);
 
-  // Fetch recommendations when favorites change
   useEffect(() => {
     if (favorites.length > 0) {
       fetch(`${API_URL}/recommendations`, {
@@ -102,11 +118,8 @@ function App() {
     );
   };
 
-  // Deduplicate chain businesses for front page display
-  // Only show one instance of each chain unless user is searching
   const deduplicateChains = (businesses) => {
     if (searchTerm.trim()) {
-      // If user is searching, show all results including chains
       return businesses;
     }
 
@@ -115,16 +128,12 @@ function App() {
 
     for (const biz of businesses) {
       if (biz.isChain) {
-        // For chains, use the base name (e.g., "Publix" instead of "Publix Super Market #123")
         const baseName = biz.name.split(/[#\d]/)[0].trim().toLowerCase();
-
         if (!seen.has(baseName)) {
           seen.add(baseName);
           deduped.push(biz);
         }
-        // Skip duplicate chains
       } else {
-        // Always show local/independent businesses
         deduped.push(biz);
       }
     }
@@ -165,9 +174,9 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(reviewForm)
       });
-      
+
       const data = await res.json();
-      
+
       if (!res.ok) {
         alert(data.error || "Failed to submit review");
         return;
@@ -176,8 +185,7 @@ function App() {
       alert("Review submitted successfully!");
       setShowReviewForm(false);
       setReviewForm({ author: "", rating: 5, comment: "", verificationId: "", verificationAnswer: "" });
-      
-      // Refresh business data
+
       const updatedBiz = await fetch(`${API_URL}/businesses/${selectedBusiness.id}`).then(r => r.json());
       setSelectedBusiness(updatedBiz);
     } catch (err) {
@@ -185,10 +193,17 @@ function App() {
     }
   };
 
+  const scrollToContent = () => {
+    contentRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
   if (loading) {
     return (
       <div style={styles.container}>
-        <div style={styles.loading}>Loading LocalLink...</div>
+        <div style={styles.loading}>
+          <div style={styles.spinner}></div>
+          <p>Loading LocalLink...</p>
+        </div>
       </div>
     );
   }
@@ -209,7 +224,8 @@ function App() {
       <header style={styles.header}>
         <div style={styles.headerContent}>
           <h1 style={styles.logo} onClick={() => setView("home")}>
-            🏪 LocalLink
+            <span style={styles.logoIcon}>◆</span>
+            <span>LocalLink</span>
           </h1>
           <nav style={styles.nav}>
             <button
@@ -222,7 +238,8 @@ function App() {
               style={view === "favorites" ? styles.navButtonActive : styles.navButton}
               onClick={() => setView("favorites")}
             >
-              Favorites ({favorites.length})
+              Favorites
+              <span style={styles.badge}>{favorites.length}</span>
             </button>
           </nav>
         </div>
@@ -231,305 +248,327 @@ function App() {
       {/* Home View */}
       {view === "home" && (
         <div style={styles.content}>
-          {/* Hero Section */}
-          <div style={styles.hero}>
-            <h2 style={styles.heroTitle}>Discover & Support Local Businesses in Cumming, GA</h2>
-            <p style={styles.heroSubtitle}>
-              Explore the best businesses in Cumming, Georgia.
-            </p>
-            <div style={styles.heroActions}>
-              <button style={styles.heroPrimary} onClick={() => setView("home")}>
-                Start Exploring
-              </button>
-              <button
-                style={styles.heroSecondary}
-                onClick={() => setView("favorites")}
-              >
-                View Favorites
-              </button>
+          {/* Hero Section with Parallax */}
+          <div style={{
+            ...styles.hero,
+            transform: `translateY(${scrollY * 0.5}px)`,
+          }}>
+            <div style={styles.heroOverlay}>
+              <h2 style={styles.heroTitle}>Discover & Support Local Businesses</h2>
+              <p style={styles.heroSubtitle}>
+                Connecting you with the best of Cumming, Georgia
+              </p>
+
+              {/* Scroll Down Arrow */}
+              <div style={styles.scrollDown} onClick={scrollToContent}>
+                <svg style={styles.scrollArrow} viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+                <span style={styles.scrollText}>Explore</span>
+              </div>
             </div>
           </div>
 
-          {/* Analytics Cards */}
-          {analytics && (
-            <div style={styles.statsGrid}>
-              <div style={styles.statCard}>
-                <div style={styles.statNumber}>{totalBusinessesCount}</div>
-                <div style={styles.statLabel}>Local Businesses</div>
+          <div ref={contentRef}>
+            {/* Statistics Cards */}
+            {analytics && (
+              <div style={styles.statsGrid}>
+                <div style={styles.statCard}>
+                  <div style={styles.statIcon}>🏪</div>
+                  <div style={styles.statNumber}>{totalBusinessesCount}</div>
+                  <div style={styles.statLabel}>Local Businesses</div>
+                </div>
+                <div style={styles.statCard}>
+                  <div style={styles.statIcon}>⭐</div>
+                  <div style={styles.statNumber}>{analytics.totalUserReviews || 0}</div>
+                  <div style={styles.statLabel}>Community Reviews</div>
+                </div>
+                <div style={styles.statCard}>
+                  <div style={styles.statIcon}>🎁</div>
+                  <div style={styles.statNumber}>{analytics.dealsAvailable}</div>
+                  <div style={styles.statLabel}>Active Deals</div>
+                </div>
               </div>
-              <div style={styles.statCard}>
-                <div style={styles.statNumber}>{analytics.totalUserReviews || 0}</div>
-                <div style={styles.statLabel}>Community Reviews</div>
-              </div>
-              <div style={styles.statCard}>
-                <div style={styles.statNumber}>{analytics.dealsAvailable}</div>
-                <div style={styles.statLabel}>Active Deals</div>
-              </div>
-            </div>
-          )}
+            )}
 
-          {/* Trending Section */}
-          {trending.length > 0 && (
-            <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>🔥 Trending Now</h3>
-              <div style={styles.trendingGrid}>
-                {trending.filter(biz => !biz.isChain).slice(0, 3).map(biz => (
-                  <div
-                    key={biz.id}
-                    style={styles.trendingCard}
-                    onClick={() => viewBusiness(biz)}
-                  >
-                    <img src={biz.image} alt={biz.name} style={styles.trendingImage} />
-                    <div style={styles.trendingContent}>
-                      <h4 style={styles.trendingName}>{biz.name}</h4>
-                      {biz.rating > 0 ? (
-                        <div style={styles.rating}>⭐ {biz.rating.toFixed(1)}</div>
-                      ) : (
-                        <div style={styles.noRating}>No ratings yet</div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Local Gems */}
-          {localGems.length > 0 && (
-            <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>✨ Local Gems</h3>
-              <p style={styles.sectionSubtitle}>
-                Handpicked spots with strong local impact and standout ratings.
-              </p>
-              <div style={styles.recommendGrid}>
-                {localGems.map(biz => (
-                  <div
-                    key={biz.id}
-                    style={styles.recommendCard}
-                    onClick={() => viewBusiness(biz)}
-                  >
-                    <img src={biz.image} alt={biz.name} style={styles.cardImage} />
-                    <div style={styles.cardContent}>
-                      <div style={styles.cardHeader}>
-                        <h4 style={styles.cardTitle}>{biz.name}</h4>
-                        <span style={styles.localBadge}>Local Favorite</span>
+            {/* Trending Section */}
+            {trending.length > 0 && (
+              <div style={styles.section}>
+                <h3 style={styles.sectionTitle}>
+                  <span style={styles.titleAccent}></span>
+                  Trending Now
+                </h3>
+                <div style={styles.trendingGrid}>
+                  {trending.filter(biz => !biz.isChain).slice(0, 3).map(biz => (
+                    <div
+                      key={biz.id}
+                      style={styles.trendingCard}
+                      onClick={() => viewBusiness(biz)}
+                    >
+                      <img src={biz.image} alt={biz.name} style={styles.trendingImage} />
+                      <div style={styles.trendingContent}>
+                        <h4 style={styles.trendingName}>{biz.name}</h4>
+                        {biz.rating > 0 ? (
+                          <div style={styles.rating}>★ {biz.rating.toFixed(1)}</div>
+                        ) : (
+                          <div style={styles.noRating}>No ratings yet</div>
+                        )}
                       </div>
-                      {biz.rating > 0 ? (
-                        <div style={styles.cardRating}>⭐ {biz.rating.toFixed(1)}</div>
-                      ) : (
-                        <div style={styles.noRating}>No ratings yet</div>
-                      )}
-                      <p style={styles.cardCategory}>{biz.category}</p>
-                      {biz.deal && (
-                        <div style={styles.dealPill}>🎁 {biz.deal}</div>
-                      )}
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Recommendations */}
-          {recommendations.length > 0 && (
-            <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>💡 Recommended For You</h3>
-              <div style={styles.recommendGrid}>
-                {recommendations.map(biz => (
-                  <div
-                    key={biz.id}
-                    style={styles.recommendCard}
-                    onClick={() => viewBusiness(biz)}
-                  >
-                    <img src={biz.image} alt={biz.name} style={styles.cardImage} />
-                    <div style={styles.cardContent}>
-                      <h4 style={styles.cardTitle}>{biz.name}</h4>
-                      {biz.rating > 0 ? (
-                        <div style={styles.cardRating}>⭐ {biz.rating.toFixed(1)}</div>
-                      ) : (
-                        <div style={styles.noRating}>No ratings yet</div>
-                      )}
-                      <p style={styles.cardCategory}>{biz.category}</p>
+            {/* Local Gems */}
+            {localGems.length > 0 && (
+              <div style={styles.section}>
+                <h3 style={styles.sectionTitle}>
+                  <span style={styles.titleAccent}></span>
+                  Local Favorites
+                </h3>
+                <p style={styles.sectionSubtitle}>
+                  Handpicked spots with outstanding ratings and community impact
+                </p>
+                <div style={styles.recommendGrid}>
+                  {localGems.map(biz => (
+                    <div
+                      key={biz.id}
+                      style={styles.recommendCard}
+                      onClick={() => viewBusiness(biz)}
+                    >
+                      <img src={biz.image} alt={biz.name} style={styles.cardImage} />
+                      <div style={styles.cardContent}>
+                        <div style={styles.cardHeader}>
+                          <h4 style={styles.cardTitle}>{biz.name}</h4>
+                          <span style={styles.localBadge}>Local</span>
+                        </div>
+                        {biz.rating > 0 ? (
+                          <div style={styles.cardRating}>★ {biz.rating.toFixed(1)}</div>
+                        ) : (
+                          <div style={styles.noRating}>No ratings yet</div>
+                        )}
+                        <p style={styles.cardCategory}>{biz.category}</p>
+                        {biz.deal && (
+                          <div style={styles.dealPill}>{biz.deal}</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Community Insights */}
-          {analytics && (
-            <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>📊 Community Insights</h3>
-              <div style={styles.insightsGrid}>
-                <div style={styles.insightCard}>
-                  <h4 style={styles.insightTitle}>Top Categories</h4>
-                  <ul style={styles.insightList}>
-                    {Object.entries(categoryCounts)
-                      .sort((a, b) => b[1] - a[1])
-                      .slice(0, 3)
-                      .map(([cat, count]) => (
-                        <li key={cat} style={styles.insightItem}>
-                          <span>{cat}</span>
-                          <span style={styles.insightValue}>{count}</span>
+            {/* Recommendations */}
+            {recommendations.length > 0 && (
+              <div style={styles.section}>
+                <h3 style={styles.sectionTitle}>
+                  <span style={styles.titleAccent}></span>
+                  Recommended For You
+                </h3>
+                <div style={styles.recommendGrid}>
+                  {recommendations.map(biz => (
+                    <div
+                      key={biz.id}
+                      style={styles.recommendCard}
+                      onClick={() => viewBusiness(biz)}
+                    >
+                      <img src={biz.image} alt={biz.name} style={styles.cardImage} />
+                      <div style={styles.cardContent}>
+                        <h4 style={styles.cardTitle}>{biz.name}</h4>
+                        {biz.rating > 0 ? (
+                          <div style={styles.cardRating}>★ {biz.rating.toFixed(1)}</div>
+                        ) : (
+                          <div style={styles.noRating}>No ratings yet</div>
+                        )}
+                        <p style={styles.cardCategory}>{biz.category}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Community Insights */}
+            {analytics && (
+              <div style={styles.section}>
+                <h3 style={styles.sectionTitle}>
+                  <span style={styles.titleAccent}></span>
+                  Community Insights
+                </h3>
+                <div style={styles.insightsGrid}>
+                  <div style={styles.insightCard}>
+                    <h4 style={styles.insightTitle}>Popular Categories</h4>
+                    <ul style={styles.insightList}>
+                      {Object.entries(categoryCounts)
+                        .sort((a, b) => b[1] - a[1])
+                        .slice(0, 3)
+                        .map(([cat, count]) => (
+                          <li key={cat} style={styles.insightItem}>
+                            <span>{cat}</span>
+                            <span style={styles.insightValue}>{count}</span>
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                  <div style={styles.insightCard}>
+                    <h4 style={styles.insightTitle}>Top Rated</h4>
+                    <ul style={styles.insightList}>
+                      {topRated.map(item => (
+                        <li key={item.id} style={styles.insightItem}>
+                          <span>{item.name}</span>
+                          <span style={styles.insightValue}>★ {item.rating}</span>
                         </li>
                       ))}
-                  </ul>
-                </div>
-                <div style={styles.insightCard}>
-                  <h4 style={styles.insightTitle}>Top Rated</h4>
-                  <ul style={styles.insightList}>
-                    {topRated.map(item => (
-                      <li key={item.id} style={styles.insightItem}>
-                        <span>{item.name}</span>
-                        <span style={styles.insightValue}>⭐ {item.rating}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div style={styles.insightCard}>
-                  <h4 style={styles.insightTitle}>Quick Picks</h4>
-                  <p style={styles.insightBody}>
-                    Filter by category or deals to find the perfect local spot for today.
-                  </p>
-                  <div style={styles.insightTags}>
-                    {["Food", "Retail", "Services"].map(cat => (
-                      <button
-                        key={cat}
-                        onClick={() => {
-                          setCategory(cat);
-                          setView("home");
-                        }}
-                        style={styles.insightTag}
-                      >
-                        {cat}
-                      </button>
-                    ))}
+                    </ul>
+                  </div>
+                  <div style={styles.insightCard}>
+                    <h4 style={styles.insightTitle}>Quick Filters</h4>
+                    <p style={styles.insightBody}>
+                      Filter by category or deals to find the perfect spot
+                    </p>
+                    <div style={styles.insightTags}>
+                      {["Food", "Retail", "Services"].map(cat => (
+                        <button
+                          key={cat}
+                          onClick={() => {
+                            setCategory(cat);
+                            setView("home");
+                          }}
+                          style={styles.insightTag}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Filters */}
-          <div style={styles.filtersSection}>
-            <h3 style={styles.sectionTitle}>Browse All Businesses in Cumming, GA</h3>
-            <p style={styles.sectionSubtitle}>
-              Showing top {filteredBusinesses.length} results of {totalBusinessesCount} businesses.
-            </p>
+            {/* Filters */}
+            <div style={styles.filtersSection}>
+              <h3 style={styles.sectionTitle}>
+                <span style={styles.titleAccent}></span>
+                Browse All Businesses
+              </h3>
+              <p style={styles.sectionSubtitle}>
+                Showing {filteredBusinesses.length} of {totalBusinessesCount} businesses
+              </p>
 
-            <div style={styles.filters}>
-              <input
-                type="text"
-                placeholder="🔍 Search businesses, tags, or categories..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                style={styles.searchInput}
-              />
-              
-              <select
-                value={category}
-                onChange={e => setCategory(e.target.value)}
-                style={styles.select}
-              >
-                <option value="All">All</option>
-                <option value="Food">Food ({totalCategoryCounts.Food || 0})</option>
-                <option value="Retail">Retail ({totalCategoryCounts.Retail || 0})</option>
-                <option value="Services">Services ({totalCategoryCounts.Services || 0})</option>
-              </select>
-
-              <select
-                value={minRating}
-                onChange={e => setMinRating(e.target.value)}
-                style={styles.select}
-              >
-                <option value="">Any Rating</option>
-                <option value="4">4+ Stars</option>
-                <option value="4.5">4.5+ Stars</option>
-              </select>
-
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value)}
-                style={styles.select}
-              >
-                <option value="rating">Sort: Rating</option>
-                <option value="reviews">Sort: Most Reviews</option>
-                <option value="name">Sort: Name</option>
-                <option value="local">Sort: Local Favorites</option>
-              </select>
-
-              <label style={styles.checkbox}>
+              <div style={styles.filters}>
                 <input
-                  type="checkbox"
-                  checked={showDealsOnly}
-                  onChange={e => setShowDealsOnly(e.target.checked)}
+                  type="text"
+                  placeholder="Search businesses, tags, or categories..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  style={styles.searchInput}
                 />
-                <span style={styles.checkboxLabel}>Deals Only</span>
-              </label>
-            </div>
-          </div>
 
-          {/* Business List */}
-          <div style={styles.businessGrid}>
-            {filteredBusinesses.length === 0 ? (
-              <div style={styles.noResults}>No businesses found. Try adjusting your filters.</div>
-            ) : (
-              deduplicateChains(filteredBusinesses).map(biz => (
-                <div key={biz.id} style={styles.businessCard}>
-                  <img
-                    src={biz.image}
-                    alt={biz.name}
-                    style={styles.businessImage}
-                    onClick={() => viewBusiness(biz)}
+                <select
+                  value={category}
+                  onChange={e => setCategory(e.target.value)}
+                  style={styles.select}
+                >
+                  <option value="All">All Categories</option>
+                  <option value="Food">Food ({totalCategoryCounts.Food || 0})</option>
+                  <option value="Retail">Retail ({totalCategoryCounts.Retail || 0})</option>
+                  <option value="Services">Services ({totalCategoryCounts.Services || 0})</option>
+                </select>
+
+                <select
+                  value={minRating}
+                  onChange={e => setMinRating(e.target.value)}
+                  style={styles.select}
+                >
+                  <option value="">Any Rating</option>
+                  <option value="4">4+ Stars</option>
+                  <option value="4.5">4.5+ Stars</option>
+                </select>
+
+                <select
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value)}
+                  style={styles.select}
+                >
+                  <option value="rating">Sort: Rating</option>
+                  <option value="reviews">Sort: Most Reviews</option>
+                  <option value="name">Sort: Name</option>
+                  <option value="local">Sort: Local Favorites</option>
+                </select>
+
+                <label style={styles.checkbox}>
+                  <input
+                    type="checkbox"
+                    checked={showDealsOnly}
+                    onChange={e => setShowDealsOnly(e.target.checked)}
                   />
-                  <div style={styles.businessContent}>
-                    <div style={styles.businessHeader}>
-                      <h3
-                        style={styles.businessName}
-                        onClick={() => viewBusiness(biz)}
-                      >
-                        {biz.name}
-                      </h3>
+                  <span style={styles.checkboxLabel}>Deals Only</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Business List */}
+            <div style={styles.businessGrid}>
+              {filteredBusinesses.length === 0 ? (
+                <div style={styles.noResults}>No businesses found. Try adjusting your filters.</div>
+              ) : (
+                deduplicateChains(filteredBusinesses).map(biz => (
+                  <div key={biz.id} style={styles.businessCard}>
+                    <img
+                      src={biz.image}
+                      alt={biz.name}
+                      style={styles.businessImage}
+                      onClick={() => viewBusiness(biz)}
+                    />
+                    <div style={styles.businessContent}>
+                      <div style={styles.businessHeader}>
+                        <h3
+                          style={styles.businessName}
+                          onClick={() => viewBusiness(biz)}
+                        >
+                          {biz.name}
+                        </h3>
+                        <button
+                          onClick={() => toggleFavorite(biz.id)}
+                          style={styles.favoriteBtn}
+                        >
+                          {favorites.includes(biz.id) ? "❤" : "♡"}
+                        </button>
+                      </div>
+
+                      <div style={styles.businessMeta}>
+                        <span style={styles.category}>{biz.category}</span>
+                        {biz.rating > 0 ? (
+                          <span style={styles.rating}>★ {biz.rating.toFixed(1)}</span>
+                        ) : (
+                          <span style={styles.noRating}>No ratings yet</span>
+                        )}
+                        <span style={styles.reviews}>
+                          {biz.reviewCount > 0 ? `${biz.reviewCount} reviews` : "No reviews yet"}
+                        </span>
+                        {biz.deal && <span style={styles.dealBadge}>Deal</span>}
+                      </div>
+
+                      <p style={styles.description}>{biz.description}</p>
+
+                      {biz.deal && (
+                        <div style={styles.deal}>
+                          {biz.deal}
+                        </div>
+                      )}
+
                       <button
-                        onClick={() => toggleFavorite(biz.id)}
-                        style={styles.favoriteBtn}
+                        onClick={() => viewBusiness(biz)}
+                        style={styles.viewButton}
                       >
-                        {favorites.includes(biz.id) ? "❤️" : "🤍"}
+                        View Details →
                       </button>
                     </div>
-                    
-                    <div style={styles.businessMeta}>
-                      <span style={styles.category}>{biz.category}</span>
-                      {biz.rating > 0 ? (
-                        <span style={styles.rating}>⭐ {biz.rating.toFixed(1)}</span>
-                      ) : (
-                        <span style={styles.noRating}>No ratings yet</span>
-                      )}
-                      <span style={styles.reviews}>
-                        {biz.reviewCount > 0 ? `(${biz.reviewCount} reviews)` : "No reviews yet"}
-                      </span>
-                      {biz.deal && <span style={styles.dealBadge}>Deal</span>}
-                    </div>
-
-                    <p style={styles.description}>{biz.description}</p>
-
-                    {biz.deal && (
-                      <div style={styles.deal}>
-                        🎁 {biz.deal}
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => viewBusiness(biz)}
-                      style={styles.viewButton}
-                    >
-                      View Details →
-                    </button>
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -542,7 +581,10 @@ function App() {
           </button>
 
           {detailLoading && (
-            <div style={styles.detailLoading}>Loading business details...</div>
+            <div style={styles.detailLoading}>
+              <div style={styles.spinner}></div>
+              Loading details...
+            </div>
           )}
 
           <div style={styles.detailCard}>
@@ -551,7 +593,7 @@ function App() {
               alt={selectedBusiness.name}
               style={styles.detailImage}
             />
-            
+
             <div style={styles.detailContent}>
               <div style={styles.detailHeader}>
                 <div>
@@ -565,13 +607,13 @@ function App() {
                   onClick={() => toggleFavorite(selectedBusiness.id)}
                   style={styles.favoriteBtnLarge}
                 >
-                  {favorites.includes(selectedBusiness.id) ? "❤️" : "🤍"}
+                  {favorites.includes(selectedBusiness.id) ? "❤" : "♡"}
                 </button>
               </div>
 
               <div style={styles.ratingSection}>
                 {selectedBusiness.rating > 0 ? (
-                  <div style={styles.bigRating}>⭐ {selectedBusiness.rating.toFixed(1)}</div>
+                  <div style={styles.bigRating}>★ {selectedBusiness.rating.toFixed(1)}</div>
                 ) : (
                   <div style={styles.noRating}>No ratings yet</div>
                 )}
@@ -586,21 +628,21 @@ function App() {
 
               {selectedBusiness.deal && (
                 <div style={styles.dealLarge}>
-                  🎁 <strong>Special Offer:</strong> {selectedBusiness.deal}
+                  <strong>Special Offer:</strong> {selectedBusiness.deal}
                 </div>
               )}
 
               <div style={styles.infoGrid}>
                 <div style={styles.infoItem}>
-                  <div style={styles.infoLabel}>📍 Address</div>
+                  <div style={styles.infoLabel}>Address</div>
                   <div style={styles.infoValue}>{selectedBusiness.address}</div>
                 </div>
                 <div style={styles.infoItem}>
-                  <div style={styles.infoLabel}>📞 Phone</div>
+                  <div style={styles.infoLabel}>Phone</div>
                   <div style={styles.infoValue}>{selectedBusiness.phone}</div>
                 </div>
                 <div style={styles.infoItem}>
-                  <div style={styles.infoLabel}>🕐 Hours</div>
+                  <div style={styles.infoLabel}>Hours</div>
                   <div style={styles.infoValue}>
                     {selectedBusiness.hours}
                     {selectedBusiness.isOpenNow !== undefined && (
@@ -612,7 +654,7 @@ function App() {
                 </div>
                 {selectedBusiness.website && (
                   <div style={styles.infoItem}>
-                    <div style={styles.infoLabel}>🌐 Website</div>
+                    <div style={styles.infoLabel}>Website</div>
                     <div style={styles.infoValue}>
                       <a
                         href={selectedBusiness.website}
@@ -627,7 +669,7 @@ function App() {
                 )}
                 {selectedBusiness.googleMapsUrl && (
                   <div style={styles.infoItem}>
-                    <div style={styles.infoLabel}>🗺️ Directions</div>
+                    <div style={styles.infoLabel}>Directions</div>
                     <div style={styles.infoValue}>
                       <a
                         href={selectedBusiness.googleMapsUrl}
@@ -662,7 +704,7 @@ function App() {
                 {showReviewForm && verificationChallenge && (
                   <form onSubmit={submitReview} style={styles.reviewForm}>
                     <h4 style={styles.formTitle}>Write Your Review</h4>
-                    
+
                     <input
                       type="text"
                       placeholder="Your name"
@@ -673,7 +715,7 @@ function App() {
                     />
 
                     <div style={styles.formGroup}>
-                      <label style={styles.label}>Rating: {reviewForm.rating} ⭐</label>
+                      <label style={styles.label}>Rating: {reviewForm.rating} ★</label>
                       <input
                         type="range"
                         min="1"
@@ -695,7 +737,7 @@ function App() {
 
                     <div style={styles.verification}>
                       <label style={styles.label}>
-                        Verification (anti-spam): {verificationChallenge.question}
+                        Verification: {verificationChallenge.question}
                       </label>
                       <input
                         type="number"
@@ -731,7 +773,7 @@ function App() {
                         <div style={styles.reviewHeader}>
                           <strong style={styles.reviewAuthor}>{review.author}</strong>
                           <div style={styles.reviewRating}>
-                            {"⭐".repeat(review.rating)}
+                            {"★".repeat(review.rating)}
                           </div>
                         </div>
                         <p style={styles.reviewComment}>{review.comment}</p>
@@ -752,7 +794,7 @@ function App() {
       {view === "favorites" && (
         <div style={styles.content}>
           <h2 style={styles.pageTitle}>Your Favorite Businesses</h2>
-          
+
           {favorites.length === 0 ? (
             <div style={styles.emptyState}>
               <p style={styles.emptyText}>You haven't saved any favorites yet.</p>
@@ -784,17 +826,17 @@ function App() {
                           onClick={() => toggleFavorite(biz.id)}
                           style={styles.favoriteBtn}
                         >
-                          ❤️
+                          ❤
                         </button>
                       </div>
-                      
+
                       <div style={styles.businessMeta}>
                         <span style={styles.category}>{biz.category}</span>
-                      {biz.rating > 0 ? (
-                        <span style={styles.rating}>⭐ {biz.rating.toFixed(1)}</span>
-                      ) : (
-                        <span style={styles.noRating}>No ratings yet</span>
-                      )}
+                        {biz.rating > 0 ? (
+                          <span style={styles.rating}>★ {biz.rating.toFixed(1)}</span>
+                        ) : (
+                          <span style={styles.noRating}>No ratings yet</span>
+                        )}
                       </div>
 
                       <p style={styles.description}>{biz.description}</p>
@@ -816,10 +858,37 @@ function App() {
       {/* Footer */}
       <footer style={styles.footer}>
         <p style={styles.footerText}>
-          LocalLink - Supporting local businesses since 2024 | 
-          Made for FBLA Byte-Sized Business Boost
+          LocalLink - Supporting local businesses | Made for FBLA Byte-Sized Business Boost
         </p>
       </footer>
+
+      {/* Add keyframes for animations in a style tag */}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-10px); }
+        }
+
+        .card-hover:hover {
+          transform: translateY(-8px) scale(1.02);
+          box-shadow: 0 12px 24px rgba(30, 58, 138, 0.2);
+        }
+
+        .button-hover:hover {
+          transform: scale(1.05);
+          box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+        }
+      `}</style>
     </div>
   );
 }
@@ -827,22 +896,34 @@ function App() {
 const styles = {
   container: {
     minHeight: "100vh",
-    backgroundColor: "#f8f9fa",
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+    backgroundColor: COLORS.lightGray,
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
   },
   loading: {
     textAlign: "center",
     padding: "4rem",
-    fontSize: "1.5rem",
-    color: "#666"
+    fontSize: "1.2rem",
+    color: COLORS.darkGray,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "1.5rem"
+  },
+  spinner: {
+    width: "48px",
+    height: "48px",
+    border: `4px solid ${COLORS.lightGray}`,
+    borderTop: `4px solid ${COLORS.navyBlue}`,
+    borderRadius: "50%",
+    animation: "spin 1s linear infinite"
   },
   header: {
-    backgroundColor: "#fff",
-    borderBottom: "2px solid #e9ecef",
+    backgroundColor: COLORS.navyBlue,
+    borderBottom: `3px solid ${COLORS.gold}`,
     position: "sticky",
     top: 0,
     zIndex: 100,
-    boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+    boxShadow: "0 4px 12px rgba(0,0,0,0.15)"
   },
   headerContent: {
     maxWidth: "1200px",
@@ -855,236 +936,297 @@ const styles = {
   logo: {
     fontSize: "1.8rem",
     fontWeight: "bold",
-    color: "#2c3e50",
+    color: COLORS.white,
     margin: 0,
     cursor: "pointer",
-    transition: "color 0.2s"
+    transition: "transform 0.2s",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem"
+  },
+  logoIcon: {
+    color: COLORS.gold,
+    fontSize: "1.4rem"
   },
   nav: {
     display: "flex",
     gap: "1rem"
   },
   navButton: {
-    padding: "0.5rem 1.5rem",
+    padding: "0.6rem 1.5rem",
     border: "none",
     background: "transparent",
-    color: "#666",
+    color: COLORS.white,
     fontSize: "1rem",
     cursor: "pointer",
     borderRadius: "8px",
-    transition: "all 0.2s",
-    fontWeight: "500"
+    transition: "all 0.3s",
+    fontWeight: "500",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem"
   },
   navButtonActive: {
-    padding: "0.5rem 1.5rem",
+    padding: "0.6rem 1.5rem",
     border: "none",
-    background: "#3498db",
-    color: "#fff",
+    background: COLORS.gold,
+    color: COLORS.navyBlue,
     fontSize: "1rem",
     cursor: "pointer",
     borderRadius: "8px",
-    fontWeight: "500"
+    fontWeight: "600",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)"
+  },
+  badge: {
+    backgroundColor: COLORS.white,
+    color: COLORS.navyBlue,
+    borderRadius: "50%",
+    width: "22px",
+    height: "22px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "0.75rem",
+    fontWeight: "bold"
   },
   content: {
     maxWidth: "1200px",
     margin: "0 auto",
-    padding: "2rem"
+    padding: "0"
   },
   hero: {
+    height: "85vh",
+    background: `linear-gradient(135deg, ${COLORS.navyBlue} 0%, ${COLORS.darkBlue} 50%, ${COLORS.navyBlue} 100%)`,
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    transition: "transform 0.1s ease-out"
+  },
+  heroOverlay: {
+    position: "relative",
+    zIndex: 2,
     textAlign: "center",
-    padding: "3rem 2rem",
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-    borderRadius: "16px",
-    marginBottom: "2rem",
-    color: "#fff"
+    color: COLORS.white,
+    padding: "2rem",
+    animation: "fadeIn 1s ease-out"
   },
   heroTitle: {
-    fontSize: "2.5rem",
+    fontSize: "3.5rem",
     fontWeight: "bold",
-    margin: "0 0 1rem 0"
+    margin: "0 0 1rem 0",
+    textShadow: "2px 2px 4px rgba(0,0,0,0.3)",
+    letterSpacing: "-0.5px"
   },
   heroSubtitle: {
-    fontSize: "1.2rem",
+    fontSize: "1.4rem",
     opacity: 0.95,
-    margin: 0
+    margin: "0 0 3rem 0",
+    fontWeight: "300"
   },
-  heroActions: {
+  scrollDown: {
     display: "flex",
-    justifyContent: "center",
-    gap: "1rem",
-    marginTop: "2rem",
-    flexWrap: "wrap"
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "0.5rem",
+    cursor: "pointer",
+    animation: "bounce 2s infinite",
+    transition: "all 0.3s"
   },
-  heroPrimary: {
-    padding: "0.85rem 1.75rem",
-    backgroundColor: "#ffffff",
-    color: "#5a67d8",
-    border: "none",
-    borderRadius: "999px",
-    fontSize: "1rem",
-    fontWeight: "600",
-    cursor: "pointer"
+  scrollArrow: {
+    width: "48px",
+    height: "48px",
+    color: COLORS.gold,
+    filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.3))"
   },
-  heroSecondary: {
-    padding: "0.85rem 1.75rem",
-    backgroundColor: "transparent",
-    color: "#ffffff",
-    border: "2px solid rgba(255,255,255,0.7)",
-    borderRadius: "999px",
-    fontSize: "1rem",
+  scrollText: {
+    fontSize: "0.9rem",
     fontWeight: "600",
-    cursor: "pointer"
+    color: COLORS.gold,
+    textTransform: "uppercase",
+    letterSpacing: "1px"
   },
   statsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-    gap: "1rem",
-    marginBottom: "2rem"
+    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+    gap: "2rem",
+    padding: "3rem 2rem",
+    animation: "fadeIn 0.8s ease-out"
   },
   statCard: {
-    backgroundColor: "#fff",
-    padding: "1.5rem",
-    borderRadius: "12px",
+    backgroundColor: COLORS.white,
+    padding: "2rem",
+    borderRadius: "16px",
     textAlign: "center",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+    transition: "all 0.3s",
+    border: `2px solid transparent`,
+    className: "card-hover"
+  },
+  statIcon: {
+    fontSize: "2.5rem",
+    marginBottom: "1rem"
   },
   statNumber: {
-    fontSize: "2rem",
+    fontSize: "2.5rem",
     fontWeight: "bold",
-    color: "#2c3e50",
+    color: COLORS.navyBlue,
     marginBottom: "0.5rem"
   },
   statLabel: {
-    fontSize: "0.9rem",
-    color: "#666"
+    fontSize: "1rem",
+    color: COLORS.darkGray,
+    fontWeight: "500"
   },
   section: {
-    marginBottom: "3rem"
+    padding: "3rem 2rem",
+    animation: "fadeIn 0.8s ease-out"
   },
   sectionTitle: {
-    fontSize: "1.8rem",
+    fontSize: "2rem",
     fontWeight: "bold",
-    color: "#2c3e50",
-    marginBottom: "1rem"
+    color: COLORS.navyBlue,
+    marginBottom: "0.5rem",
+    display: "flex",
+    alignItems: "center",
+    gap: "1rem"
+  },
+  titleAccent: {
+    width: "4px",
+    height: "32px",
+    backgroundColor: COLORS.gold,
+    borderRadius: "2px"
   },
   sectionSubtitle: {
-    marginTop: "-0.5rem",
-    marginBottom: "1.5rem",
-    color: "#5f6c7b"
+    marginTop: "0.5rem",
+    marginBottom: "2rem",
+    color: COLORS.darkGray,
+    fontSize: "1.1rem"
   },
   trendingGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-    gap: "1rem"
+    gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+    gap: "2rem"
   },
   trendingCard: {
-    backgroundColor: "#fff",
-    borderRadius: "12px",
+    backgroundColor: COLORS.white,
+    borderRadius: "16px",
     overflow: "hidden",
     cursor: "pointer",
-    transition: "transform 0.2s, box-shadow 0.2s",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+    transition: "all 0.3s",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+    className: "card-hover"
   },
   trendingImage: {
     width: "100%",
-    height: "200px",
-    objectFit: "cover"
+    height: "220px",
+    objectFit: "cover",
+    transition: "transform 0.3s"
   },
   trendingContent: {
-    padding: "1rem",
+    padding: "1.5rem",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center"
   },
   trendingName: {
-    fontSize: "1.2rem",
+    fontSize: "1.3rem",
     fontWeight: "600",
     margin: 0,
-    color: "#2c3e50"
+    color: COLORS.navyBlue
   },
   recommendGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-    gap: "1rem"
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: "2rem"
   },
   recommendCard: {
-    backgroundColor: "#fff",
-    borderRadius: "12px",
+    backgroundColor: COLORS.white,
+    borderRadius: "16px",
     overflow: "hidden",
     cursor: "pointer",
-    transition: "transform 0.2s",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+    transition: "all 0.3s",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+    className: "card-hover"
   },
   cardImage: {
     width: "100%",
-    height: "150px",
-    objectFit: "cover"
+    height: "180px",
+    objectFit: "cover",
+    transition: "transform 0.3s"
   },
   cardContent: {
-    padding: "1rem"
+    padding: "1.5rem"
   },
   cardHeader: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: "0.5rem"
+    gap: "0.5rem",
+    marginBottom: "0.75rem"
   },
   cardTitle: {
-    fontSize: "1.1rem",
+    fontSize: "1.2rem",
     fontWeight: "600",
-    margin: "0 0 0.5rem 0",
-    color: "#2c3e50"
+    margin: 0,
+    color: COLORS.navyBlue
   },
   localBadge: {
-    backgroundColor: "#e8f5e9",
-    color: "#2e7d32",
+    backgroundColor: COLORS.gold,
+    color: COLORS.white,
     fontSize: "0.7rem",
     fontWeight: "600",
-    padding: "0.25rem 0.5rem",
-    borderRadius: "999px",
+    padding: "0.3rem 0.6rem",
+    borderRadius: "12px",
     whiteSpace: "nowrap"
   },
   cardRating: {
-    fontSize: "0.9rem",
-    color: "#f39c12",
-    marginBottom: "0.25rem"
+    fontSize: "1rem",
+    color: COLORS.gold,
+    marginBottom: "0.5rem",
+    fontWeight: "600"
   },
   noRating: {
-    fontSize: "0.85rem",
-    color: "#718096",
+    fontSize: "0.9rem",
+    color: COLORS.darkGray,
     fontWeight: "500"
   },
   cardCategory: {
-    fontSize: "0.85rem",
-    color: "#666",
+    fontSize: "0.9rem",
+    color: COLORS.darkGray,
     margin: 0
   },
   dealPill: {
-    marginTop: "0.75rem",
-    backgroundColor: "#fff3cd",
-    color: "#856404",
-    borderRadius: "999px",
-    padding: "0.35rem 0.75rem",
-    fontSize: "0.75rem",
-    display: "inline-flex",
-    alignItems: "center"
+    marginTop: "1rem",
+    backgroundColor: "#fef3c7",
+    color: "#92400e",
+    borderRadius: "12px",
+    padding: "0.5rem 1rem",
+    fontSize: "0.85rem",
+    display: "inline-block"
   },
   insightsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-    gap: "1.5rem"
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: "2rem"
   },
   insightCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: "14px",
-    padding: "1.5rem",
-    boxShadow: "0 2px 10px rgba(0,0,0,0.08)"
+    backgroundColor: COLORS.white,
+    borderRadius: "16px",
+    padding: "2rem",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+    transition: "all 0.3s",
+    className: "card-hover"
   },
   insightTitle: {
-    fontSize: "1.1rem",
+    fontSize: "1.2rem",
     fontWeight: "700",
-    color: "#2c3e50",
-    margin: "0 0 1rem 0"
+    color: COLORS.navyBlue,
+    margin: "0 0 1.5rem 0"
   },
   insightList: {
     listStyle: "none",
@@ -1092,40 +1234,42 @@ const styles = {
     margin: 0,
     display: "flex",
     flexDirection: "column",
-    gap: "0.75rem"
+    gap: "1rem"
   },
   insightItem: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    color: "#4a5568",
-    fontSize: "0.95rem"
+    color: COLORS.textDark,
+    fontSize: "1rem"
   },
   insightValue: {
     fontWeight: "600",
-    color: "#2c3e50"
+    color: COLORS.navyBlue
   },
   insightBody: {
-    margin: 0,
-    color: "#4a5568",
-    lineHeight: "1.6",
-    marginBottom: "1rem"
+    margin: "0 0 1.5rem 0",
+    color: COLORS.darkGray,
+    lineHeight: "1.6"
   },
   insightTags: {
     display: "flex",
-    gap: "0.5rem",
+    gap: "0.75rem",
     flexWrap: "wrap"
   },
   insightTag: {
-    border: "1px solid #e2e8f0",
-    padding: "0.4rem 0.75rem",
-    borderRadius: "999px",
-    backgroundColor: "#f8fafc",
-    color: "#2c3e50",
-    fontSize: "0.85rem",
-    cursor: "pointer"
+    border: `2px solid ${COLORS.navyBlue}`,
+    padding: "0.5rem 1rem",
+    borderRadius: "20px",
+    backgroundColor: COLORS.white,
+    color: COLORS.navyBlue,
+    fontSize: "0.9rem",
+    cursor: "pointer",
+    transition: "all 0.3s",
+    fontWeight: "500"
   },
   filtersSection: {
+    padding: "2rem",
     marginBottom: "2rem"
   },
   filters: {
@@ -1133,56 +1277,63 @@ const styles = {
     gap: "1rem",
     flexWrap: "wrap",
     alignItems: "center",
-    backgroundColor: "#fff",
-    padding: "1.5rem",
-    borderRadius: "12px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+    backgroundColor: COLORS.white,
+    padding: "2rem",
+    borderRadius: "16px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)"
   },
   searchInput: {
     flex: "1 1 300px",
-    padding: "0.75rem 1rem",
-    border: "2px solid #e9ecef",
-    borderRadius: "8px",
+    padding: "0.9rem 1.2rem",
+    border: `2px solid ${COLORS.lightGray}`,
+    borderRadius: "12px",
     fontSize: "1rem",
     outline: "none",
-    transition: "border-color 0.2s"
+    transition: "all 0.3s"
   },
   select: {
-    padding: "0.75rem 1rem",
-    border: "2px solid #e9ecef",
-    borderRadius: "8px",
+    padding: "0.9rem 1.2rem",
+    border: `2px solid ${COLORS.lightGray}`,
+    borderRadius: "12px",
     fontSize: "1rem",
-    backgroundColor: "#fff",
+    backgroundColor: COLORS.white,
     cursor: "pointer",
-    outline: "none"
+    outline: "none",
+    transition: "all 0.3s",
+    fontWeight: "500"
   },
   checkbox: {
     display: "flex",
     alignItems: "center",
-    gap: "0.5rem",
-    cursor: "pointer"
+    gap: "0.75rem",
+    cursor: "pointer",
+    userSelect: "none"
   },
   checkboxLabel: {
     fontSize: "1rem",
-    color: "#2c3e50"
+    color: COLORS.navyBlue,
+    fontWeight: "500"
   },
   businessGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))",
-    gap: "1.5rem"
+    gap: "2rem",
+    padding: "2rem"
   },
   businessCard: {
-    backgroundColor: "#fff",
-    borderRadius: "12px",
+    backgroundColor: COLORS.white,
+    borderRadius: "16px",
     overflow: "hidden",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-    transition: "transform 0.2s, box-shadow 0.2s"
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+    transition: "all 0.3s",
+    className: "card-hover"
   },
   businessImage: {
     width: "100%",
-    height: "200px",
+    height: "220px",
     objectFit: "cover",
-    cursor: "pointer"
+    cursor: "pointer",
+    transition: "transform 0.3s"
   },
   businessContent: {
     padding: "1.5rem"
@@ -1191,334 +1342,356 @@ const styles = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "start",
-    marginBottom: "0.75rem"
+    marginBottom: "1rem"
   },
   businessName: {
     fontSize: "1.4rem",
     fontWeight: "600",
     margin: 0,
-    color: "#2c3e50",
+    color: COLORS.navyBlue,
     cursor: "pointer",
-    transition: "color 0.2s"
+    transition: "color 0.3s"
   },
   favoriteBtn: {
-    fontSize: "1.5rem",
+    fontSize: "1.8rem",
     border: "none",
     background: "transparent",
     cursor: "pointer",
     padding: "0.25rem",
-    transition: "transform 0.2s"
+    transition: "transform 0.3s",
+    color: "#ef4444"
   },
   businessMeta: {
     display: "flex",
     gap: "1rem",
     alignItems: "center",
-    marginBottom: "0.75rem",
+    marginBottom: "1rem",
     flexWrap: "wrap"
   },
   category: {
-    padding: "0.25rem 0.75rem",
-    backgroundColor: "#e3f2fd",
-    color: "#1976d2",
-    borderRadius: "6px",
+    padding: "0.4rem 1rem",
+    backgroundColor: `${COLORS.navyBlue}15`,
+    color: COLORS.navyBlue,
+    borderRadius: "12px",
     fontSize: "0.85rem",
-    fontWeight: "500"
+    fontWeight: "600"
   },
   rating: {
-    fontSize: "0.95rem",
-    color: "#f39c12",
-    fontWeight: "500"
+    fontSize: "1rem",
+    color: COLORS.gold,
+    fontWeight: "600"
   },
   reviews: {
-    fontSize: "0.85rem",
-    color: "#666"
+    fontSize: "0.9rem",
+    color: COLORS.darkGray
   },
   dealBadge: {
-    backgroundColor: "#fff3cd",
-    color: "#856404",
-    borderRadius: "999px",
-    padding: "0.2rem 0.6rem",
+    backgroundColor: "#fef3c7",
+    color: "#92400e",
+    borderRadius: "12px",
+    padding: "0.3rem 0.8rem",
     fontSize: "0.75rem",
     fontWeight: "600"
   },
   description: {
-    fontSize: "0.95rem",
-    color: "#555",
-    lineHeight: "1.5",
-    marginBottom: "1rem"
+    fontSize: "1rem",
+    color: COLORS.darkGray,
+    lineHeight: "1.6",
+    marginBottom: "1.5rem"
   },
   deal: {
-    backgroundColor: "#fff3cd",
-    border: "1px solid #ffc107",
-    padding: "0.75rem",
-    borderRadius: "8px",
-    fontSize: "0.9rem",
-    color: "#856404",
-    marginBottom: "1rem"
+    backgroundColor: "#fef3c7",
+    border: "2px solid #fbbf24",
+    padding: "1rem",
+    borderRadius: "12px",
+    fontSize: "0.95rem",
+    color: "#92400e",
+    marginBottom: "1.5rem",
+    fontWeight: "500"
   },
   viewButton: {
     width: "100%",
-    padding: "0.75rem",
-    backgroundColor: "#3498db",
-    color: "#fff",
+    padding: "0.9rem",
+    backgroundColor: COLORS.navyBlue,
+    color: COLORS.white,
     border: "none",
-    borderRadius: "8px",
+    borderRadius: "12px",
     fontSize: "1rem",
-    fontWeight: "500",
+    fontWeight: "600",
     cursor: "pointer",
-    transition: "background-color 0.2s"
+    transition: "all 0.3s",
+    className: "button-hover"
   },
   noResults: {
     gridColumn: "1 / -1",
     textAlign: "center",
-    padding: "3rem",
-    color: "#666",
-    fontSize: "1.1rem"
+    padding: "4rem",
+    color: COLORS.darkGray,
+    fontSize: "1.2rem"
   },
   backButton: {
-    padding: "0.75rem 1.5rem",
-    backgroundColor: "#6c757d",
-    color: "#fff",
+    padding: "0.9rem 2rem",
+    backgroundColor: COLORS.darkGray,
+    color: COLORS.white,
     border: "none",
-    borderRadius: "8px",
+    borderRadius: "12px",
     fontSize: "1rem",
     cursor: "pointer",
-    marginBottom: "2rem",
-    transition: "background-color 0.2s"
+    margin: "2rem",
+    transition: "all 0.3s",
+    fontWeight: "600"
   },
   detailLoading: {
-    padding: "1rem 1.5rem",
-    backgroundColor: "#fff",
-    borderRadius: "12px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-    marginBottom: "1.5rem",
-    color: "#4a5568",
-    fontWeight: "500"
+    padding: "2rem",
+    backgroundColor: COLORS.white,
+    borderRadius: "16px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+    margin: "2rem",
+    color: COLORS.darkGray,
+    fontWeight: "500",
+    display: "flex",
+    alignItems: "center",
+    gap: "1rem"
   },
   detailCard: {
-    backgroundColor: "#fff",
-    borderRadius: "16px",
+    backgroundColor: COLORS.white,
+    borderRadius: "20px",
     overflow: "hidden",
-    boxShadow: "0 4px 16px rgba(0,0,0,0.1)"
+    boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+    margin: "2rem"
   },
   detailImage: {
     width: "100%",
-    height: "400px",
+    height: "450px",
     objectFit: "cover"
   },
   detailContent: {
-    padding: "2rem"
+    padding: "3rem"
   },
   detailHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "start",
-    marginBottom: "1.5rem"
+    marginBottom: "2rem"
   },
   detailTitle: {
-    fontSize: "2.5rem",
+    fontSize: "2.8rem",
     fontWeight: "bold",
-    margin: "0 0 0.5rem 0",
-    color: "#2c3e50"
+    margin: "0 0 1rem 0",
+    color: COLORS.navyBlue
   },
   detailMeta: {
     display: "flex",
     gap: "1rem"
   },
   priceRange: {
-    padding: "0.25rem 0.75rem",
-    backgroundColor: "#e8f5e9",
-    color: "#2e7d32",
-    borderRadius: "6px",
-    fontSize: "0.85rem",
-    fontWeight: "500"
+    padding: "0.4rem 1rem",
+    backgroundColor: `${COLORS.gold}20`,
+    color: COLORS.navyBlue,
+    borderRadius: "12px",
+    fontSize: "0.9rem",
+    fontWeight: "600"
   },
   favoriteBtnLarge: {
-    fontSize: "2rem",
+    fontSize: "2.5rem",
     border: "none",
     background: "transparent",
     cursor: "pointer",
-    padding: "0.5rem"
+    padding: "0.5rem",
+    transition: "transform 0.3s",
+    color: "#ef4444"
   },
   ratingSection: {
     display: "flex",
     alignItems: "center",
-    gap: "1rem",
-    marginBottom: "1.5rem"
+    gap: "1.5rem",
+    marginBottom: "2rem",
+    padding: "1.5rem",
+    backgroundColor: COLORS.lightGray,
+    borderRadius: "16px"
   },
   bigRating: {
-    fontSize: "2.5rem",
+    fontSize: "3rem",
     fontWeight: "bold",
-    color: "#f39c12"
+    color: COLORS.gold
   },
   reviewCount: {
-    fontSize: "1.1rem",
-    color: "#666"
+    fontSize: "1.2rem",
+    color: COLORS.darkGray
   },
   detailDescription: {
-    fontSize: "1.1rem",
-    color: "#555",
-    lineHeight: "1.7",
-    marginBottom: "1.5rem"
+    fontSize: "1.2rem",
+    color: COLORS.darkGray,
+    lineHeight: "1.8",
+    marginBottom: "2rem"
   },
   dealLarge: {
-    backgroundColor: "#fff3cd",
-    border: "2px solid #ffc107",
-    padding: "1.25rem",
-    borderRadius: "12px",
+    backgroundColor: "#fef3c7",
+    border: "3px solid #fbbf24",
+    padding: "1.5rem",
+    borderRadius: "16px",
     fontSize: "1.1rem",
-    color: "#856404",
-    marginBottom: "2rem"
+    color: "#92400e",
+    marginBottom: "2.5rem",
+    fontWeight: "500"
   },
   infoGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
     gap: "1.5rem",
-    marginBottom: "2rem"
+    marginBottom: "2.5rem"
   },
   infoItem: {
-    padding: "1rem",
-    backgroundColor: "#f8f9fa",
-    borderRadius: "8px"
+    padding: "1.5rem",
+    backgroundColor: COLORS.lightGray,
+    borderRadius: "12px"
   },
   infoLabel: {
     fontSize: "0.9rem",
-    color: "#666",
-    marginBottom: "0.5rem",
-    fontWeight: "500"
+    color: COLORS.darkGray,
+    marginBottom: "0.75rem",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: "0.5px"
   },
   infoValue: {
-    fontSize: "1rem",
-    color: "#2c3e50"
+    fontSize: "1.1rem",
+    color: COLORS.navyBlue,
+    fontWeight: "500"
   },
   tags: {
     display: "flex",
     flexWrap: "wrap",
-    gap: "0.5rem",
-    marginBottom: "2rem"
+    gap: "0.75rem",
+    marginBottom: "2.5rem"
   },
   tag: {
-    padding: "0.5rem 1rem",
-    backgroundColor: "#e9ecef",
-    color: "#495057",
+    padding: "0.6rem 1.2rem",
+    backgroundColor: COLORS.lightGray,
+    color: COLORS.navyBlue,
     borderRadius: "20px",
-    fontSize: "0.85rem",
+    fontSize: "0.9rem",
     fontWeight: "500"
   },
   reviewsSection: {
-    borderTop: "2px solid #e9ecef",
-    paddingTop: "2rem"
+    borderTop: `3px solid ${COLORS.lightGray}`,
+    paddingTop: "2.5rem"
   },
   reviewsHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "1.5rem"
+    marginBottom: "2rem"
   },
   reviewsTitle: {
-    fontSize: "1.8rem",
+    fontSize: "2rem",
     fontWeight: "bold",
-    color: "#2c3e50",
+    color: COLORS.navyBlue,
     margin: 0
   },
   writeReviewBtn: {
-    padding: "0.75rem 1.5rem",
-    backgroundColor: "#28a745",
-    color: "#fff",
+    padding: "0.9rem 2rem",
+    backgroundColor: COLORS.gold,
+    color: COLORS.white,
     border: "none",
-    borderRadius: "8px",
+    borderRadius: "12px",
     fontSize: "1rem",
-    fontWeight: "500",
+    fontWeight: "600",
     cursor: "pointer",
-    transition: "background-color 0.2s"
+    transition: "all 0.3s",
+    className: "button-hover"
   },
   reviewForm: {
-    backgroundColor: "#f8f9fa",
-    padding: "2rem",
-    borderRadius: "12px",
-    marginBottom: "2rem"
+    backgroundColor: COLORS.lightGray,
+    padding: "2.5rem",
+    borderRadius: "16px",
+    marginBottom: "2.5rem"
   },
   formTitle: {
-    fontSize: "1.3rem",
+    fontSize: "1.5rem",
     fontWeight: "600",
-    marginBottom: "1.5rem",
-    color: "#2c3e50"
+    marginBottom: "2rem",
+    color: COLORS.navyBlue
   },
   formGroup: {
-    marginBottom: "1.5rem"
+    marginBottom: "2rem"
   },
   label: {
     display: "block",
     fontSize: "1rem",
-    fontWeight: "500",
-    marginBottom: "0.5rem",
-    color: "#2c3e50"
+    fontWeight: "600",
+    marginBottom: "0.75rem",
+    color: COLORS.navyBlue
   },
   input: {
     width: "100%",
-    padding: "0.75rem",
-    border: "2px solid #e9ecef",
-    borderRadius: "8px",
+    padding: "1rem",
+    border: `2px solid ${COLORS.lightGray}`,
+    borderRadius: "12px",
     fontSize: "1rem",
     outline: "none",
-    marginBottom: "1rem",
-    boxSizing: "border-box"
+    marginBottom: "1.5rem",
+    boxSizing: "border-box",
+    transition: "all 0.3s"
   },
   slider: {
     width: "100%",
     height: "8px",
     borderRadius: "4px",
-    outline: "none"
+    outline: "none",
+    cursor: "pointer"
   },
   textarea: {
     width: "100%",
-    padding: "0.75rem",
-    border: "2px solid #e9ecef",
-    borderRadius: "8px",
+    padding: "1rem",
+    border: `2px solid ${COLORS.lightGray}`,
+    borderRadius: "12px",
     fontSize: "1rem",
     outline: "none",
-    marginBottom: "1rem",
+    marginBottom: "1.5rem",
     fontFamily: "inherit",
     resize: "vertical",
-    boxSizing: "border-box"
+    boxSizing: "border-box",
+    transition: "all 0.3s"
   },
   verification: {
-    backgroundColor: "#fff",
-    padding: "1rem",
-    borderRadius: "8px",
-    marginBottom: "1rem"
+    backgroundColor: COLORS.white,
+    padding: "1.5rem",
+    borderRadius: "12px",
+    marginBottom: "1.5rem"
   },
   formButtons: {
     display: "flex",
     gap: "1rem"
   },
   submitBtn: {
-    padding: "0.75rem 2rem",
-    backgroundColor: "#28a745",
-    color: "#fff",
+    padding: "1rem 2.5rem",
+    backgroundColor: COLORS.gold,
+    color: COLORS.white,
     border: "none",
-    borderRadius: "8px",
+    borderRadius: "12px",
     fontSize: "1rem",
-    fontWeight: "500",
+    fontWeight: "600",
     cursor: "pointer",
-    transition: "background-color 0.2s"
+    transition: "all 0.3s",
+    className: "button-hover"
   },
   cancelBtn: {
-    padding: "0.75rem 2rem",
-    backgroundColor: "#6c757d",
-    color: "#fff",
+    padding: "1rem 2.5rem",
+    backgroundColor: COLORS.darkGray,
+    color: COLORS.white,
     border: "none",
-    borderRadius: "8px",
+    borderRadius: "12px",
     fontSize: "1rem",
-    fontWeight: "500",
+    fontWeight: "600",
     cursor: "pointer",
-    transition: "background-color 0.2s"
+    transition: "all 0.3s"
   },
   noReviews: {
     textAlign: "center",
-    padding: "2rem",
-    color: "#666",
-    fontSize: "1.1rem"
+    padding: "3rem",
+    color: COLORS.darkGray,
+    fontSize: "1.2rem"
   },
   reviewsList: {
     display: "flex",
@@ -1526,112 +1699,94 @@ const styles = {
     gap: "1.5rem"
   },
   reviewItem: {
-    padding: "1.5rem",
-    backgroundColor: "#f8f9fa",
-    borderRadius: "12px"
+    padding: "2rem",
+    backgroundColor: COLORS.lightGray,
+    borderRadius: "16px",
+    transition: "all 0.3s"
   },
   reviewHeader: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: "0.75rem"
+    marginBottom: "1rem"
   },
   reviewAuthor: {
-    fontSize: "1.1rem",
-    color: "#2c3e50"
+    fontSize: "1.2rem",
+    color: COLORS.navyBlue,
+    fontWeight: "600"
   },
   reviewRating: {
-    fontSize: "1rem",
-    color: "#f39c12"
+    fontSize: "1.1rem",
+    color: COLORS.gold
   },
   reviewComment: {
-    fontSize: "1rem",
-    color: "#555",
-    lineHeight: "1.6",
-    marginBottom: "0.75rem"
+    fontSize: "1.1rem",
+    color: COLORS.darkGray,
+    lineHeight: "1.7",
+    marginBottom: "1rem"
   },
   reviewDate: {
-    fontSize: "0.85rem",
-    color: "#999"
+    fontSize: "0.9rem",
+    color: COLORS.darkGray
   },
   pageTitle: {
-    fontSize: "2.5rem",
+    fontSize: "2.8rem",
     fontWeight: "bold",
-    color: "#2c3e50",
-    marginBottom: "2rem"
+    color: COLORS.navyBlue,
+    marginBottom: "2rem",
+    padding: "2rem 2rem 0"
   },
   emptyState: {
     textAlign: "center",
-    padding: "4rem 2rem",
-    backgroundColor: "#fff",
-    borderRadius: "16px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+    padding: "5rem 2rem",
+    backgroundColor: COLORS.white,
+    borderRadius: "20px",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+    margin: "2rem"
   },
   emptyText: {
-    fontSize: "1.2rem",
-    color: "#666",
-    marginBottom: "2rem"
+    fontSize: "1.3rem",
+    color: COLORS.darkGray,
+    marginBottom: "2.5rem"
   },
   browseBtn: {
-    padding: "1rem 2rem",
-    backgroundColor: "#3498db",
-    color: "#fff",
+    padding: "1.2rem 3rem",
+    backgroundColor: COLORS.navyBlue,
+    color: COLORS.white,
     border: "none",
-    borderRadius: "8px",
+    borderRadius: "12px",
     fontSize: "1.1rem",
-    fontWeight: "500",
+    fontWeight: "600",
     cursor: "pointer",
-    transition: "background-color 0.2s"
-  },
-  locationPicker: {
-    display: "flex",
-    alignItems: "center",
-    gap: "1rem",
-    padding: "1rem",
-    backgroundColor: "#fff",
-    borderRadius: "8px",
-    marginBottom: "1rem",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
-  },
-  locationLabel: {
-    fontSize: "1rem",
-    fontWeight: "500",
-    color: "#2c3e50"
-  },
-  locationSelect: {
-    padding: "0.5rem 1rem",
-    border: "2px solid #e9ecef",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    cursor: "pointer",
-    backgroundColor: "#fff",
-    flex: 1,
-    maxWidth: "300px"
+    transition: "all 0.3s",
+    className: "button-hover"
   },
   openNow: {
-    color: "#27ae60",
+    color: "#22c55e",
     fontWeight: "600"
   },
   closedNow: {
-    color: "#e74c3c",
+    color: "#ef4444",
     fontWeight: "600"
   },
   link: {
-    color: "#3498db",
+    color: COLORS.navyBlue,
     textDecoration: "none",
-    fontWeight: "500",
-    transition: "color 0.2s"
+    fontWeight: "600",
+    transition: "color 0.3s",
+    borderBottom: `2px solid ${COLORS.gold}`
   },
   footer: {
-    backgroundColor: "#2c3e50",
-    color: "#fff",
-    padding: "2rem",
+    backgroundColor: COLORS.navyBlue,
+    color: COLORS.white,
+    padding: "2.5rem",
     textAlign: "center",
-    marginTop: "4rem"
+    marginTop: "4rem",
+    borderTop: `4px solid ${COLORS.gold}`
   },
   footerText: {
     margin: 0,
-    fontSize: "0.95rem",
+    fontSize: "1rem",
     opacity: 0.9
   }
 };

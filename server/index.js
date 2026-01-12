@@ -792,16 +792,13 @@ async function enrichBusinessImages(businesses) {
   const enriched = [];
 
   for (const business of businesses) {
-    if (business.image) {
-      enriched.push(business);
-      continue;
-    }
-
+    // Always try Google Image Search first for better quality images
     const imageQuery = `${business.name} ${business.address || "Cumming GA"}`;
-    const image = await fetchGoogleImage(imageQuery);
+    const googleImage = await fetchGoogleImage(imageQuery);
+
     enriched.push({
       ...business,
-      image: image || getCategoryImage(business.category, {})
+      image: googleImage || business.image || getCategoryImage(business.category, {})
     });
   }
 
@@ -1004,17 +1001,33 @@ app.get("/api/businesses/:id", async (req, res) => {
       return res.status(404).json({ error: "Business not found" });
     }
 
+    // Get local reviews for this business
+    const localReviewSummary = getLocalReviewSummary(businessId);
+
+    // Preserve the reviews and ratings from local data
+    business.reviews = localReviewSummary.reviews;
+    business.reviewCount = localReviewSummary.reviewCount;
+    business.rating = localReviewSummary.rating;
+
     if (business.yelpId) {
       const details = await fetchYelpBusinessDetails(business.yelpId);
 
       if (details) {
         business.hours = formatYelpHours(details.hours);
-        business.image = details.photos?.[0] || business.image;
         business.website = business.website || details.url;
+
+        // Use Google Image Search first, then fall back to Yelp photos
+        if (GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_ENGINE_ID) {
+          const imageQuery = `${business.name} ${business.address || "Cumming GA"}`;
+          const googleImage = await fetchGoogleImage(imageQuery);
+          business.image = googleImage || details.photos?.[0] || business.image;
+        } else {
+          business.image = details.photos?.[0] || business.image;
+        }
       }
     }
 
-    if (!business.image) {
+    if (!business.image && GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_ENGINE_ID) {
       const imageQuery = `${business.name} ${business.address || "Cumming GA"}`;
       business.image = await fetchGoogleImage(imageQuery);
     }
