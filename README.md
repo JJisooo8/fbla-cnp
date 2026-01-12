@@ -24,6 +24,7 @@ Built for FBLA's Competitive Event: Byte-Sized Business Boost
 ### Intelligent Features
 - **Personalized Recommendations**: AI-powered suggestions based on favorite businesses and categories
 - **Trending Businesses**: Smart algorithm combining local ratings and reviews to surface popular businesses
+- **Analytics Dashboard**: Real-time stats showing total businesses and local review totals
 - **Analytics Dashboard**: Real-time stats showing total businesses and local review counts
 - **Smart Filtering**: Efficient filtering and search across all business attributes
 
@@ -155,13 +156,13 @@ GET  /api/verification/challenge      - Get anti-spam challenge
 1. View trending businesses and analytics on the homepage
 2. Use the search bar to find specific businesses
 3. Apply filters: category, minimum rating
-4. Sort results by rating, review count, or name
+4. Sort results by rating, review count, or name (local reviews only)
 5. Click any business card to view full details
 
 ### Viewing Business Details
 1. Click "View Details" or the business name/image
 2. See comprehensive info: address, phone, hours, website
-3. View current rating and review count
+3. View current rating and review count (local only)
 4. Read customer reviews
 5. Submit your own review
 
@@ -241,15 +242,13 @@ Since OpenStreetMap doesn't include photos, LocalLink uses:
 ```javascript
 trendScore = rating × log₁₀(reviewCount + 1) × 10
 ```
-- Balances rating quality with popularity
-- Surfaces businesses with both high ratings AND many reviews
+- Uses only locally submitted ratings and reviews
 - Top 3 trending businesses displayed
 
 ### Analytics Dashboard
 Real-time statistics:
 - Total businesses in Cumming area
-- Average rating across all businesses
-- Total review count
+- Total local review count
 - Breakdown by category (Food, Retail, Services)
 
 ---

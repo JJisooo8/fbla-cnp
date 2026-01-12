@@ -240,6 +240,8 @@ function buildYelpTags(categories = []) {
   return categories.map(cat => cat.title).filter(Boolean);
 }
 
+}
+
 function humanizeBusinessType(value) {
   if (!value) return "business";
 
@@ -460,6 +462,16 @@ function buildGenericDescription({
   return `Local ${categoryLabel} business in Cumming, Georgia.`;
 }
 
+function getLocalReviewSummary(id) {
+  const localReviewsList = localReviews.get(id) || [];
+  const reviewCount = localReviewsList.length;
+  const rating = reviewCount > 0
+    ? localReviewsList.reduce((sum, review) => sum + review.rating, 0) / reviewCount
+    : 0;
+
+  return { reviewCount, rating, reviews: [...localReviewsList] };
+}
+
 // Detect if a business is a major chain/franchise
 function isChainBusiness(name, tags) {
   if (!name) return false;
@@ -607,6 +619,7 @@ function transformOSMToBusiness(osmElement) {
   if (tags.delivery === 'yes') businessTags.push('Delivery');
 
   const localReviewSummary = getLocalReviewSummary(id);
+  const reviewCount = localReviewSummary.reviewCount;
   const localReviewsList = localReviews.get(id) || [];
   const reviewCount = localReviewsList.length;
   const rating = reviewCount > 0
@@ -623,6 +636,7 @@ function transformOSMToBusiness(osmElement) {
     address,
     phone: tags.phone || tags['contact:phone'] || 'Phone not available',
     hours: formatOpeningHours(tags.opening_hours),
+    image: null,
     image: getCategoryImage(category, tags),
     deal: getMockDeal(category, name),
     tags: businessTags.slice(0, 5),
@@ -684,6 +698,10 @@ function transformYelpToBusiness(yelpBusiness) {
     rating: localReviewSummary.rating,
     reviewCount: localReviewSummary.reviewCount,
     description,
+    address,
+    phone: yelpBusiness.display_phone || "Phone not available",
+    hours: "Hours available on business page",
+    image: yelpBusiness.image_url || null,
     rating,
     reviewCount,
     description,
@@ -943,6 +961,16 @@ async function fetchBingImage(query) {
   }
 }
 
+async function ensureBusinessImages(businesses) {
+  const enriched = [];
+
+  for (const business of businesses) {
+    let image = business.image;
+    if (!image) {
+      const imageQuery = `${business.name} ${business.address || "Cumming GA"}`;
+      image = await fetchBingImage(imageQuery);
+    }
+
 async function enrichBusinessImages(businesses) {
   const enriched = [];
 
@@ -1139,6 +1167,8 @@ app.get("/api/businesses", async (req, res) => {
       result = await enrichBusinessImages(result);
     }
 
+    result = await ensureBusinessImages(result);
+
     res.json(result);
   } catch (error) {
     console.error('Error in /api/businesses:', error);
@@ -1176,6 +1206,10 @@ app.get("/api/businesses/:id", async (req, res) => {
     if (!business.image) {
       const imageQuery = `${business.name} ${business.address || "Cumming GA"}`;
       business.image = await fetchBingImage(imageQuery);
+    }
+
+    if (!business.image) {
+      business.image = getCategoryImage(business.category, {});
 
       business.reviews = [...yelpReviews, ...business.reviews];
     }
