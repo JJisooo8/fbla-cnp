@@ -25,6 +25,7 @@ Built for FBLA's Competitive Event: Byte-Sized Business Boost
 - **Personalized Recommendations**: AI-powered suggestions based on favorite businesses and categories
 - **Trending Businesses**: Smart algorithm combining local ratings and reviews to surface popular businesses
 - **Analytics Dashboard**: Real-time stats showing total businesses and local review totals
+- **Analytics Dashboard**: Real-time stats showing total businesses and local review counts
 - **Smart Filtering**: Efficient filtering and search across all business attributes
 
 ### Security & Validation
