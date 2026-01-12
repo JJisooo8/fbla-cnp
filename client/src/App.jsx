@@ -209,7 +209,7 @@ function App() {
       <header style={styles.header}>
         <div style={styles.headerContent}>
           <h1 style={styles.logo} onClick={() => setView("home")}>
-            🏪 LocalLink
+            LocalLink
           </h1>
           <nav style={styles.nav}>
             <button
@@ -233,20 +233,28 @@ function App() {
         <div style={styles.content}>
           {/* Hero Section */}
           <div style={styles.hero}>
-            <h2 style={styles.heroTitle}>Discover & Support Local Businesses in Cumming, GA</h2>
+            <h2 style={styles.heroTitle}>Discover & Support Local Businesses</h2>
             <p style={styles.heroSubtitle}>
-              Explore the best businesses in Cumming, Georgia.
+              Connecting you with the heart of Cumming, Georgia's business community.
             </p>
             <div style={styles.heroActions}>
-              <button style={styles.heroPrimary} onClick={() => setView("home")}>
-                Start Exploring
-              </button>
               <button
                 style={styles.heroSecondary}
                 onClick={() => setView("favorites")}
               >
                 View Favorites
               </button>
+              <div
+                style={styles.scrollArrow}
+                onClick={() => {
+                  const filtersSection = document.querySelector('[data-section="filters"]');
+                  if (filtersSection) {
+                    filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }}
+              >
+                ↓
+              </div>
             </div>
           </div>
 
@@ -271,7 +279,7 @@ function App() {
           {/* Trending Section */}
           {trending.length > 0 && (
             <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>🔥 Trending Now</h3>
+              <h3 style={styles.sectionTitle}>Trending Now</h3>
               <div style={styles.trendingGrid}>
                 {trending.filter(biz => !biz.isChain).slice(0, 3).map(biz => (
                   <div
@@ -297,7 +305,7 @@ function App() {
           {/* Local Gems */}
           {localGems.length > 0 && (
             <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>✨ Local Gems</h3>
+              <h3 style={styles.sectionTitle}>Local Gems</h3>
               <p style={styles.sectionSubtitle}>
                 Handpicked spots with strong local impact and standout ratings.
               </p>
@@ -333,7 +341,7 @@ function App() {
           {/* Recommendations */}
           {recommendations.length > 0 && (
             <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>💡 Recommended For You</h3>
+              <h3 style={styles.sectionTitle}>Recommended For You</h3>
               <div style={styles.recommendGrid}>
                 {recommendations.map(biz => (
                   <div
@@ -360,7 +368,7 @@ function App() {
           {/* Community Insights */}
           {analytics && (
             <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>📊 Community Insights</h3>
+              <h3 style={styles.sectionTitle}>Community Insights</h3>
               <div style={styles.insightsGrid}>
                 <div style={styles.insightCard}>
                   <h4 style={styles.insightTitle}>Top Categories</h4>
@@ -412,8 +420,8 @@ function App() {
           )}
 
           {/* Filters */}
-          <div style={styles.filtersSection}>
-            <h3 style={styles.sectionTitle}>Browse All Businesses in Cumming, GA</h3>
+          <div style={styles.filtersSection} data-section="filters">
+            <h3 style={styles.sectionTitle}>Browse All Businesses</h3>
             <p style={styles.sectionSubtitle}>
               Showing top {filteredBusinesses.length} results of {totalBusinessesCount} businesses.
             </p>
@@ -421,7 +429,7 @@ function App() {
             <div style={styles.filters}>
               <input
                 type="text"
-                placeholder="🔍 Search businesses, tags, or categories..."
+                placeholder="Search businesses, tags, or categories..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 style={styles.searchInput}
@@ -827,7 +835,7 @@ function App() {
 const styles = {
   container: {
     minHeight: "100vh",
-    backgroundColor: "#f8f9fa",
+    backgroundColor: "#f5f5f5",
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
   },
   loading: {
@@ -838,11 +846,12 @@ const styles = {
   },
   header: {
     backgroundColor: "#fff",
-    borderBottom: "2px solid #e9ecef",
+    borderBottom: "3px solid #F9B233",
     position: "sticky",
     top: 0,
     zIndex: 100,
-    boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+    boxShadow: "0 2px 8px rgba(31, 78, 140, 0.1)",
+    transition: "all 0.3s ease"
   },
   headerContent: {
     maxWidth: "1200px",
@@ -855,10 +864,10 @@ const styles = {
   logo: {
     fontSize: "1.8rem",
     fontWeight: "bold",
-    color: "#2c3e50",
+    color: "#1F4E8C",
     margin: 0,
     cursor: "pointer",
-    transition: "color 0.2s"
+    transition: "all 0.3s ease"
   },
   nav: {
     display: "flex",
@@ -872,18 +881,20 @@ const styles = {
     fontSize: "1rem",
     cursor: "pointer",
     borderRadius: "8px",
-    transition: "all 0.2s",
+    transition: "all 0.3s ease",
     fontWeight: "500"
   },
   navButtonActive: {
     padding: "0.5rem 1.5rem",
     border: "none",
-    background: "#3498db",
+    background: "#1F4E8C",
     color: "#fff",
     fontSize: "1rem",
     cursor: "pointer",
     borderRadius: "8px",
-    fontWeight: "500"
+    fontWeight: "500",
+    transform: "translateY(-2px)",
+    boxShadow: "0 4px 8px rgba(31, 78, 140, 0.2)"
   },
   content: {
     maxWidth: "1200px",
@@ -892,48 +903,55 @@ const styles = {
   },
   hero: {
     textAlign: "center",
-    padding: "3rem 2rem",
-    background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+    padding: "4rem 2rem",
+    background: "linear-gradient(135deg, #1F4E8C 0%, #2a6bb8 100%)",
     borderRadius: "16px",
     marginBottom: "2rem",
-    color: "#fff"
+    color: "#fff",
+    position: "relative",
+    overflow: "hidden",
+    boxShadow: "0 8px 24px rgba(31, 78, 140, 0.15)"
   },
   heroTitle: {
     fontSize: "2.5rem",
     fontWeight: "bold",
-    margin: "0 0 1rem 0"
+    margin: "0 0 1rem 0",
+    animation: "fadeInUp 0.6s ease-out"
   },
   heroSubtitle: {
     fontSize: "1.2rem",
     opacity: 0.95,
-    margin: 0
+    margin: 0,
+    animation: "fadeInUp 0.8s ease-out"
   },
   heroActions: {
     display: "flex",
     justifyContent: "center",
-    gap: "1rem",
+    alignItems: "center",
+    gap: "2rem",
     marginTop: "2rem",
     flexWrap: "wrap"
   },
-  heroPrimary: {
+  heroSecondary: {
     padding: "0.85rem 1.75rem",
-    backgroundColor: "#ffffff",
-    color: "#5a67d8",
+    backgroundColor: "#F9B233",
+    color: "#1F4E8C",
     border: "none",
     borderRadius: "999px",
     fontSize: "1rem",
     fontWeight: "600",
-    cursor: "pointer"
+    cursor: "pointer",
+    transition: "all 0.3s ease",
+    boxShadow: "0 4px 12px rgba(249, 178, 51, 0.3)"
   },
-  heroSecondary: {
-    padding: "0.85rem 1.75rem",
-    backgroundColor: "transparent",
-    color: "#ffffff",
-    border: "2px solid rgba(255,255,255,0.7)",
-    borderRadius: "999px",
-    fontSize: "1rem",
-    fontWeight: "600",
-    cursor: "pointer"
+  scrollArrow: {
+    fontSize: "3rem",
+    color: "#F9B233",
+    cursor: "pointer",
+    animation: "bounce 2s infinite",
+    transition: "all 0.3s ease",
+    fontWeight: "bold",
+    lineHeight: 1
   },
   statsGrid: {
     display: "grid",
@@ -946,12 +964,14 @@ const styles = {
     padding: "1.5rem",
     borderRadius: "12px",
     textAlign: "center",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+    transition: "all 0.3s ease",
+    cursor: "default"
   },
   statNumber: {
     fontSize: "2rem",
     fontWeight: "bold",
-    color: "#2c3e50",
+    color: "#1F4E8C",
     marginBottom: "0.5rem"
   },
   statLabel: {
@@ -964,8 +984,10 @@ const styles = {
   sectionTitle: {
     fontSize: "1.8rem",
     fontWeight: "bold",
-    color: "#2c3e50",
-    marginBottom: "1rem"
+    color: "#1F4E8C",
+    marginBottom: "1rem",
+    position: "relative",
+    paddingBottom: "0.5rem"
   },
   sectionSubtitle: {
     marginTop: "-0.5rem",
@@ -982,8 +1004,9 @@ const styles = {
     borderRadius: "12px",
     overflow: "hidden",
     cursor: "pointer",
-    transition: "transform 0.2s, box-shadow 0.2s",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+    transition: "all 0.3s ease",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+    border: "2px solid transparent"
   },
   trendingImage: {
     width: "100%",
@@ -1012,8 +1035,9 @@ const styles = {
     borderRadius: "12px",
     overflow: "hidden",
     cursor: "pointer",
-    transition: "transform 0.2s",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
+    transition: "all 0.3s ease",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+    border: "2px solid transparent"
   },
   cardImage: {
     width: "100%",
@@ -1176,7 +1200,8 @@ const styles = {
     borderRadius: "12px",
     overflow: "hidden",
     boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-    transition: "transform 0.2s, box-shadow 0.2s"
+    transition: "all 0.3s ease",
+    border: "2px solid transparent"
   },
   businessImage: {
     width: "100%",
@@ -1259,14 +1284,14 @@ const styles = {
   viewButton: {
     width: "100%",
     padding: "0.75rem",
-    backgroundColor: "#3498db",
+    backgroundColor: "#1F4E8C",
     color: "#fff",
     border: "none",
     borderRadius: "8px",
     fontSize: "1rem",
     fontWeight: "500",
     cursor: "pointer",
-    transition: "background-color 0.2s"
+    transition: "all 0.3s ease"
   },
   noResults: {
     gridColumn: "1 / -1",
@@ -1574,14 +1599,14 @@ const styles = {
   },
   browseBtn: {
     padding: "1rem 2rem",
-    backgroundColor: "#3498db",
+    backgroundColor: "#1F4E8C",
     color: "#fff",
     border: "none",
     borderRadius: "8px",
     fontSize: "1.1rem",
     fontWeight: "500",
     cursor: "pointer",
-    transition: "background-color 0.2s"
+    transition: "all 0.3s ease"
   },
   locationPicker: {
     display: "flex",
@@ -1617,17 +1642,18 @@ const styles = {
     fontWeight: "600"
   },
   link: {
-    color: "#3498db",
+    color: "#1F4E8C",
     textDecoration: "none",
     fontWeight: "500",
-    transition: "color 0.2s"
+    transition: "all 0.3s ease"
   },
   footer: {
-    backgroundColor: "#2c3e50",
+    backgroundColor: "#1F4E8C",
     color: "#fff",
     padding: "2rem",
     textAlign: "center",
-    marginTop: "4rem"
+    marginTop: "4rem",
+    borderTop: "4px solid #F9B233"
   },
   footerText: {
     margin: 0,
