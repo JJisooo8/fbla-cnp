@@ -245,6 +245,59 @@ function buildYelpTags(categories = []) {
   return categories.map(cat => cat.title).filter(Boolean);
 }
 
+function humanizeBusinessType(value) {
+  if (!value) return "business";
+
+  const replacements = {
+    alcohol: "liquor store",
+    fast_food: "fast food restaurant",
+    food_court: "food court",
+    cafe: "cafe",
+    pub: "pub",
+    bar: "bar",
+    ice_cream: "ice cream shop",
+    pharmacy: "pharmacy",
+    hairdresser: "salon",
+    beauty: "beauty studio",
+    fuel: "gas station",
+    car_wash: "car wash",
+    convenience: "convenience store",
+    supermarket: "supermarket",
+    bakery: "bakery",
+    butcher: "butcher shop",
+    deli: "deli",
+    florist: "florist",
+    coffee: "coffee shop",
+    clothes: "clothing store",
+    shoes: "shoe store",
+    jewelry: "jewelry store",
+    gift: "gift shop"
+  };
+
+  const normalized = value.replace(/_/g, " ").toLowerCase();
+  return replacements[value] || normalized;
+}
+
+function buildGenericDescription({
+  type,
+  cuisine,
+  category
+}) {
+  const typeLabel = humanizeBusinessType(type);
+  const cuisineLabel = cuisine ? cuisine.replace(/_/g, " ").toLowerCase() : null;
+  const categoryLabel = category ? category.toLowerCase() : "local";
+
+  if (cuisineLabel) {
+    return `Local ${cuisineLabel} ${typeLabel} in Cumming, Georgia.`;
+  }
+
+  if (typeLabel !== "business") {
+    return `Local ${typeLabel} in Cumming, Georgia.`;
+  }
+
+  return `Local ${categoryLabel} business in Cumming, Georgia.`;
+}
+
 // Detect if a business is a major chain/franchise
 function isChainBusiness(name, tags) {
   if (!name) return false;
@@ -367,10 +420,11 @@ function transformOSMToBusiness(osmElement) {
   let description = tags.description || '';
   if (!description) {
     const type = tags.amenity || tags.shop || tags.craft || tags.tourism || 'business';
-    description = `A local ${type.replace(/_/g, ' ')} in Cumming, Georgia`;
-    if (tags.cuisine) {
-      description += ` serving ${tags.cuisine} cuisine`;
-    }
+    description = buildGenericDescription({
+      type,
+      cuisine: tags.cuisine,
+      category
+    });
   }
 
   // Address
@@ -445,6 +499,16 @@ function transformYelpToBusiness(yelpBusiness) {
     reviewCount
   );
 
+  const categoryLabel = yelpBusiness.categories
+    ?.map(categoryItem => categoryItem.title)
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(" & ");
+
+  const description = categoryLabel
+    ? `Local ${categoryLabel.toLowerCase()} in Cumming, Georgia.`
+    : buildGenericDescription({ category });
+
   return {
     id: `yelp-${yelpBusiness.id}`,
     yelpId: yelpBusiness.id,
@@ -452,6 +516,7 @@ function transformYelpToBusiness(yelpBusiness) {
     category,
     rating,
     reviewCount,
+    description,
     description: yelpBusiness.alias
       ? `Popular local ${yelpBusiness.alias.replace(/-/g, " ")} in Cumming, Georgia.`
       : `Popular local ${category.toLowerCase()} business in Cumming, Georgia.`,

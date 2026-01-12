@@ -12,6 +12,7 @@ function App() {
   const [trending, setTrending] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
   
   // Filters
   const [category, setCategory] = useState("All");
@@ -135,6 +136,13 @@ function App() {
     setSelectedBusiness(business);
     setView("business");
     setShowReviewForm(false);
+    setDetailLoading(true);
+
+    fetch(`${API_URL}/businesses/${business.id}`)
+      .then(r => r.json())
+      .then(data => setSelectedBusiness(data))
+      .catch(err => console.error(err))
+      .finally(() => setDetailLoading(false));
   };
 
   const startReview = async () => {
@@ -513,6 +521,10 @@ function App() {
           <button onClick={() => setView("home")} style={styles.backButton}>
             ← Back to Browse
           </button>
+
+          {detailLoading && (
+            <div style={styles.detailLoading}>Loading business details...</div>
+          )}
 
           <div style={styles.detailCard}>
             <img
@@ -1239,6 +1251,15 @@ const styles = {
     cursor: "pointer",
     marginBottom: "2rem",
     transition: "background-color 0.2s"
+  },
+  detailLoading: {
+    padding: "1rem 1.5rem",
+    backgroundColor: "#fff",
+    borderRadius: "12px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+    marginBottom: "1.5rem",
+    color: "#4a5568",
+    fontWeight: "500"
   },
   detailCard: {
     backgroundColor: "#fff",
