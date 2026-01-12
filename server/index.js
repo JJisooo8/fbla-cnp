@@ -16,7 +16,14 @@ const verificationChallenges = new Map();
 // Cumming, Georgia coordinates and search radius
 const CUMMING_GA_LAT = 34.2073;
 const CUMMING_GA_LON = -84.1402;
-const SEARCH_RADIUS_METERS = 24140; // 15 miles in meters
+const SEARCH_RADIUS_METERS = 16093; // 10 miles in meters
+
+const YELP_API_BASE_URL = "https://api.yelp.com/v3";
+const YELP_API_KEY = process.env.YELP_API_KEY;
+const BING_IMAGE_SEARCH_KEY = process.env.BING_IMAGE_SEARCH_KEY;
+const BING_IMAGE_SEARCH_ENDPOINT = process.env.BING_IMAGE_SEARCH_ENDPOINT || "https://api.bing.microsoft.com/v7.0/images/search";
+
+const imageCache = new NodeCache({ stdTTL: 86400 });
 
 const app = express();
 app.use(cors());
@@ -129,13 +136,171 @@ function isOpenNow(openingHours) {
   return undefined;
 }
 
-// Generate random rating and review count for businesses without ratings
-function generateMockRating() {
-  return (Math.random() * 1.5 + 3.5).toFixed(1); // Random between 3.5 and 5.0
+// Generate deterministic mock deals for demo purposes
+function getMockDeal(category, name) {
+  const dealsByCategory = {
+    Food: [
+      "10% off lunch orders before 2 PM",
+      "Buy 1 entrée, get a dessert free",
+      "Free drink with any combo meal",
+      "Happy hour: 20% off appetizers",
+      "Family meal deal: $5 off"
+    ],
+    Retail: [
+      "15% off your first purchase",
+      "BOGO 50% off select items",
+      "Free gift wrapping today",
+      "Spend $50, get $10 off",
+      "Student discount: 10% off"
+    ],
+    Services: [
+      "First-time customer: 15% off",
+      "Free consultation this week",
+      "Refer a friend, both get $10 off",
+      "Bundle service: save 20%",
+      "Seasonal special: $25 off"
+    ]
+  };
+
+  const seed = crypto
+    .createHash("md5")
+    .update(`${category}-${name}`)
+    .digest("hex");
+  const roll = parseInt(seed.slice(0, 2), 16);
+
+  if (roll % 5 !== 0) {
+    return null;
+  }
+
+  const options = dealsByCategory[category] || dealsByCategory.Services;
+  return options[roll % options.length];
 }
 
-function generateMockReviewCount() {
-  return Math.floor(Math.random() * 200) + 10; // Random between 10 and 210
+const CATEGORY_ALIASES = {
+  Food: [
+    "restaurants",
+    "food",
+    "cafes",
+    "coffee",
+    "bakeries",
+    "desserts",
+    "bars",
+    "icecream",
+    "pizza"
+  ],
+  Retail: [
+    "shopping",
+    "fashion",
+    "departmentstores",
+    "grocery",
+    "bookstores",
+    "giftshops",
+    "electronics",
+    "furniture"
+  ],
+  Services: [
+    "homedocservices",
+    "auto",
+    "health",
+    "beautysvc",
+    "fitness",
+    "education",
+    "professional"
+  ]
+};
+
+function normalizeName(value) {
+  return (value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const R = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function mapYelpCategoriesToCategory(categories = []) {
+  const aliases = categories.map(cat => cat.alias);
+  if (aliases.some(alias => CATEGORY_ALIASES.Food.includes(alias))) return "Food";
+  if (aliases.some(alias => CATEGORY_ALIASES.Retail.includes(alias))) return "Retail";
+  if (aliases.some(alias => CATEGORY_ALIASES.Services.includes(alias))) return "Services";
+  return "Services";
+}
+
+function buildYelpTags(categories = []) {
+  return categories.map(cat => cat.title).filter(Boolean);
+}
+
+function humanizeBusinessType(value) {
+  if (!value) return "business";
+
+  const replacements = {
+    alcohol: "liquor store",
+    fast_food: "fast food restaurant",
+    food_court: "food court",
+    cafe: "cafe",
+    pub: "pub",
+    bar: "bar",
+    ice_cream: "ice cream shop",
+    pharmacy: "pharmacy",
+    hairdresser: "salon",
+    beauty: "beauty studio",
+    fuel: "gas station",
+    car_wash: "car wash",
+    convenience: "convenience store",
+    supermarket: "supermarket",
+    bakery: "bakery",
+    butcher: "butcher shop",
+    deli: "deli",
+    florist: "florist",
+    coffee: "coffee shop",
+    clothes: "clothing store",
+    shoes: "shoe store",
+    jewelry: "jewelry store",
+    gift: "gift shop"
+  };
+
+  const normalized = value.replace(/_/g, " ").toLowerCase();
+  return replacements[value] || normalized;
+}
+
+function buildGenericDescription({
+  type,
+  cuisine,
+  category
+}) {
+  const typeLabel = humanizeBusinessType(type);
+  const cuisineLabel = cuisine ? cuisine.replace(/_/g, " ").toLowerCase() : null;
+  const categoryLabel = category ? category.toLowerCase() : "local";
+
+  if (cuisineLabel) {
+    return `Local ${cuisineLabel} ${typeLabel} in Cumming, Georgia.`;
+  }
+
+  if (typeLabel !== "business") {
+    return `Local ${typeLabel} in Cumming, Georgia.`;
+  }
+
+  return `Local ${categoryLabel} business in Cumming, Georgia.`;
+}
+
+function getLocalReviewSummary(id) {
+  const localReviewsList = localReviews.get(id) || [];
+  const reviewCount = localReviewsList.length;
+  const rating = reviewCount > 0
+    ? localReviewsList.reduce((sum, review) => sum + review.rating, 0) / reviewCount
+    : 0;
+
+  return { reviewCount, rating, reviews: [...localReviewsList] };
 }
 
 // Detect if a business is a major chain/franchise
@@ -260,10 +425,11 @@ function transformOSMToBusiness(osmElement) {
   let description = tags.description || '';
   if (!description) {
     const type = tags.amenity || tags.shop || tags.craft || tags.tourism || 'business';
-    description = `A local ${type.replace(/_/g, ' ')} in Cumming, Georgia`;
-    if (tags.cuisine) {
-      description += ` serving ${tags.cuisine} cuisine`;
-    }
+    description = buildGenericDescription({
+      type,
+      cuisine: tags.cuisine,
+      category
+    });
   }
 
   // Address
@@ -283,21 +449,20 @@ function transformOSMToBusiness(osmElement) {
   if (tags.takeaway === 'yes') businessTags.push('Takeout');
   if (tags.delivery === 'yes') businessTags.push('Delivery');
 
-  const reviewCount = generateMockReviewCount();
-  const rating = parseFloat(generateMockRating());
+  const localReviewSummary = getLocalReviewSummary(id);
 
   const business = {
     id,
     name,
     category,
-    rating,
-    reviewCount,
+    rating: localReviewSummary.rating,
+    reviewCount: localReviewSummary.reviewCount,
     description,
     address,
     phone: tags.phone || tags['contact:phone'] || 'Phone not available',
     hours: formatOpeningHours(tags.opening_hours),
     image: getCategoryImage(category, tags),
-    deal: null, // OSM doesn't have deals info
+    deal: getMockDeal(category, name),
     tags: businessTags.slice(0, 5),
     priceRange: '$$', // OSM doesn't have price info
     website: tags.website || tags['contact:website'] || null,
@@ -311,10 +476,271 @@ function transformOSMToBusiness(osmElement) {
   };
 
   // Add local reviews if any
-  const localReviewsList = localReviews.get(id) || [];
-  business.reviews = [...localReviewsList];
+  business.reviews = localReviewSummary.reviews;
 
   return business;
+}
+
+function transformYelpToBusiness(yelpBusiness) {
+  const category = mapYelpCategoriesToCategory(yelpBusiness.categories);
+  const tags = buildYelpTags(yelpBusiness.categories);
+  const name = yelpBusiness.name;
+  const address = yelpBusiness.location?.display_address?.join(", ") || "Cumming, GA";
+
+  const relevancyScore = calculateRelevancyScore(
+    name,
+    {
+      amenity: category === "Food" ? "restaurant" : undefined,
+      shop: category === "Retail" ? "shop" : undefined,
+      craft: category === "Services" ? "service" : undefined,
+      website: yelpBusiness.url
+    },
+    0
+  );
+
+  const categoryLabel = yelpBusiness.categories
+    ?.map(categoryItem => categoryItem.title)
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(" & ");
+
+  const description = categoryLabel
+    ? `Local ${categoryLabel.toLowerCase()} in Cumming, Georgia.`
+    : buildGenericDescription({ category });
+
+  const localReviewSummary = getLocalReviewSummary(`yelp-${yelpBusiness.id}`);
+
+  return {
+    id: `yelp-${yelpBusiness.id}`,
+    yelpId: yelpBusiness.id,
+    name,
+    category,
+    rating: localReviewSummary.rating,
+    reviewCount: localReviewSummary.reviewCount,
+    description,
+    address,
+    phone: yelpBusiness.display_phone || "Phone not available",
+    hours: "Hours available on business page",
+    image: yelpBusiness.image_url || getCategoryImage(category, {}),
+    deal: getMockDeal(category, name),
+    tags: tags.slice(0, 5),
+    priceRange: yelpBusiness.price || "$$",
+    website: yelpBusiness.url,
+    isOpenNow: yelpBusiness.is_closed === false ? true : undefined,
+    osmId: null,
+    lat: yelpBusiness.coordinates?.latitude,
+    lon: yelpBusiness.coordinates?.longitude,
+    reviews: localReviewSummary.reviews,
+    relevancyScore,
+    isChain: isChainBusiness(name, { brand: yelpBusiness.brand })
+  };
+}
+
+async function fetchYelpBusinesses() {
+  if (!YELP_API_KEY) {
+    console.warn("⚠️  Yelp API key not set. Skipping Yelp enrichment.");
+    return [];
+  }
+
+  const results = [];
+  const limit = 50;
+  const totalWanted = 300;
+
+  try {
+    for (let offset = 0; offset < totalWanted; offset += limit) {
+      const response = await axios.get(`${YELP_API_BASE_URL}/businesses/search`, {
+        headers: { Authorization: `Bearer ${YELP_API_KEY}` },
+        params: {
+          latitude: CUMMING_GA_LAT,
+          longitude: CUMMING_GA_LON,
+          radius: SEARCH_RADIUS_METERS,
+          limit,
+          offset,
+          sort_by: "best_match"
+        },
+        timeout: 15000
+      });
+
+      const businesses = response.data.businesses || [];
+      results.push(...businesses);
+
+      if (businesses.length < limit) {
+        break;
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching Yelp businesses:", error.message);
+  }
+
+  return results;
+}
+
+async function fetchBusinesses() {
+  try {
+    return await fetchOSMBusinesses();
+  } catch (error) {
+    console.error("⚠️  Falling back to Yelp-only data:", error.message);
+  }
+
+  const yelpBusinesses = await fetchYelpBusinesses();
+  return yelpBusinesses
+    .map(transformYelpToBusiness)
+    .sort((a, b) => b.relevancyScore - a.relevancyScore)
+    .slice(0, 300);
+}
+
+function mergeBusinesses(osmBusinesses, yelpBusinesses) {
+  const usedYelpIds = new Set();
+  const normalizedYelp = yelpBusinesses.map(biz => ({
+    raw: biz,
+    normalizedName: normalizeName(biz.name),
+    lat: biz.coordinates?.latitude,
+    lon: biz.coordinates?.longitude
+  }));
+
+  const merged = osmBusinesses.map(osm => {
+    const osmName = normalizeName(osm.name);
+    let bestMatch = null;
+    let bestDistance = Infinity;
+
+    for (const candidate of normalizedYelp) {
+      if (!candidate.lat || !candidate.lon) continue;
+      if (usedYelpIds.has(candidate.raw.id)) continue;
+
+      const distance = haversineDistanceMeters(
+        osm.lat,
+        osm.lon,
+        candidate.lat,
+        candidate.lon
+      );
+
+      if (distance > 500) continue; // ~0.3 miles
+
+      const matchesName =
+        candidate.normalizedName.includes(osmName) ||
+        osmName.includes(candidate.normalizedName);
+
+      if (matchesName && distance < bestDistance) {
+        bestMatch = candidate.raw;
+        bestDistance = distance;
+      }
+    }
+
+    if (!bestMatch) {
+      return osm;
+    }
+
+    usedYelpIds.add(bestMatch.id);
+    const yelpTransformed = transformYelpToBusiness(bestMatch);
+
+    return {
+      ...osm,
+      name: yelpTransformed.name || osm.name,
+      category: yelpTransformed.category || osm.category,
+      rating: yelpTransformed.rating || osm.rating,
+      reviewCount: yelpTransformed.reviewCount || osm.reviewCount,
+      phone: yelpTransformed.phone || osm.phone,
+      address: yelpTransformed.address || osm.address,
+      image: yelpTransformed.image || osm.image,
+      priceRange: yelpTransformed.priceRange || osm.priceRange,
+      website: osm.website || yelpTransformed.website,
+      tags: Array.from(new Set([...(osm.tags || []), ...(yelpTransformed.tags || [])])).slice(0, 5),
+      deal: osm.deal || yelpTransformed.deal,
+      lat: yelpTransformed.lat || osm.lat,
+      lon: yelpTransformed.lon || osm.lon,
+      yelpId: bestMatch.id
+    };
+  });
+
+  const yelpOnly = yelpBusinesses
+    .filter(biz => !usedYelpIds.has(biz.id))
+    .map(transformYelpToBusiness);
+
+  return [...merged, ...yelpOnly];
+}
+
+async function fetchYelpBusinessDetails(yelpId) {
+  if (!YELP_API_KEY || !yelpId) return null;
+
+  try {
+    const response = await axios.get(`${YELP_API_BASE_URL}/businesses/${yelpId}`, {
+      headers: { Authorization: `Bearer ${YELP_API_KEY}` },
+      timeout: 15000
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching Yelp business details:", error.message);
+    return null;
+  }
+}
+
+function formatYelpHours(hours = []) {
+  if (!hours.length) return "Hours not available";
+
+  const dayMap = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const ranges = hours[0].open || [];
+  if (!ranges.length) return "Hours not available";
+
+  return ranges
+    .map(range => {
+      const day = dayMap[range.day] || "";
+      const start = `${range.start.slice(0, 2)}:${range.start.slice(2)}`;
+      const end = `${range.end.slice(0, 2)}:${range.end.slice(2)}`;
+      return `${day} ${start}-${end}`;
+    })
+    .join(", ");
+}
+
+async function fetchBingImage(query) {
+  if (!BING_IMAGE_SEARCH_KEY || !query) {
+    return null;
+  }
+
+  const cached = imageCache.get(query);
+  if (cached) {
+    return cached;
+  }
+
+  try {
+    const response = await axios.get(BING_IMAGE_SEARCH_ENDPOINT, {
+      headers: { "Ocp-Apim-Subscription-Key": BING_IMAGE_SEARCH_KEY },
+      params: {
+        q: query,
+        safeSearch: "Moderate",
+        count: 1
+      },
+      timeout: 15000
+    });
+
+    const result = response.data?.value?.[0]?.contentUrl || null;
+    if (result) {
+      imageCache.set(query, result);
+    }
+    return result;
+  } catch (error) {
+    console.error("Error fetching Bing image:", error.message);
+    return null;
+  }
+}
+
+async function enrichBusinessImages(businesses) {
+  const enriched = [];
+
+  for (const business of businesses) {
+    if (business.image) {
+      enriched.push(business);
+      continue;
+    }
+
+    const imageQuery = `${business.name} ${business.address || "Cumming GA"}`;
+    const image = await fetchBingImage(imageQuery);
+    enriched.push({
+      ...business,
+      image: image || getCategoryImage(business.category, {})
+    });
+  }
+
+  return enriched;
 }
 
 // Fetch businesses from OpenStreetMap using Overpass API
@@ -366,8 +792,8 @@ async function fetchOSMBusinesses(lat = CUMMING_GA_LAT, lon = CUMMING_GA_LON, ra
     // Sort by relevancy score (highest first) to prioritize local/family-owned
     businesses.sort((a, b) => b.relevancyScore - a.relevancyScore);
 
-    // Increase limit to 500 to include some chains for searchability
-    const limitedBusinesses = businesses.slice(0, 500);
+    // Increase limit to 300 to include some chains for searchability
+    const limitedBusinesses = businesses.slice(0, 300);
 
     const chainCount = limitedBusinesses.filter(b => b.isChain).length;
     const localCount = limitedBusinesses.filter(b => !b.isChain).length;
@@ -376,11 +802,21 @@ async function fetchOSMBusinesses(lat = CUMMING_GA_LAT, lon = CUMMING_GA_LON, ra
     console.log(`🎯 Top business: ${limitedBusinesses[0]?.name} (score: ${limitedBusinesses[0]?.relevancyScore})`);
     console.log(`🏪 ${localCount} local businesses, ${chainCount} chains`);
 
-    cache.set(cacheKey, limitedBusinesses);
-    return limitedBusinesses;
+    const yelpBusinesses = await fetchYelpBusinesses();
+    const mergedBusinesses = mergeBusinesses(
+      limitedBusinesses,
+      yelpBusinesses
+    );
+
+    const mergedLimited = mergedBusinesses
+      .sort((a, b) => b.relevancyScore - a.relevancyScore)
+      .slice(0, 300);
+
+    cache.set(cacheKey, mergedLimited);
+    return mergedLimited;
   } catch (error) {
     console.error('❌ OpenStreetMap API error:', error.message);
-    throw new Error('Failed to fetch businesses from OpenStreetMap');
+    throw new Error('Failed to fetch businesses');
   }
 }
 
@@ -412,9 +848,9 @@ app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     message: "Server is healthy",
-    dataSource: "OpenStreetMap",
+    dataSource: "OpenStreetMap + Yelp (if configured)",
     location: "Cumming, Georgia",
-    radius: "15 miles"
+    radius: "10 miles"
   });
 });
 
@@ -426,11 +862,12 @@ app.get("/api/businesses", async (req, res) => {
       search,
       minRating,
       hasDeals,
-      sort
+      sort,
+      limit
     } = req.query;
 
     // Fetch businesses from OpenStreetMap (Cumming, GA only)
-    const businesses = await fetchOSMBusinesses();
+    const businesses = await fetchBusinesses();
     let result = [...businesses];
 
     // Filter by category
@@ -469,6 +906,17 @@ app.get("/api/businesses", async (req, res) => {
       result.sort((a, b) => b.reviewCount - a.reviewCount);
     } else if (sort === "name") {
       result.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sort === "local") {
+      result.sort((a, b) => b.relevancyScore - a.relevancyScore);
+    }
+
+    const limitValue = limit ? parseInt(limit, 10) : null;
+    if (limitValue && Number.isFinite(limitValue)) {
+      result = result.slice(0, Math.max(1, limitValue));
+    }
+
+    if (BING_IMAGE_SEARCH_KEY) {
+      result = await enrichBusinessImages(result);
     }
 
     res.json(result);
@@ -484,11 +932,26 @@ app.get("/api/businesses/:id", async (req, res) => {
     const businessId = req.params.id;
 
     // Fetch all businesses and find the one
-    const businesses = await fetchOSMBusinesses();
+    const businesses = await fetchBusinesses();
     const business = businesses.find(b => b.id === businessId);
 
     if (!business) {
       return res.status(404).json({ error: "Business not found" });
+    }
+
+    if (business.yelpId) {
+      const details = await fetchYelpBusinessDetails(business.yelpId);
+
+      if (details) {
+        business.hours = formatYelpHours(details.hours);
+        business.image = details.photos?.[0] || business.image;
+        business.website = business.website || details.url;
+      }
+    }
+
+    if (!business.image) {
+      const imageQuery = `${business.name} ${business.address || "Cumming GA"}`;
+      business.image = await fetchBingImage(imageQuery);
     }
 
     res.json(business);
@@ -582,7 +1045,7 @@ app.post("/api/recommendations", async (req, res) => {
     } = req.body;
 
     // Fetch all businesses from OSM
-    const businesses = await fetchOSMBusinesses();
+    const businesses = await fetchBusinesses();
 
     // If user has favorites, analyze their preferences
     let categoryScores = {};
@@ -637,7 +1100,7 @@ app.post("/api/recommendations", async (req, res) => {
 app.get("/api/trending", async (req, res) => {
   try {
     // Fetch all businesses from OSM
-    const businesses = await fetchOSMBusinesses();
+    const businesses = await fetchBusinesses();
 
     // Calculate trending score: rating * log(reviewCount) + deal bonus
     const trending = businesses
@@ -661,7 +1124,7 @@ app.get("/api/trending", async (req, res) => {
 app.get("/api/analytics", async (req, res) => {
   try {
     // Fetch all businesses from OSM
-    const businesses = await fetchOSMBusinesses();
+    const businesses = await fetchBusinesses();
 
     const totalBusinesses = businesses.length;
     const avgRating = totalBusinesses > 0
@@ -674,6 +1137,8 @@ app.get("/api/analytics", async (req, res) => {
       return acc;
     }, {});
 
+    const totalByCategory = byCategory;
+
     const topRated = [...businesses]
       .sort((a, b) => b.rating - a.rating)
       .slice(0, 3)
@@ -683,8 +1148,10 @@ app.get("/api/analytics", async (req, res) => {
 
     res.json({
       totalBusinesses,
+      cachedBusinesses: totalBusinesses,
       avgRating: Math.round(avgRating * 10) / 10,
       totalReviews,
+      totalByCategory,
       byCategory,
       topRated,
       dealsAvailable
@@ -700,6 +1167,7 @@ app.listen(PORT, () => {
   console.log(`🚀 LocalLink API running on http://localhost:${PORT}`);
   console.log(`🗺️  Data Source: OpenStreetMap (FREE!)`);
   console.log(`📍 Location: Cumming, Georgia`);
-  console.log(`📏 Search radius: 15 miles (${SEARCH_RADIUS_METERS} meters)`);
-  console.log(`🆓 No API key required!`);
+  console.log(`📏 Search radius: 10 miles (${SEARCH_RADIUS_METERS} meters)`);
+  console.log(`🧭 Yelp enrichment: ${YELP_API_KEY ? "enabled" : "disabled"}`);
+  console.log(`🖼️  Bing image search: ${BING_IMAGE_SEARCH_KEY ? "enabled" : "disabled"}`);
 });
