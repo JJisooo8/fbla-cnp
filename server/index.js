@@ -138,6 +138,46 @@ function generateMockReviewCount() {
   return Math.floor(Math.random() * 200) + 10; // Random between 10 and 210
 }
 
+// Generate deterministic mock deals for demo purposes
+function getMockDeal(category, name) {
+  const dealsByCategory = {
+    Food: [
+      "10% off lunch orders before 2 PM",
+      "Buy 1 entrée, get a dessert free",
+      "Free drink with any combo meal",
+      "Happy hour: 20% off appetizers",
+      "Family meal deal: $5 off"
+    ],
+    Retail: [
+      "15% off your first purchase",
+      "BOGO 50% off select items",
+      "Free gift wrapping today",
+      "Spend $50, get $10 off",
+      "Student discount: 10% off"
+    ],
+    Services: [
+      "First-time customer: 15% off",
+      "Free consultation this week",
+      "Refer a friend, both get $10 off",
+      "Bundle service: save 20%",
+      "Seasonal special: $25 off"
+    ]
+  };
+
+  const seed = crypto
+    .createHash("md5")
+    .update(`${category}-${name}`)
+    .digest("hex");
+  const roll = parseInt(seed.slice(0, 2), 16);
+
+  if (roll % 5 !== 0) {
+    return null;
+  }
+
+  const options = dealsByCategory[category] || dealsByCategory.Services;
+  return options[roll % options.length];
+}
+
 // Detect if a business is a major chain/franchise
 function isChainBusiness(name, tags) {
   if (!name) return false;
@@ -297,7 +337,7 @@ function transformOSMToBusiness(osmElement) {
     phone: tags.phone || tags['contact:phone'] || 'Phone not available',
     hours: formatOpeningHours(tags.opening_hours),
     image: getCategoryImage(category, tags),
-    deal: null, // OSM doesn't have deals info
+    deal: getMockDeal(category, name),
     tags: businessTags.slice(0, 5),
     priceRange: '$$', // OSM doesn't have price info
     website: tags.website || tags['contact:website'] || null,
@@ -469,6 +509,8 @@ app.get("/api/businesses", async (req, res) => {
       result.sort((a, b) => b.reviewCount - a.reviewCount);
     } else if (sort === "name") {
       result.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sort === "local") {
+      result.sort((a, b) => b.relevancyScore - a.relevancyScore);
     }
 
     res.json(result);
