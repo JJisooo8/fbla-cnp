@@ -3,6 +3,10 @@ import cors from "cors";
 import crypto from "crypto";
 import axios from "axios";
 import NodeCache from "node-cache";
+import dotenv from "dotenv";
+
+// Load environment variables
+dotenv.config();
 
 // Cache for OpenStreetMap API responses (TTL: 1 hour)
 const cache = new NodeCache({ stdTTL: 3600 });
@@ -16,7 +20,11 @@ const verificationChallenges = new Map();
 // Cumming, Georgia coordinates and search radius
 const CUMMING_GA_LAT = 34.2073;
 const CUMMING_GA_LON = -84.1402;
-const SEARCH_RADIUS_METERS = 24140; // 15 miles in meters
+const SEARCH_RADIUS_METERS = 16093; // 10 miles in meters
+
+// Yelp Fusion API configuration
+const YELP_API_KEY = process.env.YELP_API_KEY;
+const YELP_API_BASE = 'https://api.yelp.com/v3';
 
 const app = express();
 app.use(cors());
@@ -245,6 +253,130 @@ function calculateRelevancyScore(name, tags, reviewCount) {
   return score;
 }
 
+// ====================
+// YELP FUSION API FUNCTIONS
+// ====================
+
+// Search for a business on Yelp by name and location
+async function searchYelpBusiness(name, lat, lon) {
+  if (!YELP_API_KEY || YELP_API_KEY === 'your_yelp_api_key_here') {
+    return null; // Yelp not configured
+  }
+
+  try {
+    const response = await axios.get(`${YELP_API_BASE}/businesses/search`, {
+      headers: {
+        'Authorization': `Bearer ${YELP_API_KEY}`
+      },
+      params: {
+        term: name,
+        latitude: lat,
+        longitude: lon,
+        limit: 1,
+        radius: 100 // Search within 100 meters
+      },
+      timeout: 5000
+    });
+
+    if (response.data.businesses && response.data.businesses.length > 0) {
+      return response.data.businesses[0];
+    }
+    return null;
+  } catch (error) {
+    console.error(`Yelp search error for "${name}":`, error.message);
+    return null;
+  }
+}
+
+// Get detailed business information including reviews from Yelp
+async function getYelpBusinessDetails(yelpId) {
+  if (!YELP_API_KEY || YELP_API_KEY === 'your_yelp_api_key_here') {
+    return null;
+  }
+
+  try {
+    const [detailsResponse, reviewsResponse] = await Promise.all([
+      axios.get(`${YELP_API_BASE}/businesses/${yelpId}`, {
+        headers: { 'Authorization': `Bearer ${YELP_API_KEY}` },
+        timeout: 5000
+      }),
+      axios.get(`${YELP_API_BASE}/businesses/${yelpId}/reviews`, {
+        headers: { 'Authorization': `Bearer ${YELP_API_KEY}` },
+        timeout: 5000
+      })
+    ]);
+
+    return {
+      details: detailsResponse.data,
+      reviews: reviewsResponse.data.reviews || []
+    };
+  } catch (error) {
+    console.error(`Yelp details error for ID "${yelpId}":`, error.message);
+    return null;
+  }
+}
+
+// Merge OSM and Yelp data
+function mergeOSMAndYelpData(osmBusiness, yelpBusiness, yelpDetails) {
+  if (!yelpBusiness) {
+    return osmBusiness; // No Yelp data, return OSM only
+  }
+
+  // Use Yelp data to enhance OSM data
+  const merged = {
+    ...osmBusiness,
+    // Prefer Yelp's actual data
+    rating: yelpBusiness.rating || osmBusiness.rating,
+    reviewCount: yelpBusiness.review_count || osmBusiness.reviewCount,
+    phone: yelpBusiness.phone || osmBusiness.phone,
+    website: yelpBusiness.url || osmBusiness.website,
+    image: yelpBusiness.image_url || osmBusiness.image,
+
+    // Yelp-specific data
+    yelpId: yelpBusiness.id,
+    yelpUrl: yelpBusiness.url,
+    yelpRating: yelpBusiness.rating,
+    yelpReviewCount: yelpBusiness.review_count,
+  };
+
+  // Add address if more complete in Yelp
+  if (yelpBusiness.location) {
+    const yelpAddress = yelpBusiness.location.display_address?.join(', ');
+    if (yelpAddress && yelpAddress.length > osmBusiness.address.length) {
+      merged.address = yelpAddress;
+    }
+  }
+
+  // Add hours if available from Yelp details
+  if (yelpDetails?.details?.hours && yelpDetails.details.hours.length > 0) {
+    const hours = yelpDetails.details.hours[0];
+    if (hours.is_open_now !== undefined) {
+      merged.isOpenNow = hours.is_open_now;
+    }
+  }
+
+  // Add real reviews from Yelp
+  if (yelpDetails?.reviews && yelpDetails.reviews.length > 0) {
+    merged.reviews = yelpDetails.reviews.map(review => ({
+      id: review.id,
+      author: review.user.name,
+      rating: review.rating,
+      comment: review.text,
+      date: review.time_created,
+      helpful: 0,
+      source: 'yelp',
+      yelpUrl: review.url
+    }));
+  }
+
+  // Add price range from Yelp if available
+  if (yelpBusiness.price) {
+    merged.priceRange = yelpBusiness.price;
+  }
+
+  return merged;
+}
+
 // Transform OSM data to our business format
 function transformOSMToBusiness(osmElement) {
   const tags = osmElement.tags || {};
@@ -366,8 +498,8 @@ async function fetchOSMBusinesses(lat = CUMMING_GA_LAT, lon = CUMMING_GA_LON, ra
     // Sort by relevancy score (highest first) to prioritize local/family-owned
     businesses.sort((a, b) => b.relevancyScore - a.relevancyScore);
 
-    // Increase limit to 500 to include some chains for searchability
-    const limitedBusinesses = businesses.slice(0, 500);
+    // Limit to 300 most relevant businesses for storage
+    const limitedBusinesses = businesses.slice(0, 300);
 
     const chainCount = limitedBusinesses.filter(b => b.isChain).length;
     const localCount = limitedBusinesses.filter(b => !b.isChain).length;
@@ -375,6 +507,50 @@ async function fetchOSMBusinesses(lat = CUMMING_GA_LAT, lon = CUMMING_GA_LON, ra
     console.log(`📊 Filtered to ${limitedBusinesses.length} relevant businesses`);
     console.log(`🎯 Top business: ${limitedBusinesses[0]?.name} (score: ${limitedBusinesses[0]?.relevancyScore})`);
     console.log(`🏪 ${localCount} local businesses, ${chainCount} chains`);
+
+    // Enrich top 50 businesses with Yelp data (to stay within 500 API calls/day limit)
+    // Each business requires 2 API calls (search + details), so 50 businesses = 100 calls
+    if (YELP_API_KEY && YELP_API_KEY !== 'your_yelp_api_key_here') {
+      console.log('🔍 Enriching top 50 businesses with Yelp data...');
+
+      const top50 = limitedBusinesses.slice(0, 50);
+      let yelpEnrichedCount = 0;
+      let yelpReviewCount = 0;
+
+      for (let i = 0; i < top50.length; i++) {
+        const business = top50[i];
+
+        // Search for business on Yelp
+        const yelpBusiness = await searchYelpBusiness(
+          business.name,
+          business.lat,
+          business.lon
+        );
+
+        if (yelpBusiness) {
+          // Get detailed info and reviews
+          const yelpDetails = await getYelpBusinessDetails(yelpBusiness.id);
+
+          // Merge OSM and Yelp data
+          limitedBusinesses[i] = mergeOSMAndYelpData(business, yelpBusiness, yelpDetails);
+          yelpEnrichedCount++;
+
+          if (yelpDetails?.reviews) {
+            yelpReviewCount += yelpDetails.reviews.length;
+          }
+        }
+
+        // Add small delay to avoid rate limiting
+        if (i < top50.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+
+      console.log(`✅ Enriched ${yelpEnrichedCount}/50 businesses with Yelp data`);
+      console.log(`📝 Imported ${yelpReviewCount} real reviews from Yelp`);
+    } else {
+      console.log('⚠️  Yelp API not configured. Set YELP_API_KEY in .env file');
+    }
 
     cache.set(cacheKey, limitedBusinesses);
     return limitedBusinesses;
@@ -412,9 +588,10 @@ app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     message: "Server is healthy",
-    dataSource: "OpenStreetMap",
+    dataSource: "OpenStreetMap + Yelp Fusion API",
     location: "Cumming, Georgia",
-    radius: "15 miles"
+    radius: "10 miles",
+    yelpConfigured: !!(YELP_API_KEY && YELP_API_KEY !== 'your_yelp_api_key_here')
   });
 });
 
@@ -698,8 +875,8 @@ app.get("/api/analytics", async (req, res) => {
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`🚀 LocalLink API running on http://localhost:${PORT}`);
-  console.log(`🗺️  Data Source: OpenStreetMap (FREE!)`);
+  console.log(`🗺️  Data Source: OpenStreetMap + Yelp Fusion API`);
   console.log(`📍 Location: Cumming, Georgia`);
-  console.log(`📏 Search radius: 15 miles (${SEARCH_RADIUS_METERS} meters)`);
-  console.log(`🆓 No API key required!`);
+  console.log(`📏 Search radius: 10 miles (${SEARCH_RADIUS_METERS} meters)`);
+  console.log(`💾 Storing: 300 most relevant local businesses`);
 });

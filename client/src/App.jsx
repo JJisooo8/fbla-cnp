@@ -216,7 +216,7 @@ function App() {
           <div style={styles.hero}>
             <h2 style={styles.heroTitle}>Discover & Support Local Businesses in Cumming, GA</h2>
             <p style={styles.heroSubtitle}>
-              Explore the best local shops, restaurants, and services within 15 miles of Cumming, Georgia
+              Showcasing 30 of the most relevant local businesses from our curated database of 300+ within 10 miles of Cumming, Georgia
             </p>
           </div>
 
@@ -347,7 +347,7 @@ function App() {
             {filteredBusinesses.length === 0 ? (
               <div style={styles.noResults}>No businesses found. Try adjusting your filters.</div>
             ) : (
-              deduplicateChains(filteredBusinesses).map(biz => (
+              deduplicateChains(filteredBusinesses).slice(0, 30).map(biz => (
                 <div key={biz.id} style={styles.businessCard}>
                   <img
                     src={biz.image}
