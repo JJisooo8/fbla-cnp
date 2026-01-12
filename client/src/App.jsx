@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import styles from "./App.module.css";
 
 const API_URL = "http://localhost:3001/api";
 
@@ -187,8 +188,10 @@ function App() {
 
   if (loading) {
     return (
-      <div style={styles.container}>
-        <div style={styles.loading}>Loading LocalLink...</div>
+      <div className={styles.container}>
+        <div className={styles.loading} role="status" aria-live="polite">
+          Loading LocalLink...
+        </div>
       </div>
     );
   }
@@ -204,23 +207,38 @@ function App() {
   const topRated = analytics?.topRated || [];
 
   return (
-    <div style={styles.container}>
+    <div className={styles.container}>
+      {/* Skip Link for Accessibility */}
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+
       {/* Header */}
-      <header style={styles.header}>
-        <div style={styles.headerContent}>
-          <h1 style={styles.logo} onClick={() => setView("home")}>
+      <header className={styles.header} role="banner">
+        <div className={styles.headerContent}>
+          <h1
+            className={styles.logo}
+            onClick={() => setView("home")}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && setView("home")}
+            aria-label="LocalLink - Go to home page"
+          >
             LocalLink
           </h1>
-          <nav style={styles.nav}>
+          <nav className={styles.nav} aria-label="Main navigation">
             <button
-              style={view === "home" ? styles.navButtonActive : styles.navButton}
+              className={view === "home" ? styles.navButtonActive : styles.navButton}
               onClick={() => setView("home")}
+              aria-current={view === "home" ? "page" : undefined}
             >
               Home
             </button>
             <button
-              style={view === "favorites" ? styles.navButtonActive : styles.navButton}
+              className={view === "favorites" ? styles.navButtonActive : styles.navButton}
               onClick={() => setView("favorites")}
+              aria-current={view === "favorites" ? "page" : undefined}
+              aria-label={`Favorites (${favorites.length} businesses)`}
             >
               Favorites ({favorites.length})
             </button>
@@ -230,106 +248,126 @@ function App() {
 
       {/* Home View */}
       {view === "home" && (
-        <div style={styles.content}>
+        <main className={styles.content} id="main-content" role="main">
           {/* Hero Section */}
-          <div style={styles.hero}>
-            <h2 style={styles.heroTitle}>Discover & Support Local Businesses</h2>
-            <p style={styles.heroSubtitle}>
+          <section className={styles.hero} aria-labelledby="hero-title">
+            <h2 id="hero-title" className={styles.heroTitle}>
+              Discover & Support Local Businesses
+            </h2>
+            <p className={styles.heroSubtitle}>
               Connecting you with the heart of Cumming, Georgia's business community.
             </p>
-            <div style={styles.heroActions}>
+            <div className={styles.heroActions}>
               <button
-                style={styles.heroSecondary}
+                className={styles.heroSecondary}
                 onClick={() => setView("favorites")}
+                aria-label="View your favorite businesses"
               >
                 View Favorites
               </button>
               <div
-                style={styles.scrollArrow}
+                className={styles.scrollArrow}
                 onClick={() => {
                   const filtersSection = document.querySelector('[data-section="filters"]');
                   if (filtersSection) {
                     filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                   }
                 }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const filtersSection = document.querySelector('[data-section="filters"]');
+                    if (filtersSection) {
+                      filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }
+                }}
+                aria-label="Scroll down to browse businesses"
               >
                 ↓
               </div>
             </div>
-          </div>
+          </section>
 
           {/* Analytics Cards */}
           {analytics && (
-            <div style={styles.statsGrid}>
-              <div style={styles.statCard}>
-                <div style={styles.statNumber}>{totalBusinessesCount}</div>
-                <div style={styles.statLabel}>Local Businesses</div>
+            <section className={styles.statsGrid} aria-label="Community statistics">
+              <div className={styles.statCard}>
+                <div className={styles.statNumber}>{totalBusinessesCount}</div>
+                <div className={styles.statLabel}>Local Businesses</div>
               </div>
-              <div style={styles.statCard}>
-                <div style={styles.statNumber}>{analytics.totalUserReviews || 0}</div>
-                <div style={styles.statLabel}>Community Reviews</div>
+              <div className={styles.statCard}>
+                <div className={styles.statNumber}>{analytics.totalUserReviews || 0}</div>
+                <div className={styles.statLabel}>Community Reviews</div>
               </div>
-              <div style={styles.statCard}>
-                <div style={styles.statNumber}>{analytics.dealsAvailable}</div>
-                <div style={styles.statLabel}>Active Deals</div>
+              <div className={styles.statCard}>
+                <div className={styles.statNumber}>{analytics.dealsAvailable}</div>
+                <div className={styles.statLabel}>Active Deals</div>
               </div>
-            </div>
+            </section>
           )}
 
           {/* Trending Section */}
           {trending.length > 0 && (
-            <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>Trending Now</h3>
-              <div style={styles.trendingGrid}>
+            <section className={styles.section} aria-labelledby="trending-title">
+              <h3 id="trending-title" className={styles.sectionTitle}>Trending Now</h3>
+              <div className={styles.trendingGrid} role="list">
                 {trending.filter(biz => !biz.isChain).slice(0, 3).map(biz => (
-                  <div
+                  <article
                     key={biz.id}
-                    style={styles.trendingCard}
+                    className={styles.trendingCard}
                     onClick={() => viewBusiness(biz)}
+                    role="listitem button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
+                    aria-label={`View ${biz.name}`}
                   >
-                    <img src={biz.image} alt={biz.name} style={styles.trendingImage} />
-                    <div style={styles.trendingContent}>
-                      <h4 style={styles.trendingName}>{biz.name}</h4>
+                    <img src={biz.image} alt={`${biz.name} storefront`} className={styles.trendingImage} />
+                    <div className={styles.trendingContent}>
+                      <h4 className={styles.trendingName}>{biz.name}</h4>
                       {biz.rating > 0 ? (
-                        <div style={styles.rating}>⭐ {biz.rating.toFixed(1)}</div>
+                        <div className={styles.rating} aria-label={`Rating: ${biz.rating.toFixed(1)} out of 5 stars`}>
+                          ⭐ {biz.rating.toFixed(1)}
+                        </div>
                       ) : (
-                        <div style={styles.noRating}>No ratings yet</div>
+                        <div className={styles.noRating}>No ratings yet</div>
                       )}
                     </div>
-                  </div>
+                  </article>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
           {/* Local Gems */}
           {localGems.length > 0 && (
-            <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>Local Gems</h3>
-              <p style={styles.sectionSubtitle}>
+            <div className={styles.section}>
+              <h3 className={styles.sectionTitle}>Local Gems</h3>
+              <p className={styles.sectionSubtitle}>
                 Handpicked spots with strong local impact and standout ratings.
               </p>
-              <div style={styles.recommendGrid}>
+              <div className={styles.recommendGrid}>
                 {localGems.map(biz => (
                   <div
                     key={biz.id}
-                    style={styles.recommendCard}
+                    className={styles.recommendCard}
                     onClick={() => viewBusiness(biz)}
                   >
-                    <img src={biz.image} alt={biz.name} style={styles.cardImage} />
-                    <div style={styles.cardContent}>
-                      <div style={styles.cardHeader}>
-                        <h4 style={styles.cardTitle}>{biz.name}</h4>
-                        <span style={styles.localBadge}>Local Favorite</span>
+                    <img src={biz.image} alt={biz.name} className={styles.cardImage} />
+                    <div className={styles.cardContent}>
+                      <div className={styles.cardHeader}>
+                        <h4 className={styles.cardTitle}>{biz.name}</h4>
+                        <span className={styles.localBadge}>Local Favorite</span>
                       </div>
                       {biz.rating > 0 ? (
-                        <div style={styles.cardRating}>⭐ {biz.rating.toFixed(1)}</div>
+                        <div className={styles.cardRating}>⭐ {biz.rating.toFixed(1)}</div>
                       ) : (
-                        <div style={styles.noRating}>No ratings yet</div>
+                        <div className={styles.noRating}>No ratings yet</div>
                       )}
-                      <p style={styles.cardCategory}>{biz.category}</p>
+                      <p className={styles.cardCategory}>{biz.category}</p>
                       {biz.deal && (
-                        <div style={styles.dealPill}>🎁 {biz.deal}</div>
+                        <div className={styles.dealPill}>🎁 {biz.deal}</div>
                       )}
                     </div>
                   </div>
@@ -340,24 +378,24 @@ function App() {
 
           {/* Recommendations */}
           {recommendations.length > 0 && (
-            <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>Recommended For You</h3>
-              <div style={styles.recommendGrid}>
+            <div className={styles.section}>
+              <h3 className={styles.sectionTitle}>Recommended For You</h3>
+              <div className={styles.recommendGrid}>
                 {recommendations.map(biz => (
                   <div
                     key={biz.id}
-                    style={styles.recommendCard}
+                    className={styles.recommendCard}
                     onClick={() => viewBusiness(biz)}
                   >
-                    <img src={biz.image} alt={biz.name} style={styles.cardImage} />
-                    <div style={styles.cardContent}>
-                      <h4 style={styles.cardTitle}>{biz.name}</h4>
+                    <img src={biz.image} alt={biz.name} className={styles.cardImage} />
+                    <div className={styles.cardContent}>
+                      <h4 className={styles.cardTitle}>{biz.name}</h4>
                       {biz.rating > 0 ? (
-                        <div style={styles.cardRating}>⭐ {biz.rating.toFixed(1)}</div>
+                        <div className={styles.cardRating}>⭐ {biz.rating.toFixed(1)}</div>
                       ) : (
-                        <div style={styles.noRating}>No ratings yet</div>
+                        <div className={styles.noRating}>No ratings yet</div>
                       )}
-                      <p style={styles.cardCategory}>{biz.category}</p>
+                      <p className={styles.cardCategory}>{biz.category}</p>
                     </div>
                   </div>
                 ))}
@@ -367,40 +405,40 @@ function App() {
 
           {/* Community Insights */}
           {analytics && (
-            <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>Community Insights</h3>
-              <div style={styles.insightsGrid}>
-                <div style={styles.insightCard}>
-                  <h4 style={styles.insightTitle}>Top Categories</h4>
-                  <ul style={styles.insightList}>
+            <div className={styles.section}>
+              <h3 className={styles.sectionTitle}>Community Insights</h3>
+              <div className={styles.insightsGrid}>
+                <div className={styles.insightCard}>
+                  <h4 className={styles.insightTitle}>Top Categories</h4>
+                  <ul className={styles.insightList}>
                     {Object.entries(categoryCounts)
                       .sort((a, b) => b[1] - a[1])
                       .slice(0, 3)
                       .map(([cat, count]) => (
-                        <li key={cat} style={styles.insightItem}>
+                        <li key={cat} className={styles.insightItem}>
                           <span>{cat}</span>
-                          <span style={styles.insightValue}>{count}</span>
+                          <span className={styles.insightValue}>{count}</span>
                         </li>
                       ))}
                   </ul>
                 </div>
-                <div style={styles.insightCard}>
-                  <h4 style={styles.insightTitle}>Top Rated</h4>
-                  <ul style={styles.insightList}>
+                <div className={styles.insightCard}>
+                  <h4 className={styles.insightTitle}>Top Rated</h4>
+                  <ul className={styles.insightList}>
                     {topRated.map(item => (
-                      <li key={item.id} style={styles.insightItem}>
+                      <li key={item.id} className={styles.insightItem}>
                         <span>{item.name}</span>
-                        <span style={styles.insightValue}>⭐ {item.rating}</span>
+                        <span className={styles.insightValue}>⭐ {item.rating}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
-                <div style={styles.insightCard}>
-                  <h4 style={styles.insightTitle}>Quick Picks</h4>
-                  <p style={styles.insightBody}>
+                <div className={styles.insightCard}>
+                  <h4 className={styles.insightTitle}>Quick Picks</h4>
+                  <p className={styles.insightBody}>
                     Filter by category or deals to find the perfect local spot for today.
                   </p>
-                  <div style={styles.insightTags}>
+                  <div className={styles.insightTags}>
                     {["Food", "Retail", "Services"].map(cat => (
                       <button
                         key={cat}
@@ -408,7 +446,7 @@ function App() {
                           setCategory(cat);
                           setView("home");
                         }}
-                        style={styles.insightTag}
+                        className={styles.insightTag}
                       >
                         {cat}
                       </button>
@@ -420,27 +458,29 @@ function App() {
           )}
 
           {/* Filters */}
-          <div style={styles.filtersSection} data-section="filters">
-            <h3 style={styles.sectionTitle}>Browse All Businesses</h3>
-            <p style={styles.sectionSubtitle}>
+          <section className={styles.filtersSection} data-section="filters" aria-labelledby="filters-title">
+            <h3 id="filters-title" className={styles.sectionTitle}>Browse All Businesses</h3>
+            <p className={styles.sectionSubtitle}>
               Showing top {filteredBusinesses.length} results of {totalBusinessesCount} businesses.
             </p>
 
-            <div style={styles.filters}>
+            <div className={styles.filters} role="search">
               <input
                 type="text"
                 placeholder="Search businesses, tags, or categories..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                style={styles.searchInput}
+                className={styles.searchInput}
+                aria-label="Search businesses by name, tags, or categories"
               />
               
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
-                style={styles.select}
+                className={styles.select}
+                aria-label="Filter by category"
               >
-                <option value="All">All</option>
+                <option value="All">All Categories</option>
                 <option value="Food">Food ({totalCategoryCounts.Food || 0})</option>
                 <option value="Retail">Retail ({totalCategoryCounts.Retail || 0})</option>
                 <option value="Services">Services ({totalCategoryCounts.Services || 0})</option>
@@ -449,7 +489,8 @@ function App() {
               <select
                 value={minRating}
                 onChange={e => setMinRating(e.target.value)}
-                style={styles.select}
+                className={styles.select}
+                aria-label="Filter by minimum rating"
               >
                 <option value="">Any Rating</option>
                 <option value="4">4+ Stars</option>
@@ -459,7 +500,8 @@ function App() {
               <select
                 value={sortBy}
                 onChange={e => setSortBy(e.target.value)}
-                style={styles.select}
+                className={styles.select}
+                aria-label="Sort businesses"
               >
                 <option value="rating">Sort: Rating</option>
                 <option value="reviews">Sort: Most Reviews</option>
@@ -467,166 +509,182 @@ function App() {
                 <option value="local">Sort: Local Favorites</option>
               </select>
 
-              <label style={styles.checkbox}>
+              <label className={styles.checkbox}>
                 <input
                   type="checkbox"
                   checked={showDealsOnly}
                   onChange={e => setShowDealsOnly(e.target.checked)}
+                  aria-label="Show only businesses with deals"
                 />
-                <span style={styles.checkboxLabel}>Deals Only</span>
+                <span className={styles.checkboxLabel}>Deals Only</span>
               </label>
             </div>
-          </div>
+          </section>
 
           {/* Business List */}
-          <div style={styles.businessGrid}>
+          <section className={styles.businessGrid} aria-label="Business listings">
             {filteredBusinesses.length === 0 ? (
-              <div style={styles.noResults}>No businesses found. Try adjusting your filters.</div>
+              <div className={styles.noResults} role="status">
+                No businesses found. Try adjusting your filters.
+              </div>
             ) : (
               deduplicateChains(filteredBusinesses).map(biz => (
-                <div key={biz.id} style={styles.businessCard}>
+                <article key={biz.id} className={styles.businessCard}>
                   <img
                     src={biz.image}
-                    alt={biz.name}
-                    style={styles.businessImage}
+                    alt={`${biz.name} storefront`}
+                    className={styles.businessImage}
                     onClick={() => viewBusiness(biz)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
                   />
-                  <div style={styles.businessContent}>
-                    <div style={styles.businessHeader}>
+                  <div className={styles.businessContent}>
+                    <div className={styles.businessHeader}>
                       <h3
-                        style={styles.businessName}
+                        className={styles.businessName}
                         onClick={() => viewBusiness(biz)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
                       >
                         {biz.name}
                       </h3>
                       <button
                         onClick={() => toggleFavorite(biz.id)}
-                        style={styles.favoriteBtn}
+                        className={styles.favoriteBtn}
+                        aria-label={favorites.includes(biz.id) ? `Remove ${biz.name} from favorites` : `Add ${biz.name} to favorites`}
+                        aria-pressed={favorites.includes(biz.id)}
                       >
                         {favorites.includes(biz.id) ? "❤️" : "🤍"}
                       </button>
                     </div>
                     
-                    <div style={styles.businessMeta}>
-                      <span style={styles.category}>{biz.category}</span>
+                    <div className={styles.businessMeta}>
+                      <span className={styles.category}>{biz.category}</span>
                       {biz.rating > 0 ? (
-                        <span style={styles.rating}>⭐ {biz.rating.toFixed(1)}</span>
+                        <span className={styles.rating}>⭐ {biz.rating.toFixed(1)}</span>
                       ) : (
-                        <span style={styles.noRating}>No ratings yet</span>
+                        <span className={styles.noRating}>No ratings yet</span>
                       )}
-                      <span style={styles.reviews}>
+                      <span className={styles.reviews}>
                         {biz.reviewCount > 0 ? `(${biz.reviewCount} reviews)` : "No reviews yet"}
                       </span>
-                      {biz.deal && <span style={styles.dealBadge}>Deal</span>}
+                      {biz.deal && <span className={styles.dealBadge}>Deal</span>}
                     </div>
 
-                    <p style={styles.description}>{biz.description}</p>
+                    <p className={styles.description}>{biz.description}</p>
 
                     {biz.deal && (
-                      <div style={styles.deal}>
+                      <div className={styles.deal}>
                         🎁 {biz.deal}
                       </div>
                     )}
 
                     <button
                       onClick={() => viewBusiness(biz)}
-                      style={styles.viewButton}
+                      className={styles.viewButton}
+                      aria-label={`View details for ${biz.name}`}
                     >
                       View Details →
                     </button>
                   </div>
-                </div>
+                </article>
               ))
             )}
-          </div>
-        </div>
+          </section>
+        </main>
       )}
 
       {/* Business Detail View */}
       {view === "business" && selectedBusiness && (
-        <div style={styles.content}>
-          <button onClick={() => setView("home")} style={styles.backButton}>
+        <main className={styles.content} id="main-content" role="main">
+          <button onClick={() => setView("home")} className={styles.backButton}>
             ← Back to Browse
           </button>
 
           {detailLoading && (
-            <div style={styles.detailLoading}>Loading business details...</div>
+            <div className={styles.detailLoading}>Loading business details...</div>
           )}
 
-          <div style={styles.detailCard}>
+          <div className={styles.detailCard}>
             <img
               src={selectedBusiness.image}
               alt={selectedBusiness.name}
-              style={styles.detailImage}
+              className={styles.detailImage}
             />
             
-            <div style={styles.detailContent}>
-              <div style={styles.detailHeader}>
+            <div className={styles.detailContent}>
+              <div className={styles.detailHeader}>
                 <div>
-                  <h2 style={styles.detailTitle}>{selectedBusiness.name}</h2>
-                  <div style={styles.detailMeta}>
-                    <span style={styles.category}>{selectedBusiness.category}</span>
-                    <span style={styles.priceRange}>{selectedBusiness.priceRange}</span>
+                  <h2 className={styles.detailTitle}>{selectedBusiness.name}</h2>
+                  <div className={styles.detailMeta}>
+                    <span className={styles.category}>{selectedBusiness.category}</span>
+                    <span className={styles.priceRange}>{selectedBusiness.priceRange}</span>
                   </div>
                 </div>
                 <button
                   onClick={() => toggleFavorite(selectedBusiness.id)}
-                  style={styles.favoriteBtnLarge}
+                  className={styles.favoriteBtnLarge}
+                  aria-label={favorites.includes(selectedBusiness.id) ? `Remove ${selectedBusiness.name} from favorites` : `Add ${selectedBusiness.name} to favorites`}
+                  aria-pressed={favorites.includes(selectedBusiness.id)}
                 >
                   {favorites.includes(selectedBusiness.id) ? "❤️" : "🤍"}
                 </button>
               </div>
 
-              <div style={styles.ratingSection}>
+              <div className={styles.ratingSection}>
                 {selectedBusiness.rating > 0 ? (
-                  <div style={styles.bigRating}>⭐ {selectedBusiness.rating.toFixed(1)}</div>
+                  <div className={styles.bigRating} aria-label={`Average rating: ${selectedBusiness.rating.toFixed(1)} out of 5 stars`}>
+                    ⭐ {selectedBusiness.rating.toFixed(1)}
+                  </div>
                 ) : (
-                  <div style={styles.noRating}>No ratings yet</div>
+                  <div className={styles.noRating}>No ratings yet</div>
                 )}
-                <div style={styles.reviewCount}>
+                <div className={styles.reviewCount}>
                   {selectedBusiness.reviewCount > 0
                     ? `${selectedBusiness.reviewCount} reviews`
                     : "No reviews yet"}
                 </div>
               </div>
 
-              <p style={styles.detailDescription}>{selectedBusiness.description}</p>
+              <p className={styles.detailDescription}>{selectedBusiness.description}</p>
 
               {selectedBusiness.deal && (
-                <div style={styles.dealLarge}>
+                <div className={styles.dealLarge}>
                   🎁 <strong>Special Offer:</strong> {selectedBusiness.deal}
                 </div>
               )}
 
-              <div style={styles.infoGrid}>
-                <div style={styles.infoItem}>
-                  <div style={styles.infoLabel}>📍 Address</div>
-                  <div style={styles.infoValue}>{selectedBusiness.address}</div>
+              <div className={styles.infoGrid}>
+                <div className={styles.infoItem}>
+                  <div className={styles.infoLabel}>📍 Address</div>
+                  <div className={styles.infoValue}>{selectedBusiness.address}</div>
                 </div>
-                <div style={styles.infoItem}>
-                  <div style={styles.infoLabel}>📞 Phone</div>
-                  <div style={styles.infoValue}>{selectedBusiness.phone}</div>
+                <div className={styles.infoItem}>
+                  <div className={styles.infoLabel}>📞 Phone</div>
+                  <div className={styles.infoValue}>{selectedBusiness.phone}</div>
                 </div>
-                <div style={styles.infoItem}>
-                  <div style={styles.infoLabel}>🕐 Hours</div>
-                  <div style={styles.infoValue}>
+                <div className={styles.infoItem}>
+                  <div className={styles.infoLabel}>🕐 Hours</div>
+                  <div className={styles.infoValue}>
                     {selectedBusiness.hours}
                     {selectedBusiness.isOpenNow !== undefined && (
-                      <span style={selectedBusiness.isOpenNow ? styles.openNow : styles.closedNow}>
+                      <span className={selectedBusiness.isOpenNow ? styles.openNow : styles.closedNow}>
                         {selectedBusiness.isOpenNow ? ' • Open Now' : ' • Closed'}
                       </span>
                     )}
                   </div>
                 </div>
                 {selectedBusiness.website && (
-                  <div style={styles.infoItem}>
-                    <div style={styles.infoLabel}>🌐 Website</div>
-                    <div style={styles.infoValue}>
+                  <div className={styles.infoItem}>
+                    <div className={styles.infoLabel}>🌐 Website</div>
+                    <div className={styles.infoValue}>
                       <a
                         href={selectedBusiness.website}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={styles.link}
+                        className={styles.link}
                       >
                         Visit Website
                       </a>
@@ -634,14 +692,14 @@ function App() {
                   </div>
                 )}
                 {selectedBusiness.googleMapsUrl && (
-                  <div style={styles.infoItem}>
-                    <div style={styles.infoLabel}>🗺️ Directions</div>
-                    <div style={styles.infoValue}>
+                  <div className={styles.infoItem}>
+                    <div className={styles.infoLabel}>🗺️ Directions</div>
+                    <div className={styles.infoValue}>
                       <a
                         href={selectedBusiness.googleMapsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={styles.link}
+                        className={styles.link}
                       >
                         Open in Google Maps
                       </a>
@@ -650,45 +708,50 @@ function App() {
                 )}
               </div>
 
-              <div style={styles.tags}>
+              <div className={styles.tags}>
                 {selectedBusiness.tags.map(tag => (
-                  <span key={tag} style={styles.tag}>{tag}</span>
+                  <span key={tag} className={styles.tag}>{tag}</span>
                 ))}
               </div>
 
               {/* Reviews Section */}
-              <div style={styles.reviewsSection}>
-                <div style={styles.reviewsHeader}>
-                  <h3 style={styles.reviewsTitle}>Customer Reviews</h3>
+              <div className={styles.reviewsSection}>
+                <div className={styles.reviewsHeader}>
+                  <h3 className={styles.reviewsTitle}>Customer Reviews</h3>
                   {!showReviewForm && (
-                    <button onClick={startReview} style={styles.writeReviewBtn}>
+                    <button onClick={startReview} className={styles.writeReviewBtn}>
                       Write a Review
                     </button>
                   )}
                 </div>
 
                 {showReviewForm && verificationChallenge && (
-                  <form onSubmit={submitReview} style={styles.reviewForm}>
-                    <h4 style={styles.formTitle}>Write Your Review</h4>
-                    
+                  <form onSubmit={submitReview} className={styles.reviewForm} aria-labelledby="review-form-title">
+                    <h4 id="review-form-title" className={styles.formTitle}>Write Your Review</h4>
+
                     <input
                       type="text"
                       placeholder="Your name"
                       value={reviewForm.author}
                       onChange={e => setReviewForm(prev => ({ ...prev, author: e.target.value }))}
-                      style={styles.input}
+                      className={styles.input}
+                      aria-label="Your name"
                       required
                     />
 
-                    <div style={styles.formGroup}>
-                      <label style={styles.label}>Rating: {reviewForm.rating} ⭐</label>
+                    <div className={styles.formGroup}>
+                      <label className={styles.label} htmlFor="rating-slider">
+                        Rating: {reviewForm.rating} ⭐
+                      </label>
                       <input
+                        id="rating-slider"
                         type="range"
                         min="1"
                         max="5"
                         value={reviewForm.rating}
                         onChange={e => setReviewForm(prev => ({ ...prev, rating: parseInt(e.target.value) }))}
-                        style={styles.slider}
+                        className={styles.slider}
+                        aria-label={`Rating: ${reviewForm.rating} out of 5 stars`}
                       />
                     </div>
 
@@ -696,33 +759,36 @@ function App() {
                       placeholder="Share your experience (min 10 characters)..."
                       value={reviewForm.comment}
                       onChange={e => setReviewForm(prev => ({ ...prev, comment: e.target.value }))}
-                      style={styles.textarea}
+                      className={styles.textarea}
                       rows={4}
+                      aria-label="Your review"
                       required
                     />
 
-                    <div style={styles.verification}>
-                      <label style={styles.label}>
+                    <div className={styles.verification}>
+                      <label className={styles.label} htmlFor="verification-answer">
                         Verification (anti-spam): {verificationChallenge.question}
                       </label>
                       <input
+                        id="verification-answer"
                         type="number"
                         placeholder="Answer"
                         value={reviewForm.verificationAnswer}
                         onChange={e => setReviewForm(prev => ({ ...prev, verificationAnswer: e.target.value }))}
-                        style={styles.input}
+                        className={styles.input}
+                        aria-label="Verification answer"
                         required
                       />
                     </div>
 
-                    <div style={styles.formButtons}>
-                      <button type="submit" style={styles.submitBtn}>
+                    <div className={styles.formButtons}>
+                      <button type="submit" className={styles.submitBtn}>
                         Submit Review
                       </button>
                       <button
                         type="button"
                         onClick={() => setShowReviewForm(false)}
-                        style={styles.cancelBtn}
+                        className={styles.cancelBtn}
                       >
                         Cancel
                       </button>
@@ -731,19 +797,19 @@ function App() {
                 )}
 
                 {selectedBusiness.reviews.length === 0 ? (
-                  <p style={styles.noReviews}>No reviews yet. Be the first to review!</p>
+                  <p className={styles.noReviews}>No reviews yet. Be the first to review!</p>
                 ) : (
-                  <div style={styles.reviewsList}>
+                  <div className={styles.reviewsList}>
                     {selectedBusiness.reviews.map(review => (
-                      <div key={review.id} style={styles.reviewItem}>
-                        <div style={styles.reviewHeader}>
-                          <strong style={styles.reviewAuthor}>{review.author}</strong>
-                          <div style={styles.reviewRating}>
+                      <div key={review.id} className={styles.reviewItem}>
+                        <div className={styles.reviewHeader}>
+                          <strong className={styles.reviewAuthor}>{review.author}</strong>
+                          <div className={styles.reviewRating}>
                             {"⭐".repeat(review.rating)}
                           </div>
                         </div>
-                        <p style={styles.reviewComment}>{review.comment}</p>
-                        <div style={styles.reviewDate}>
+                        <p className={styles.reviewComment}>{review.comment}</p>
+                        <div className={styles.reviewDate}>
                           {new Date(review.date).toLocaleDateString()}
                         </div>
                       </div>
@@ -753,77 +819,86 @@ function App() {
               </div>
             </div>
           </div>
-        </div>
+        </main>
       )}
 
       {/* Favorites View */}
       {view === "favorites" && (
-        <div style={styles.content}>
-          <h2 style={styles.pageTitle}>Your Favorite Businesses</h2>
+        <main className={styles.content} id="main-content" role="main">
+          <h2 className={styles.pageTitle}>Your Favorite Businesses</h2>
           
           {favorites.length === 0 ? (
-            <div style={styles.emptyState}>
-              <p style={styles.emptyText}>You haven't saved any favorites yet.</p>
-              <button onClick={() => setView("home")} style={styles.browseBtn}>
+            <div className={styles.emptyState}>
+              <p className={styles.emptyText}>You haven't saved any favorites yet.</p>
+              <button onClick={() => setView("home")} className={styles.browseBtn}>
                 Browse Businesses
               </button>
             </div>
           ) : (
-            <div style={styles.businessGrid}>
+            <section className={styles.businessGrid} aria-label="Favorite businesses">
               {businesses
                 .filter(b => favorites.includes(b.id))
                 .map(biz => (
-                  <div key={biz.id} style={styles.businessCard}>
+                  <article key={biz.id} className={styles.businessCard}>
                     <img
                       src={biz.image}
-                      alt={biz.name}
-                      style={styles.businessImage}
+                      alt={`${biz.name} storefront`}
+                      className={styles.businessImage}
                       onClick={() => viewBusiness(biz)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
                     />
-                    <div style={styles.businessContent}>
-                      <div style={styles.businessHeader}>
+                    <div className={styles.businessContent}>
+                      <div className={styles.businessHeader}>
                         <h3
-                          style={styles.businessName}
+                          className={styles.businessName}
                           onClick={() => viewBusiness(biz)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
                         >
                           {biz.name}
                         </h3>
                         <button
                           onClick={() => toggleFavorite(biz.id)}
-                          style={styles.favoriteBtn}
+                          className={styles.favoriteBtn}
+                          aria-label={`Remove ${biz.name} from favorites`}
+                          aria-pressed="true"
                         >
                           ❤️
                         </button>
                       </div>
                       
-                      <div style={styles.businessMeta}>
-                        <span style={styles.category}>{biz.category}</span>
+                      <div className={styles.businessMeta}>
+                        <span className={styles.category}>{biz.category}</span>
                       {biz.rating > 0 ? (
-                        <span style={styles.rating}>⭐ {biz.rating.toFixed(1)}</span>
+                        <span className={styles.rating}>⭐ {biz.rating.toFixed(1)}</span>
                       ) : (
-                        <span style={styles.noRating}>No ratings yet</span>
+                        <span className={styles.noRating}>No ratings yet</span>
                       )}
                       </div>
 
-                      <p style={styles.description}>{biz.description}</p>
+                      <p className={styles.description}>{biz.description}</p>
 
                       <button
                         onClick={() => viewBusiness(biz)}
-                        style={styles.viewButton}
+                        className={styles.viewButton}
+                        aria-label={`View details for ${biz.name}`}
                       >
                         View Details →
                       </button>
                     </div>
-                  </div>
+                  </article>
                 ))}
-            </div>
+            </section>
           )}
-        </div>
+        </main>
       )}
 
       {/* Footer */}
-      <footer style={styles.footer}>
-        <p style={styles.footerText}>
+      <footer className={styles.footer}>
+        <p className={styles.footerText}>
           LocalLink - Supporting local businesses since 2024 | 
           Made for FBLA Byte-Sized Business Boost
         </p>
@@ -831,835 +906,5 @@ function App() {
     </div>
   );
 }
-
-const styles = {
-  container: {
-    minHeight: "100vh",
-    backgroundColor: "#f5f5f5",
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
-  },
-  loading: {
-    textAlign: "center",
-    padding: "4rem",
-    fontSize: "1.5rem",
-    color: "#666"
-  },
-  header: {
-    backgroundColor: "#fff",
-    borderBottom: "3px solid #F9B233",
-    position: "sticky",
-    top: 0,
-    zIndex: 100,
-    boxShadow: "0 2px 8px rgba(31, 78, 140, 0.1)",
-    transition: "all 0.3s ease"
-  },
-  headerContent: {
-    maxWidth: "1200px",
-    margin: "0 auto",
-    padding: "1rem 2rem",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center"
-  },
-  logo: {
-    fontSize: "1.8rem",
-    fontWeight: "bold",
-    color: "#1F4E8C",
-    margin: 0,
-    cursor: "pointer",
-    transition: "all 0.3s ease"
-  },
-  nav: {
-    display: "flex",
-    gap: "1rem"
-  },
-  navButton: {
-    padding: "0.5rem 1.5rem",
-    border: "none",
-    background: "transparent",
-    color: "#666",
-    fontSize: "1rem",
-    cursor: "pointer",
-    borderRadius: "8px",
-    transition: "all 0.3s ease",
-    fontWeight: "500"
-  },
-  navButtonActive: {
-    padding: "0.5rem 1.5rem",
-    border: "none",
-    background: "#1F4E8C",
-    color: "#fff",
-    fontSize: "1rem",
-    cursor: "pointer",
-    borderRadius: "8px",
-    fontWeight: "500",
-    transform: "translateY(-2px)",
-    boxShadow: "0 4px 8px rgba(31, 78, 140, 0.2)"
-  },
-  content: {
-    maxWidth: "1200px",
-    margin: "0 auto",
-    padding: "2rem"
-  },
-  hero: {
-    textAlign: "center",
-    padding: "4rem 2rem",
-    background: "linear-gradient(135deg, #1F4E8C 0%, #2a6bb8 100%)",
-    borderRadius: "16px",
-    marginBottom: "2rem",
-    color: "#fff",
-    position: "relative",
-    overflow: "hidden",
-    boxShadow: "0 8px 24px rgba(31, 78, 140, 0.15)"
-  },
-  heroTitle: {
-    fontSize: "2.5rem",
-    fontWeight: "bold",
-    margin: "0 0 1rem 0",
-    animation: "fadeInUp 0.6s ease-out"
-  },
-  heroSubtitle: {
-    fontSize: "1.2rem",
-    opacity: 0.95,
-    margin: 0,
-    animation: "fadeInUp 0.8s ease-out"
-  },
-  heroActions: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: "2rem",
-    marginTop: "2rem",
-    flexWrap: "wrap"
-  },
-  heroSecondary: {
-    padding: "0.85rem 1.75rem",
-    backgroundColor: "#F9B233",
-    color: "#1F4E8C",
-    border: "none",
-    borderRadius: "999px",
-    fontSize: "1rem",
-    fontWeight: "600",
-    cursor: "pointer",
-    transition: "all 0.3s ease",
-    boxShadow: "0 4px 12px rgba(249, 178, 51, 0.3)"
-  },
-  scrollArrow: {
-    fontSize: "3rem",
-    color: "#F9B233",
-    cursor: "pointer",
-    animation: "bounce 2s infinite",
-    transition: "all 0.3s ease",
-    fontWeight: "bold",
-    lineHeight: 1
-  },
-  statsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-    gap: "1rem",
-    marginBottom: "2rem"
-  },
-  statCard: {
-    backgroundColor: "#fff",
-    padding: "1.5rem",
-    borderRadius: "12px",
-    textAlign: "center",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-    transition: "all 0.3s ease",
-    cursor: "default"
-  },
-  statNumber: {
-    fontSize: "2rem",
-    fontWeight: "bold",
-    color: "#1F4E8C",
-    marginBottom: "0.5rem"
-  },
-  statLabel: {
-    fontSize: "0.9rem",
-    color: "#666"
-  },
-  section: {
-    marginBottom: "3rem"
-  },
-  sectionTitle: {
-    fontSize: "1.8rem",
-    fontWeight: "bold",
-    color: "#1F4E8C",
-    marginBottom: "1rem",
-    position: "relative",
-    paddingBottom: "0.5rem"
-  },
-  sectionSubtitle: {
-    marginTop: "-0.5rem",
-    marginBottom: "1.5rem",
-    color: "#5f6c7b"
-  },
-  trendingGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-    gap: "1rem"
-  },
-  trendingCard: {
-    backgroundColor: "#fff",
-    borderRadius: "12px",
-    overflow: "hidden",
-    cursor: "pointer",
-    transition: "all 0.3s ease",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-    border: "2px solid transparent"
-  },
-  trendingImage: {
-    width: "100%",
-    height: "200px",
-    objectFit: "cover"
-  },
-  trendingContent: {
-    padding: "1rem",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center"
-  },
-  trendingName: {
-    fontSize: "1.2rem",
-    fontWeight: "600",
-    margin: 0,
-    color: "#2c3e50"
-  },
-  recommendGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-    gap: "1rem"
-  },
-  recommendCard: {
-    backgroundColor: "#fff",
-    borderRadius: "12px",
-    overflow: "hidden",
-    cursor: "pointer",
-    transition: "all 0.3s ease",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-    border: "2px solid transparent"
-  },
-  cardImage: {
-    width: "100%",
-    height: "150px",
-    objectFit: "cover"
-  },
-  cardContent: {
-    padding: "1rem"
-  },
-  cardHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "0.5rem"
-  },
-  cardTitle: {
-    fontSize: "1.1rem",
-    fontWeight: "600",
-    margin: "0 0 0.5rem 0",
-    color: "#2c3e50"
-  },
-  localBadge: {
-    backgroundColor: "#e8f5e9",
-    color: "#2e7d32",
-    fontSize: "0.7rem",
-    fontWeight: "600",
-    padding: "0.25rem 0.5rem",
-    borderRadius: "999px",
-    whiteSpace: "nowrap"
-  },
-  cardRating: {
-    fontSize: "0.9rem",
-    color: "#f39c12",
-    marginBottom: "0.25rem"
-  },
-  noRating: {
-    fontSize: "0.85rem",
-    color: "#718096",
-    fontWeight: "500"
-  },
-  cardCategory: {
-    fontSize: "0.85rem",
-    color: "#666",
-    margin: 0
-  },
-  dealPill: {
-    marginTop: "0.75rem",
-    backgroundColor: "#fff3cd",
-    color: "#856404",
-    borderRadius: "999px",
-    padding: "0.35rem 0.75rem",
-    fontSize: "0.75rem",
-    display: "inline-flex",
-    alignItems: "center"
-  },
-  insightsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-    gap: "1.5rem"
-  },
-  insightCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: "14px",
-    padding: "1.5rem",
-    boxShadow: "0 2px 10px rgba(0,0,0,0.08)"
-  },
-  insightTitle: {
-    fontSize: "1.1rem",
-    fontWeight: "700",
-    color: "#2c3e50",
-    margin: "0 0 1rem 0"
-  },
-  insightList: {
-    listStyle: "none",
-    padding: 0,
-    margin: 0,
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.75rem"
-  },
-  insightItem: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    color: "#4a5568",
-    fontSize: "0.95rem"
-  },
-  insightValue: {
-    fontWeight: "600",
-    color: "#2c3e50"
-  },
-  insightBody: {
-    margin: 0,
-    color: "#4a5568",
-    lineHeight: "1.6",
-    marginBottom: "1rem"
-  },
-  insightTags: {
-    display: "flex",
-    gap: "0.5rem",
-    flexWrap: "wrap"
-  },
-  insightTag: {
-    border: "1px solid #e2e8f0",
-    padding: "0.4rem 0.75rem",
-    borderRadius: "999px",
-    backgroundColor: "#f8fafc",
-    color: "#2c3e50",
-    fontSize: "0.85rem",
-    cursor: "pointer"
-  },
-  filtersSection: {
-    marginBottom: "2rem"
-  },
-  filters: {
-    display: "flex",
-    gap: "1rem",
-    flexWrap: "wrap",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    padding: "1.5rem",
-    borderRadius: "12px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
-  },
-  searchInput: {
-    flex: "1 1 300px",
-    padding: "0.75rem 1rem",
-    border: "2px solid #e9ecef",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    outline: "none",
-    transition: "border-color 0.2s"
-  },
-  select: {
-    padding: "0.75rem 1rem",
-    border: "2px solid #e9ecef",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    backgroundColor: "#fff",
-    cursor: "pointer",
-    outline: "none"
-  },
-  checkbox: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    cursor: "pointer"
-  },
-  checkboxLabel: {
-    fontSize: "1rem",
-    color: "#2c3e50"
-  },
-  businessGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(350px, 1fr))",
-    gap: "1.5rem"
-  },
-  businessCard: {
-    backgroundColor: "#fff",
-    borderRadius: "12px",
-    overflow: "hidden",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-    transition: "all 0.3s ease",
-    border: "2px solid transparent"
-  },
-  businessImage: {
-    width: "100%",
-    height: "200px",
-    objectFit: "cover",
-    cursor: "pointer"
-  },
-  businessContent: {
-    padding: "1.5rem"
-  },
-  businessHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "start",
-    marginBottom: "0.75rem"
-  },
-  businessName: {
-    fontSize: "1.4rem",
-    fontWeight: "600",
-    margin: 0,
-    color: "#2c3e50",
-    cursor: "pointer",
-    transition: "color 0.2s"
-  },
-  favoriteBtn: {
-    fontSize: "1.5rem",
-    border: "none",
-    background: "transparent",
-    cursor: "pointer",
-    padding: "0.25rem",
-    transition: "transform 0.2s"
-  },
-  businessMeta: {
-    display: "flex",
-    gap: "1rem",
-    alignItems: "center",
-    marginBottom: "0.75rem",
-    flexWrap: "wrap"
-  },
-  category: {
-    padding: "0.25rem 0.75rem",
-    backgroundColor: "#e3f2fd",
-    color: "#1976d2",
-    borderRadius: "6px",
-    fontSize: "0.85rem",
-    fontWeight: "500"
-  },
-  rating: {
-    fontSize: "0.95rem",
-    color: "#f39c12",
-    fontWeight: "500"
-  },
-  reviews: {
-    fontSize: "0.85rem",
-    color: "#666"
-  },
-  dealBadge: {
-    backgroundColor: "#fff3cd",
-    color: "#856404",
-    borderRadius: "999px",
-    padding: "0.2rem 0.6rem",
-    fontSize: "0.75rem",
-    fontWeight: "600"
-  },
-  description: {
-    fontSize: "0.95rem",
-    color: "#555",
-    lineHeight: "1.5",
-    marginBottom: "1rem"
-  },
-  deal: {
-    backgroundColor: "#fff3cd",
-    border: "1px solid #ffc107",
-    padding: "0.75rem",
-    borderRadius: "8px",
-    fontSize: "0.9rem",
-    color: "#856404",
-    marginBottom: "1rem"
-  },
-  viewButton: {
-    width: "100%",
-    padding: "0.75rem",
-    backgroundColor: "#1F4E8C",
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    fontWeight: "500",
-    cursor: "pointer",
-    transition: "all 0.3s ease"
-  },
-  noResults: {
-    gridColumn: "1 / -1",
-    textAlign: "center",
-    padding: "3rem",
-    color: "#666",
-    fontSize: "1.1rem"
-  },
-  backButton: {
-    padding: "0.75rem 1.5rem",
-    backgroundColor: "#6c757d",
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    cursor: "pointer",
-    marginBottom: "2rem",
-    transition: "background-color 0.2s"
-  },
-  detailLoading: {
-    padding: "1rem 1.5rem",
-    backgroundColor: "#fff",
-    borderRadius: "12px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-    marginBottom: "1.5rem",
-    color: "#4a5568",
-    fontWeight: "500"
-  },
-  detailCard: {
-    backgroundColor: "#fff",
-    borderRadius: "16px",
-    overflow: "hidden",
-    boxShadow: "0 4px 16px rgba(0,0,0,0.1)"
-  },
-  detailImage: {
-    width: "100%",
-    height: "400px",
-    objectFit: "cover"
-  },
-  detailContent: {
-    padding: "2rem"
-  },
-  detailHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "start",
-    marginBottom: "1.5rem"
-  },
-  detailTitle: {
-    fontSize: "2.5rem",
-    fontWeight: "bold",
-    margin: "0 0 0.5rem 0",
-    color: "#2c3e50"
-  },
-  detailMeta: {
-    display: "flex",
-    gap: "1rem"
-  },
-  priceRange: {
-    padding: "0.25rem 0.75rem",
-    backgroundColor: "#e8f5e9",
-    color: "#2e7d32",
-    borderRadius: "6px",
-    fontSize: "0.85rem",
-    fontWeight: "500"
-  },
-  favoriteBtnLarge: {
-    fontSize: "2rem",
-    border: "none",
-    background: "transparent",
-    cursor: "pointer",
-    padding: "0.5rem"
-  },
-  ratingSection: {
-    display: "flex",
-    alignItems: "center",
-    gap: "1rem",
-    marginBottom: "1.5rem"
-  },
-  bigRating: {
-    fontSize: "2.5rem",
-    fontWeight: "bold",
-    color: "#f39c12"
-  },
-  reviewCount: {
-    fontSize: "1.1rem",
-    color: "#666"
-  },
-  detailDescription: {
-    fontSize: "1.1rem",
-    color: "#555",
-    lineHeight: "1.7",
-    marginBottom: "1.5rem"
-  },
-  dealLarge: {
-    backgroundColor: "#fff3cd",
-    border: "2px solid #ffc107",
-    padding: "1.25rem",
-    borderRadius: "12px",
-    fontSize: "1.1rem",
-    color: "#856404",
-    marginBottom: "2rem"
-  },
-  infoGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-    gap: "1.5rem",
-    marginBottom: "2rem"
-  },
-  infoItem: {
-    padding: "1rem",
-    backgroundColor: "#f8f9fa",
-    borderRadius: "8px"
-  },
-  infoLabel: {
-    fontSize: "0.9rem",
-    color: "#666",
-    marginBottom: "0.5rem",
-    fontWeight: "500"
-  },
-  infoValue: {
-    fontSize: "1rem",
-    color: "#2c3e50"
-  },
-  tags: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "0.5rem",
-    marginBottom: "2rem"
-  },
-  tag: {
-    padding: "0.5rem 1rem",
-    backgroundColor: "#e9ecef",
-    color: "#495057",
-    borderRadius: "20px",
-    fontSize: "0.85rem",
-    fontWeight: "500"
-  },
-  reviewsSection: {
-    borderTop: "2px solid #e9ecef",
-    paddingTop: "2rem"
-  },
-  reviewsHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "1.5rem"
-  },
-  reviewsTitle: {
-    fontSize: "1.8rem",
-    fontWeight: "bold",
-    color: "#2c3e50",
-    margin: 0
-  },
-  writeReviewBtn: {
-    padding: "0.75rem 1.5rem",
-    backgroundColor: "#28a745",
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    fontWeight: "500",
-    cursor: "pointer",
-    transition: "background-color 0.2s"
-  },
-  reviewForm: {
-    backgroundColor: "#f8f9fa",
-    padding: "2rem",
-    borderRadius: "12px",
-    marginBottom: "2rem"
-  },
-  formTitle: {
-    fontSize: "1.3rem",
-    fontWeight: "600",
-    marginBottom: "1.5rem",
-    color: "#2c3e50"
-  },
-  formGroup: {
-    marginBottom: "1.5rem"
-  },
-  label: {
-    display: "block",
-    fontSize: "1rem",
-    fontWeight: "500",
-    marginBottom: "0.5rem",
-    color: "#2c3e50"
-  },
-  input: {
-    width: "100%",
-    padding: "0.75rem",
-    border: "2px solid #e9ecef",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    outline: "none",
-    marginBottom: "1rem",
-    boxSizing: "border-box"
-  },
-  slider: {
-    width: "100%",
-    height: "8px",
-    borderRadius: "4px",
-    outline: "none"
-  },
-  textarea: {
-    width: "100%",
-    padding: "0.75rem",
-    border: "2px solid #e9ecef",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    outline: "none",
-    marginBottom: "1rem",
-    fontFamily: "inherit",
-    resize: "vertical",
-    boxSizing: "border-box"
-  },
-  verification: {
-    backgroundColor: "#fff",
-    padding: "1rem",
-    borderRadius: "8px",
-    marginBottom: "1rem"
-  },
-  formButtons: {
-    display: "flex",
-    gap: "1rem"
-  },
-  submitBtn: {
-    padding: "0.75rem 2rem",
-    backgroundColor: "#28a745",
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    fontWeight: "500",
-    cursor: "pointer",
-    transition: "background-color 0.2s"
-  },
-  cancelBtn: {
-    padding: "0.75rem 2rem",
-    backgroundColor: "#6c757d",
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    fontWeight: "500",
-    cursor: "pointer",
-    transition: "background-color 0.2s"
-  },
-  noReviews: {
-    textAlign: "center",
-    padding: "2rem",
-    color: "#666",
-    fontSize: "1.1rem"
-  },
-  reviewsList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "1.5rem"
-  },
-  reviewItem: {
-    padding: "1.5rem",
-    backgroundColor: "#f8f9fa",
-    borderRadius: "12px"
-  },
-  reviewHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "0.75rem"
-  },
-  reviewAuthor: {
-    fontSize: "1.1rem",
-    color: "#2c3e50"
-  },
-  reviewRating: {
-    fontSize: "1rem",
-    color: "#f39c12"
-  },
-  reviewComment: {
-    fontSize: "1rem",
-    color: "#555",
-    lineHeight: "1.6",
-    marginBottom: "0.75rem"
-  },
-  reviewDate: {
-    fontSize: "0.85rem",
-    color: "#999"
-  },
-  pageTitle: {
-    fontSize: "2.5rem",
-    fontWeight: "bold",
-    color: "#2c3e50",
-    marginBottom: "2rem"
-  },
-  emptyState: {
-    textAlign: "center",
-    padding: "4rem 2rem",
-    backgroundColor: "#fff",
-    borderRadius: "16px",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)"
-  },
-  emptyText: {
-    fontSize: "1.2rem",
-    color: "#666",
-    marginBottom: "2rem"
-  },
-  browseBtn: {
-    padding: "1rem 2rem",
-    backgroundColor: "#1F4E8C",
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "1.1rem",
-    fontWeight: "500",
-    cursor: "pointer",
-    transition: "all 0.3s ease"
-  },
-  locationPicker: {
-    display: "flex",
-    alignItems: "center",
-    gap: "1rem",
-    padding: "1rem",
-    backgroundColor: "#fff",
-    borderRadius: "8px",
-    marginBottom: "1rem",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
-  },
-  locationLabel: {
-    fontSize: "1rem",
-    fontWeight: "500",
-    color: "#2c3e50"
-  },
-  locationSelect: {
-    padding: "0.5rem 1rem",
-    border: "2px solid #e9ecef",
-    borderRadius: "8px",
-    fontSize: "1rem",
-    cursor: "pointer",
-    backgroundColor: "#fff",
-    flex: 1,
-    maxWidth: "300px"
-  },
-  openNow: {
-    color: "#27ae60",
-    fontWeight: "600"
-  },
-  closedNow: {
-    color: "#e74c3c",
-    fontWeight: "600"
-  },
-  link: {
-    color: "#1F4E8C",
-    textDecoration: "none",
-    fontWeight: "500",
-    transition: "all 0.3s ease"
-  },
-  footer: {
-    backgroundColor: "#1F4E8C",
-    color: "#fff",
-    padding: "2rem",
-    textAlign: "center",
-    marginTop: "4rem",
-    borderTop: "4px solid #F9B233"
-  },
-  footerText: {
-    margin: 0,
-    fontSize: "0.95rem",
-    opacity: 0.9
-  }
-};
 
 export default App;
