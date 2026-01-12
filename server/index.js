@@ -483,6 +483,47 @@ async function fetchYelpBusinesses() {
   const limit = 50;
   const totalWanted = 300;
 
+  try {
+    for (let offset = 0; offset < totalWanted; offset += limit) {
+      const response = await axios.get(`${YELP_API_BASE_URL}/businesses/search`, {
+        headers: { Authorization: `Bearer ${YELP_API_KEY}` },
+        params: {
+          latitude: CUMMING_GA_LAT,
+          longitude: CUMMING_GA_LON,
+          radius: SEARCH_RADIUS_METERS,
+          limit,
+          offset,
+          sort_by: "best_match"
+        },
+        timeout: 15000
+      });
+
+      const businesses = response.data.businesses || [];
+      results.push(...businesses);
+
+      if (businesses.length < limit) {
+        break;
+      }
+    }
+  } catch (error) {
+    console.error("Error fetching Yelp businesses:", error.message);
+  }
+
+  return results;
+}
+
+async function fetchBusinesses() {
+  try {
+    return await fetchOSMBusinesses();
+  } catch (error) {
+    console.error("⚠️  Falling back to Yelp-only data:", error.message);
+  }
+
+  const yelpBusinesses = await fetchYelpBusinesses();
+  return yelpBusinesses
+    .map(transformYelpToBusiness)
+    .sort((a, b) => b.relevancyScore - a.relevancyScore)
+    .slice(0, 300);
   for (let offset = 0; offset < totalWanted; offset += limit) {
     const response = await axios.get(`${YELP_API_BASE_URL}/businesses/search`, {
       headers: { Authorization: `Bearer ${YELP_API_KEY}` },
@@ -758,7 +799,7 @@ app.get("/api/businesses", async (req, res) => {
     } = req.query;
 
     // Fetch businesses from OpenStreetMap (Cumming, GA only)
-    const businesses = await fetchOSMBusinesses();
+    const businesses = await fetchBusinesses();
     let result = [...businesses];
 
     // Filter by category
@@ -819,7 +860,7 @@ app.get("/api/businesses/:id", async (req, res) => {
     const businessId = req.params.id;
 
     // Fetch all businesses and find the one
-    const businesses = await fetchOSMBusinesses();
+    const businesses = await fetchBusinesses();
     const business = businesses.find(b => b.id === businessId);
 
     if (!business) {
@@ -932,7 +973,7 @@ app.post("/api/recommendations", async (req, res) => {
     } = req.body;
 
     // Fetch all businesses from OSM
-    const businesses = await fetchOSMBusinesses();
+    const businesses = await fetchBusinesses();
 
     // If user has favorites, analyze their preferences
     let categoryScores = {};
@@ -987,7 +1028,7 @@ app.post("/api/recommendations", async (req, res) => {
 app.get("/api/trending", async (req, res) => {
   try {
     // Fetch all businesses from OSM
-    const businesses = await fetchOSMBusinesses();
+    const businesses = await fetchBusinesses();
 
     // Calculate trending score: rating * log(reviewCount) + deal bonus
     const trending = businesses
@@ -1011,7 +1052,7 @@ app.get("/api/trending", async (req, res) => {
 app.get("/api/analytics", async (req, res) => {
   try {
     // Fetch all businesses from OSM
-    const businesses = await fetchOSMBusinesses();
+    const businesses = await fetchBusinesses();
 
     const totalBusinesses = businesses.length;
     const avgRating = totalBusinesses > 0
