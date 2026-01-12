@@ -517,6 +517,9 @@ function transformYelpToBusiness(yelpBusiness) {
     rating,
     reviewCount,
     description,
+    description: yelpBusiness.alias
+      ? `Popular local ${yelpBusiness.alias.replace(/-/g, " ")} in Cumming, Georgia.`
+      : `Popular local ${category.toLowerCase()} business in Cumming, Georgia.`,
     address,
     phone: yelpBusiness.display_phone || "Phone not available",
     hours: "Hours available on business page",
@@ -586,6 +589,29 @@ async function fetchBusinesses() {
     .map(transformYelpToBusiness)
     .sort((a, b) => b.relevancyScore - a.relevancyScore)
     .slice(0, 300);
+  for (let offset = 0; offset < totalWanted; offset += limit) {
+    const response = await axios.get(`${YELP_API_BASE_URL}/businesses/search`, {
+      headers: { Authorization: `Bearer ${YELP_API_KEY}` },
+      params: {
+        latitude: CUMMING_GA_LAT,
+        longitude: CUMMING_GA_LON,
+        radius: SEARCH_RADIUS_METERS,
+        limit,
+        offset,
+        sort_by: "best_match"
+      },
+      timeout: 15000
+    });
+
+    const businesses = response.data.businesses || [];
+    results.push(...businesses);
+
+    if (businesses.length < limit) {
+      break;
+    }
+  }
+
+  return results;
 }
 
 function mergeBusinesses(osmBusinesses, yelpBusinesses) {
