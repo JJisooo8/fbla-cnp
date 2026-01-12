@@ -3,12 +3,44 @@ import cors from "cors";
 import crypto from "crypto";
 import axios from "axios";
 import NodeCache from "node-cache";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Cache for OpenStreetMap API responses (TTL: 1 hour)
 const cache = new NodeCache({ stdTTL: 3600 });
 
-// Store local reviews for businesses (keyed by OSM id)
-const localReviews = new Map();
+// Path to persistent review storage
+const REVIEWS_FILE = path.join(__dirname, "reviews.json");
+
+// Load reviews from file
+function loadReviews() {
+  try {
+    if (fs.existsSync(REVIEWS_FILE)) {
+      const data = fs.readFileSync(REVIEWS_FILE, "utf8");
+      return new Map(JSON.parse(data));
+    }
+  } catch (error) {
+    console.error("Error loading reviews:", error);
+  }
+  return new Map();
+}
+
+// Save reviews to file
+function saveReviews() {
+  try {
+    const data = JSON.stringify(Array.from(localReviews.entries()));
+    fs.writeFileSync(REVIEWS_FILE, data, "utf8");
+  } catch (error) {
+    console.error("Error saving reviews:", error);
+  }
+}
+
+// Store local reviews for businesses (keyed by business id)
+const localReviews = loadReviews();
 
 // Store verification challenges in memory (in production, use Redis or database)
 const verificationChallenges = new Map();
@@ -20,8 +52,8 @@ const SEARCH_RADIUS_METERS = 16093; // 10 miles in meters
 
 const YELP_API_BASE_URL = "https://api.yelp.com/v3";
 const YELP_API_KEY = process.env.YELP_API_KEY;
-const BING_IMAGE_SEARCH_KEY = process.env.BING_IMAGE_SEARCH_KEY;
-const BING_IMAGE_SEARCH_ENDPOINT = process.env.BING_IMAGE_SEARCH_ENDPOINT || "https://api.bing.microsoft.com/v7.0/images/search";
+const GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY;
+const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
 
 const imageCache = new NodeCache({ stdTTL: 86400 });
 
@@ -134,175 +166,6 @@ function isOpenNow(openingHours) {
   // Simplified check - in production, use a proper opening hours library
   // For now, we'll return undefined (unknown)
   return undefined;
-}
-
-// Generate deterministic mock deals for demo purposes
-function getMockDeal(category, name) {
-  const dealsByCategory = {
-    Food: [
-      "10% off lunch orders before 2 PM",
-      "Buy 1 entrée, get a dessert free",
-      "Free drink with any combo meal",
-      "Happy hour: 20% off appetizers",
-      "Family meal deal: $5 off"
-    ],
-    Retail: [
-      "15% off your first purchase",
-      "BOGO 50% off select items",
-      "Free gift wrapping today",
-      "Spend $50, get $10 off",
-      "Student discount: 10% off"
-    ],
-    Services: [
-      "First-time customer: 15% off",
-      "Free consultation this week",
-      "Refer a friend, both get $10 off",
-      "Bundle service: save 20%",
-      "Seasonal special: $25 off"
-    ]
-  };
-
-  const seed = crypto
-    .createHash("md5")
-    .update(`${category}-${name}`)
-    .digest("hex");
-  const roll = parseInt(seed.slice(0, 2), 16);
-
-  if (roll % 5 !== 0) {
-    return null;
-  }
-
-  const options = dealsByCategory[category] || dealsByCategory.Services;
-  return options[roll % options.length];
-}
-
-const CATEGORY_ALIASES = {
-  Food: [
-    "restaurants",
-    "food",
-    "cafes",
-    "coffee",
-    "bakeries",
-    "desserts",
-    "bars",
-    "icecream",
-    "pizza"
-  ],
-  Retail: [
-    "shopping",
-    "fashion",
-    "departmentstores",
-    "grocery",
-    "bookstores",
-    "giftshops",
-    "electronics",
-    "furniture"
-  ],
-  Services: [
-    "homedocservices",
-    "auto",
-    "health",
-    "beautysvc",
-    "fitness",
-    "education",
-    "professional"
-  ]
-};
-
-function normalizeName(value) {
-  return (value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
-  const toRad = (deg) => (deg * Math.PI) / 180;
-  const R = 6371000;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function mapYelpCategoriesToCategory(categories = []) {
-  const aliases = categories.map(cat => cat.alias);
-  if (aliases.some(alias => CATEGORY_ALIASES.Food.includes(alias))) return "Food";
-  if (aliases.some(alias => CATEGORY_ALIASES.Retail.includes(alias))) return "Retail";
-  if (aliases.some(alias => CATEGORY_ALIASES.Services.includes(alias))) return "Services";
-  return "Services";
-}
-
-function buildYelpTags(categories = []) {
-  return categories.map(cat => cat.title).filter(Boolean);
-}
-
-}
-
-function humanizeBusinessType(value) {
-  if (!value) return "business";
-
-  const replacements = {
-    alcohol: "liquor store",
-    fast_food: "fast food restaurant",
-    food_court: "food court",
-    cafe: "cafe",
-    pub: "pub",
-    bar: "bar",
-    ice_cream: "ice cream shop",
-    pharmacy: "pharmacy",
-    hairdresser: "salon",
-    beauty: "beauty studio",
-    fuel: "gas station",
-    car_wash: "car wash",
-    convenience: "convenience store",
-    supermarket: "supermarket",
-    bakery: "bakery",
-    butcher: "butcher shop",
-    deli: "deli",
-    florist: "florist",
-    coffee: "coffee shop",
-    clothes: "clothing store",
-    shoes: "shoe store",
-    jewelry: "jewelry store",
-    gift: "gift shop"
-  };
-
-  const normalized = value.replace(/_/g, " ").toLowerCase();
-  return replacements[value] || normalized;
-}
-
-function buildGenericDescription({
-  type,
-  cuisine,
-  category
-}) {
-  const typeLabel = humanizeBusinessType(type);
-  const cuisineLabel = cuisine ? cuisine.replace(/_/g, " ").toLowerCase() : null;
-  const categoryLabel = category ? category.toLowerCase() : "local";
-
-  if (cuisineLabel) {
-    return `Local ${cuisineLabel} ${typeLabel} in Cumming, Georgia.`;
-  }
-
-  if (typeLabel !== "business") {
-    return `Local ${typeLabel} in Cumming, Georgia.`;
-  }
-
-  return `Local ${categoryLabel} business in Cumming, Georgia.`;
-}
-
-function getLocalReviewSummary(id) {
-  const localReviewsList = localReviews.get(id) || [];
-  const reviewCount = localReviewsList.length;
-  const rating = reviewCount > 0
-    ? localReviewsList.reduce((sum, review) => sum + review.rating, 0) / reviewCount
-    : 0;
-
-  return { reviewCount, rating, reviews: [...localReviewsList] };
 }
 
 // Generate deterministic mock deals for demo purposes
@@ -620,11 +483,6 @@ function transformOSMToBusiness(osmElement) {
 
   const localReviewSummary = getLocalReviewSummary(id);
   const reviewCount = localReviewSummary.reviewCount;
-  const localReviewsList = localReviews.get(id) || [];
-  const reviewCount = localReviewsList.length;
-  const rating = reviewCount > 0
-    ? localReviewsList.reduce((sum, review) => sum + review.rating, 0) / reviewCount
-    : parseFloat(generateMockRating());
 
   const business = {
     id,
@@ -636,7 +494,6 @@ function transformOSMToBusiness(osmElement) {
     address,
     phone: tags.phone || tags['contact:phone'] || 'Phone not available',
     hours: formatOpeningHours(tags.opening_hours),
-    image: null,
     image: getCategoryImage(category, tags),
     deal: getMockDeal(category, name),
     tags: businessTags.slice(0, 5),
@@ -653,7 +510,6 @@ function transformOSMToBusiness(osmElement) {
 
   // Add local reviews if any
   business.reviews = localReviewSummary.reviews;
-  business.reviews = [...localReviewsList];
 
   return business;
 }
@@ -662,9 +518,9 @@ function transformYelpToBusiness(yelpBusiness) {
   const category = mapYelpCategoriesToCategory(yelpBusiness.categories);
   const tags = buildYelpTags(yelpBusiness.categories);
   const name = yelpBusiness.name;
-  const reviewCount = yelpBusiness.review_count || generateMockReviewCount();
-  const rating = yelpBusiness.rating || parseFloat(generateMockRating());
   const address = yelpBusiness.location?.display_address?.join(", ") || "Cumming, GA";
+
+  const localReviewSummary = getLocalReviewSummary(`yelp-${yelpBusiness.id}`);
 
   const relevancyScore = calculateRelevancyScore(
     name,
@@ -675,7 +531,6 @@ function transformYelpToBusiness(yelpBusiness) {
       website: yelpBusiness.url
     },
     0
-    reviewCount
   );
 
   const categoryLabel = yelpBusiness.categories
@@ -688,8 +543,6 @@ function transformYelpToBusiness(yelpBusiness) {
     ? `Local ${categoryLabel.toLowerCase()} in Cumming, Georgia.`
     : buildGenericDescription({ category });
 
-  const localReviewSummary = getLocalReviewSummary(`yelp-${yelpBusiness.id}`);
-
   return {
     id: `yelp-${yelpBusiness.id}`,
     yelpId: yelpBusiness.id,
@@ -697,17 +550,9 @@ function transformYelpToBusiness(yelpBusiness) {
     category,
     rating: localReviewSummary.rating,
     reviewCount: localReviewSummary.reviewCount,
-    description,
-    address,
-    phone: yelpBusiness.display_phone || "Phone not available",
-    hours: "Hours available on business page",
-    image: yelpBusiness.image_url || null,
-    rating,
-    reviewCount,
-    description,
-    description: yelpBusiness.alias
-      ? `Popular local ${yelpBusiness.alias.replace(/-/g, " ")} in Cumming, Georgia.`
-      : `Popular local ${category.toLowerCase()} business in Cumming, Georgia.`,
+    description: categoryLabel
+      ? `Local ${categoryLabel.toLowerCase()} in Cumming, Georgia.`
+      : buildGenericDescription({ category }),
     address,
     phone: yelpBusiness.display_phone || "Phone not available",
     hours: "Hours available on business page",
@@ -721,7 +566,6 @@ function transformYelpToBusiness(yelpBusiness) {
     lat: yelpBusiness.coordinates?.latitude,
     lon: yelpBusiness.coordinates?.longitude,
     reviews: localReviewSummary.reviews,
-    reviews: [],
     relevancyScore,
     isChain: isChainBusiness(name, { brand: yelpBusiness.brand })
   };
@@ -778,29 +622,6 @@ async function fetchBusinesses() {
     .map(transformYelpToBusiness)
     .sort((a, b) => b.relevancyScore - a.relevancyScore)
     .slice(0, 300);
-  for (let offset = 0; offset < totalWanted; offset += limit) {
-    const response = await axios.get(`${YELP_API_BASE_URL}/businesses/search`, {
-      headers: { Authorization: `Bearer ${YELP_API_KEY}` },
-      params: {
-        latitude: CUMMING_GA_LAT,
-        longitude: CUMMING_GA_LON,
-        radius: SEARCH_RADIUS_METERS,
-        limit,
-        offset,
-        sort_by: "best_match"
-      },
-      timeout: 15000
-    });
-
-    const businesses = response.data.businesses || [];
-    results.push(...businesses);
-
-    if (businesses.length < limit) {
-      break;
-    }
-  }
-
-  return results;
 }
 
 function mergeBusinesses(osmBusinesses, yelpBusinesses) {
@@ -929,8 +750,8 @@ function formatYelpHours(hours = []) {
     .join(", ");
 }
 
-async function fetchBingImage(query) {
-  if (!BING_IMAGE_SEARCH_KEY || !query) {
+async function fetchGoogleImage(query) {
+  if (!GOOGLE_SEARCH_API_KEY || !GOOGLE_SEARCH_ENGINE_ID || !query) {
     return null;
   }
 
@@ -940,36 +761,28 @@ async function fetchBingImage(query) {
   }
 
   try {
-    const response = await axios.get(BING_IMAGE_SEARCH_ENDPOINT, {
-      headers: { "Ocp-Apim-Subscription-Key": BING_IMAGE_SEARCH_KEY },
+    const response = await axios.get("https://www.googleapis.com/customsearch/v1", {
       params: {
+        key: GOOGLE_SEARCH_API_KEY,
+        cx: GOOGLE_SEARCH_ENGINE_ID,
         q: query,
-        safeSearch: "Moderate",
-        count: 1
+        searchType: "image",
+        num: 1,
+        safe: "active"
       },
       timeout: 15000
     });
 
-    const result = response.data?.value?.[0]?.contentUrl || null;
+    const result = response.data?.items?.[0]?.link || null;
     if (result) {
       imageCache.set(query, result);
     }
     return result;
   } catch (error) {
-    console.error("Error fetching Bing image:", error.message);
+    console.error("Error fetching Google image:", error.message);
     return null;
   }
 }
-
-async function ensureBusinessImages(businesses) {
-  const enriched = [];
-
-  for (const business of businesses) {
-    let image = business.image;
-    if (!image) {
-      const imageQuery = `${business.name} ${business.address || "Cumming GA"}`;
-      image = await fetchBingImage(imageQuery);
-    }
 
 async function enrichBusinessImages(businesses) {
   const enriched = [];
@@ -981,7 +794,7 @@ async function enrichBusinessImages(businesses) {
     }
 
     const imageQuery = `${business.name} ${business.address || "Cumming GA"}`;
-    const image = await fetchBingImage(imageQuery);
+    const image = await fetchGoogleImage(imageQuery);
     enriched.push({
       ...business,
       image: image || getCategoryImage(business.category, {})
@@ -1163,11 +976,9 @@ app.get("/api/businesses", async (req, res) => {
       result = result.slice(0, Math.max(1, limitValue));
     }
 
-    if (BING_IMAGE_SEARCH_KEY) {
+    if (GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_ENGINE_ID) {
       result = await enrichBusinessImages(result);
     }
-
-    result = await ensureBusinessImages(result);
 
     res.json(result);
   } catch (error) {
@@ -1191,10 +1002,6 @@ app.get("/api/businesses/:id", async (req, res) => {
 
     if (business.yelpId) {
       const details = await fetchYelpBusinessDetails(business.yelpId);
-      const [details, yelpReviews] = await Promise.all([
-        fetchYelpBusinessDetails(business.yelpId),
-        fetchYelpReviews(business.yelpId)
-      ]);
 
       if (details) {
         business.hours = formatYelpHours(details.hours);
@@ -1205,13 +1012,11 @@ app.get("/api/businesses/:id", async (req, res) => {
 
     if (!business.image) {
       const imageQuery = `${business.name} ${business.address || "Cumming GA"}`;
-      business.image = await fetchBingImage(imageQuery);
+      business.image = await fetchGoogleImage(imageQuery);
     }
 
     if (!business.image) {
       business.image = getCategoryImage(business.category, {});
-
-      business.reviews = [...yelpReviews, ...business.reviews];
     }
 
     res.json(business);
@@ -1282,6 +1087,9 @@ app.post("/api/businesses/:id/reviews", (req, res) => {
     const reviews = localReviews.get(businessId) || [];
     reviews.push(review);
     localReviews.set(businessId, reviews);
+
+    // Save reviews to persistent storage
+    saveReviews();
 
     // Clear cache so next fetch gets fresh data
     cache.flushAll();
@@ -1390,7 +1198,6 @@ app.get("/api/analytics", async (req, res) => {
     const avgRating = totalBusinesses > 0
       ? businesses.reduce((sum, b) => sum + b.rating, 0) / totalBusinesses
       : 0;
-    const totalReviews = businesses.reduce((sum, b) => sum + b.reviewCount, 0);
 
     const byCategory = businesses.reduce((acc, b) => {
       acc[b.category] = (acc[b.category] || 0) + 1;
@@ -1410,7 +1217,6 @@ app.get("/api/analytics", async (req, res) => {
       totalBusinesses,
       cachedBusinesses: totalBusinesses,
       avgRating: Math.round(avgRating * 10) / 10,
-      totalReviews,
       totalByCategory,
       byCategory,
       topRated,
@@ -1429,5 +1235,5 @@ app.listen(PORT, () => {
   console.log(`📍 Location: Cumming, Georgia`);
   console.log(`📏 Search radius: 10 miles (${SEARCH_RADIUS_METERS} meters)`);
   console.log(`🧭 Yelp enrichment: ${YELP_API_KEY ? "enabled" : "disabled"}`);
-  console.log(`🖼️  Bing image search: ${BING_IMAGE_SEARCH_KEY ? "enabled" : "disabled"}`);
+  console.log(`🖼️  Google image search: ${GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_ENGINE_ID ? "enabled" : "disabled"}`);
 });
