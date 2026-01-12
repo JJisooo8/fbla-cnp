@@ -235,7 +235,7 @@ function App() {
           <div style={styles.hero}>
             <h2 style={styles.heroTitle}>Discover & Support Local Businesses in Cumming, GA</h2>
             <p style={styles.heroSubtitle}>
-              Explore the best local shops, restaurants, and services within 10 miles of Cumming, Georgia
+              Explore the best businesses in Cumming, Georgia.
             </p>
             <div style={styles.heroActions}>
               <button style={styles.heroPrimary} onClick={() => setView("home")}>
@@ -254,12 +254,12 @@ function App() {
           {analytics && (
             <div style={styles.statsGrid}>
               <div style={styles.statCard}>
-                <div style={styles.statNumber}>{analytics.cachedBusinesses}</div>
-                <div style={styles.statLabel}>Top Businesses Cached (Local Memory)</div>
+                <div style={styles.statNumber}>{totalBusinessesCount}</div>
+                <div style={styles.statLabel}>Local Businesses</div>
               </div>
               <div style={styles.statCard}>
-                <div style={styles.statNumber}>{totalBusinessesCount}</div>
-                <div style={styles.statLabel}>Businesses in Scope</div>
+                <div style={styles.statNumber}>{analytics.totalUserReviews || 0}</div>
+                <div style={styles.statLabel}>Community Reviews</div>
               </div>
               <div style={styles.statCard}>
                 <div style={styles.statNumber}>{analytics.dealsAvailable}</div>
