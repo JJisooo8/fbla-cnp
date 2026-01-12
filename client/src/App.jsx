@@ -184,6 +184,14 @@ function App() {
     );
   }
 
+  const localGems = [...businesses]
+    .filter(biz => !biz.isChain)
+    .sort((a, b) => b.relevancyScore - a.relevancyScore)
+    .slice(0, 4);
+
+  const categoryCounts = analytics?.byCategory || {};
+  const topRated = analytics?.topRated || [];
+
   return (
     <div style={styles.container}>
       {/* Header */}
@@ -218,6 +226,17 @@ function App() {
             <p style={styles.heroSubtitle}>
               Explore the best local shops, restaurants, and services within 15 miles of Cumming, Georgia
             </p>
+            <div style={styles.heroActions}>
+              <button style={styles.heroPrimary} onClick={() => setView("home")}>
+                Start Exploring
+              </button>
+              <button
+                style={styles.heroSecondary}
+                onClick={() => setView("favorites")}
+              >
+                View Favorites
+              </button>
+            </div>
           </div>
 
           {/* Analytics Cards */}
@@ -264,6 +283,38 @@ function App() {
             </div>
           )}
 
+          {/* Local Gems */}
+          {localGems.length > 0 && (
+            <div style={styles.section}>
+              <h3 style={styles.sectionTitle}>✨ Local Gems</h3>
+              <p style={styles.sectionSubtitle}>
+                Handpicked spots with strong local impact and standout ratings.
+              </p>
+              <div style={styles.recommendGrid}>
+                {localGems.map(biz => (
+                  <div
+                    key={biz.id}
+                    style={styles.recommendCard}
+                    onClick={() => viewBusiness(biz)}
+                  >
+                    <img src={biz.image} alt={biz.name} style={styles.cardImage} />
+                    <div style={styles.cardContent}>
+                      <div style={styles.cardHeader}>
+                        <h4 style={styles.cardTitle}>{biz.name}</h4>
+                        <span style={styles.localBadge}>Local Favorite</span>
+                      </div>
+                      <div style={styles.cardRating}>⭐ {biz.rating}</div>
+                      <p style={styles.cardCategory}>{biz.category}</p>
+                      {biz.deal && (
+                        <div style={styles.dealPill}>🎁 {biz.deal}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Recommendations */}
           {recommendations.length > 0 && (
             <div style={styles.section}>
@@ -287,6 +338,60 @@ function App() {
             </div>
           )}
 
+          {/* Community Insights */}
+          {analytics && (
+            <div style={styles.section}>
+              <h3 style={styles.sectionTitle}>📊 Community Insights</h3>
+              <div style={styles.insightsGrid}>
+                <div style={styles.insightCard}>
+                  <h4 style={styles.insightTitle}>Top Categories</h4>
+                  <ul style={styles.insightList}>
+                    {Object.entries(categoryCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .slice(0, 3)
+                      .map(([cat, count]) => (
+                        <li key={cat} style={styles.insightItem}>
+                          <span>{cat}</span>
+                          <span style={styles.insightValue}>{count}</span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+                <div style={styles.insightCard}>
+                  <h4 style={styles.insightTitle}>Top Rated</h4>
+                  <ul style={styles.insightList}>
+                    {topRated.map(item => (
+                      <li key={item.id} style={styles.insightItem}>
+                        <span>{item.name}</span>
+                        <span style={styles.insightValue}>⭐ {item.rating}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div style={styles.insightCard}>
+                  <h4 style={styles.insightTitle}>Quick Picks</h4>
+                  <p style={styles.insightBody}>
+                    Filter by category or deals to find the perfect local spot for today.
+                  </p>
+                  <div style={styles.insightTags}>
+                    {["Food", "Retail", "Services"].map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => {
+                          setCategory(cat);
+                          setView("home");
+                        }}
+                        style={styles.insightTag}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Filters */}
           <div style={styles.filtersSection}>
             <h3 style={styles.sectionTitle}>Browse All Businesses in Cumming, GA</h3>
@@ -305,10 +410,10 @@ function App() {
                 onChange={e => setCategory(e.target.value)}
                 style={styles.select}
               >
-                <option>All</option>
-                <option>Food</option>
-                <option>Retail</option>
-                <option>Services</option>
+                <option value="All">All</option>
+                <option value="Food">Food ({categoryCounts.Food || 0})</option>
+                <option value="Retail">Retail ({categoryCounts.Retail || 0})</option>
+                <option value="Services">Services ({categoryCounts.Services || 0})</option>
               </select>
 
               <select
@@ -329,6 +434,7 @@ function App() {
                 <option value="rating">Sort: Rating</option>
                 <option value="reviews">Sort: Most Reviews</option>
                 <option value="name">Sort: Name</option>
+                <option value="local">Sort: Local Favorites</option>
               </select>
 
               <label style={styles.checkbox}>
@@ -375,6 +481,7 @@ function App() {
                       <span style={styles.category}>{biz.category}</span>
                       <span style={styles.rating}>⭐ {biz.rating}</span>
                       <span style={styles.reviews}>({biz.reviewCount} reviews)</span>
+                      {biz.deal && <span style={styles.dealBadge}>Deal</span>}
                     </div>
 
                     <p style={styles.description}>{biz.description}</p>
@@ -759,6 +866,33 @@ const styles = {
     opacity: 0.95,
     margin: 0
   },
+  heroActions: {
+    display: "flex",
+    justifyContent: "center",
+    gap: "1rem",
+    marginTop: "2rem",
+    flexWrap: "wrap"
+  },
+  heroPrimary: {
+    padding: "0.85rem 1.75rem",
+    backgroundColor: "#ffffff",
+    color: "#5a67d8",
+    border: "none",
+    borderRadius: "999px",
+    fontSize: "1rem",
+    fontWeight: "600",
+    cursor: "pointer"
+  },
+  heroSecondary: {
+    padding: "0.85rem 1.75rem",
+    backgroundColor: "transparent",
+    color: "#ffffff",
+    border: "2px solid rgba(255,255,255,0.7)",
+    borderRadius: "999px",
+    fontSize: "1rem",
+    fontWeight: "600",
+    cursor: "pointer"
+  },
   statsGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
@@ -790,6 +924,11 @@ const styles = {
     fontWeight: "bold",
     color: "#2c3e50",
     marginBottom: "1rem"
+  },
+  sectionSubtitle: {
+    marginTop: "-0.5rem",
+    marginBottom: "1.5rem",
+    color: "#5f6c7b"
   },
   trendingGrid: {
     display: "grid",
@@ -842,11 +981,26 @@ const styles = {
   cardContent: {
     padding: "1rem"
   },
+  cardHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "0.5rem"
+  },
   cardTitle: {
     fontSize: "1.1rem",
     fontWeight: "600",
     margin: "0 0 0.5rem 0",
     color: "#2c3e50"
+  },
+  localBadge: {
+    backgroundColor: "#e8f5e9",
+    color: "#2e7d32",
+    fontSize: "0.7rem",
+    fontWeight: "600",
+    padding: "0.25rem 0.5rem",
+    borderRadius: "999px",
+    whiteSpace: "nowrap"
   },
   cardRating: {
     fontSize: "0.9rem",
@@ -857,6 +1011,72 @@ const styles = {
     fontSize: "0.85rem",
     color: "#666",
     margin: 0
+  },
+  dealPill: {
+    marginTop: "0.75rem",
+    backgroundColor: "#fff3cd",
+    color: "#856404",
+    borderRadius: "999px",
+    padding: "0.35rem 0.75rem",
+    fontSize: "0.75rem",
+    display: "inline-flex",
+    alignItems: "center"
+  },
+  insightsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+    gap: "1.5rem"
+  },
+  insightCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: "14px",
+    padding: "1.5rem",
+    boxShadow: "0 2px 10px rgba(0,0,0,0.08)"
+  },
+  insightTitle: {
+    fontSize: "1.1rem",
+    fontWeight: "700",
+    color: "#2c3e50",
+    margin: "0 0 1rem 0"
+  },
+  insightList: {
+    listStyle: "none",
+    padding: 0,
+    margin: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.75rem"
+  },
+  insightItem: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    color: "#4a5568",
+    fontSize: "0.95rem"
+  },
+  insightValue: {
+    fontWeight: "600",
+    color: "#2c3e50"
+  },
+  insightBody: {
+    margin: 0,
+    color: "#4a5568",
+    lineHeight: "1.6",
+    marginBottom: "1rem"
+  },
+  insightTags: {
+    display: "flex",
+    gap: "0.5rem",
+    flexWrap: "wrap"
+  },
+  insightTag: {
+    border: "1px solid #e2e8f0",
+    padding: "0.4rem 0.75rem",
+    borderRadius: "999px",
+    backgroundColor: "#f8fafc",
+    color: "#2c3e50",
+    fontSize: "0.85rem",
+    cursor: "pointer"
   },
   filtersSection: {
     marginBottom: "2rem"
@@ -965,6 +1185,14 @@ const styles = {
   reviews: {
     fontSize: "0.85rem",
     color: "#666"
+  },
+  dealBadge: {
+    backgroundColor: "#fff3cd",
+    color: "#856404",
+    borderRadius: "999px",
+    padding: "0.2rem 0.6rem",
+    fontSize: "0.75rem",
+    fontWeight: "600"
   },
   description: {
     fontSize: "0.95rem",
