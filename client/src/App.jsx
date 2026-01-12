@@ -74,7 +74,7 @@ function App() {
     if (minRating) params.append("minRating", minRating);
     if (showDealsOnly) params.append("hasDeals", "true");
     if (sortBy) params.append("sort", sortBy);
-    params.append("limit", "30");
+    params.append("limit", "300");
 
     fetch(`${API_URL}/businesses?${params}`)
       .then(r => r.json())
@@ -330,38 +330,6 @@ function App() {
             </div>
           )}
 
-          {/* Local Gems */}
-          {localGems.length > 0 && (
-            <div style={styles.section}>
-              <h3 style={styles.sectionTitle}>✨ Local Gems</h3>
-              <p style={styles.sectionSubtitle}>
-                Handpicked spots with strong local impact and standout ratings.
-              </p>
-              <div style={styles.recommendGrid}>
-                {localGems.map(biz => (
-                  <div
-                    key={biz.id}
-                    style={styles.recommendCard}
-                    onClick={() => viewBusiness(biz)}
-                  >
-                    <img src={biz.image} alt={biz.name} style={styles.cardImage} />
-                    <div style={styles.cardContent}>
-                      <div style={styles.cardHeader}>
-                        <h4 style={styles.cardTitle}>{biz.name}</h4>
-                        <span style={styles.localBadge}>Local Favorite</span>
-                      </div>
-                      <div style={styles.cardRating}>⭐ {biz.rating}</div>
-                      <p style={styles.cardCategory}>{biz.category}</p>
-                      {biz.deal && (
-                        <div style={styles.dealPill}>🎁 {biz.deal}</div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Recommendations */}
           {recommendations.length > 0 && (
             <div style={styles.section}>
@@ -468,9 +436,6 @@ function App() {
                 <option value="Food">Food ({totalCategoryCounts.Food || 0})</option>
                 <option value="Retail">Retail ({totalCategoryCounts.Retail || 0})</option>
                 <option value="Services">Services ({totalCategoryCounts.Services || 0})</option>
-                <option value="Food">Food ({categoryCounts.Food || 0})</option>
-                <option value="Retail">Retail ({categoryCounts.Retail || 0})</option>
-                <option value="Services">Services ({categoryCounts.Services || 0})</option>
               </select>
 
               <select
@@ -544,8 +509,6 @@ function App() {
                       <span style={styles.reviews}>
                         {biz.reviewCount > 0 ? `(${biz.reviewCount} reviews)` : "No reviews yet"}
                       </span>
-                      <span style={styles.rating}>⭐ {biz.rating}</span>
-                      <span style={styles.reviews}>({biz.reviewCount} reviews)</span>
                       {biz.deal && <span style={styles.dealBadge}>Deal</span>}
                     </div>
 
