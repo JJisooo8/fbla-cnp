@@ -21,12 +21,15 @@
   --color-secondary-500: #ffc654;  /* Lighter gold - hover states */
   --color-secondary-100: #fff3cd;  /* Pale gold - subtle backgrounds */
 
-  /* Neutrals (Grayscale) */
-  --color-gray-900: #1a202c;       /* Body text - darkest */
-  --color-gray-700: #2c3e50;       /* Headings */
-  --color-gray-500: #718096;       /* Secondary text */
-  --color-gray-300: #cbd5e0;       /* Borders */
-  --color-gray-100: #f7fafc;       /* Light backgrounds */
+  /* Neutrals (Grayscale) - Refined for restraint */
+  --color-gray-900: #1a1a1a;       /* Body text - darkest */
+  --color-gray-700: #404040;       /* Headings */
+  --color-gray-500: #737373;       /* Secondary text */
+  --color-gray-400: #a3a3a3;       /* Muted text */
+  --color-gray-300: #d4d4d4;       /* Borders */
+  --color-gray-200: #e5e5e5;       /* Subtle borders */
+  --color-gray-100: #f5f5f5;       /* Light backgrounds */
+  --color-gray-50: #fafafa;        /* Page background */
   --color-white: #ffffff;
 
   /* Semantic Colors */
@@ -47,15 +50,21 @@
   --font-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-mono: 'SF Mono', 'Consolas', 'Monaco', 'Courier New', monospace;
 
-  /* Font Sizes - 1.25 Modular Scale (16px base) */
-  --text-xs: 0.75rem;      /* 12px - Tags, meta info */
-  --text-sm: 0.875rem;     /* 14px - Secondary text */
-  --text-base: 1rem;       /* 16px - Body text */
-  --text-lg: 1.125rem;     /* 18px - Emphasized text */
-  --text-xl: 1.25rem;      /* 20px - Card titles */
-  --text-2xl: 1.5rem;      /* 24px - Section headings */
-  --text-3xl: 2rem;        /* 32px - Page titles */
-  --text-4xl: 2.5rem;      /* 40px - Hero headings */
+  /* Font Sizes - Intentional Typography Scale (4 sizes) */
+  --text-label: 0.8125rem;  /* 13px - Labels, metadata, small UI text */
+  --text-body: 0.9375rem;   /* 15px - Body text, primary reading */
+  --text-heading: 1.25rem;  /* 20px - Section headings, card titles */
+  --text-display: 1.875rem; /* 30px - Page titles, business names */
+
+  /* Legacy sizes for gradual migration */
+  --text-xs: 0.75rem;      /* 12px - Deprecated, use --text-label */
+  --text-sm: 0.875rem;     /* 14px - Deprecated, use --text-label */
+  --text-base: 1rem;       /* 16px - Deprecated, use --text-body */
+  --text-lg: 1.125rem;     /* 18px - Deprecated, use --text-body */
+  --text-xl: 1.25rem;      /* 20px - Deprecated, use --text-heading */
+  --text-2xl: 1.5rem;      /* 24px - Deprecated, use --text-heading */
+  --text-3xl: 2rem;        /* 32px - Deprecated, use --text-display */
+  --text-4xl: 2.5rem;      /* 40px - Deprecated, use --text-display */
 
   /* Line Heights */
   --leading-tight: 1.25;   /* Headings */
@@ -84,31 +93,24 @@
   --space-20: 5rem;    /* 80px */
 
   /* ========================================
-     SHADOWS & ELEVATION
+     SHADOWS & ELEVATION - Subtle & Intentional
      ======================================== */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 8px 24px rgba(31, 78, 140, 0.12);
-  --shadow-2xl: 0 12px 40px rgba(31, 78, 140, 0.18);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
 
-  /* Layered Shadows for Depth (innovative!) */
-  --shadow-layered:
-    0 2px 4px rgba(31, 78, 140, 0.06),
-    0 4px 12px rgba(31, 78, 140, 0.08),
-    0 8px 24px rgba(31, 78, 140, 0.1);
-
-  --shadow-layered-hover:
-    0 4px 8px rgba(31, 78, 140, 0.08),
-    0 8px 20px rgba(31, 78, 140, 0.12),
-    0 16px 40px rgba(31, 78, 140, 0.15);
-
-  /* Colored Shadows for Brand Elements */
+  /* Legacy shadows for gradual migration */
+  --shadow-xl: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-2xl: 0 12px 40px rgba(0, 0, 0, 0.15);
+  --shadow-layered: var(--shadow);
+  --shadow-layered-hover: var(--shadow-md);
   --shadow-gold: 0 4px 20px rgba(249, 178, 51, 0.3);
   --shadow-gold-hover: 0 6px 30px rgba(249, 178, 51, 0.4);
 
   /* Focus Shadow (Accessibility) */
-  --shadow-focus: 0 0 0 3px var(--color-secondary-700);
+  --shadow-focus: 0 0 0 3px rgba(31, 78, 140, 0.2);
+  --shadow-focus-visible: 0 0 0 3px var(--color-primary-500);
 
   /* ========================================
      GRADIENTS (Innovative Visual Effects)
@@ -130,13 +132,14 @@
     radial-gradient(at 0% 100%, rgba(249, 178, 51, 0.02) 0, transparent 50%);
 
   /* ========================================
-     BORDER RADIUS
+     BORDER RADIUS - Consistent Design Language
      ======================================== */
-  --radius-sm: 6px;    /* Tags, small buttons */
-  --radius-md: 8px;    /* Inputs, standard buttons */
-  --radius-lg: 12px;   /* Cards, sections */
-  --radius-xl: 16px;   /* Hero, large cards */
-  --radius-full: 999px; /* Pills, badges */
+  --radius: 8px;        /* Primary radius for most elements */
+  --radius-sm: 6px;     /* Small elements (chips, badges) */
+  --radius-md: 8px;     /* Standard (buttons, inputs, cards) */
+  --radius-lg: 12px;    /* Large cards, panels */
+  --radius-xl: 16px;    /* Hero images, banners */
+  --radius-full: 9999px; /* Pills, circular buttons */
 
   /* ========================================
      BORDERS
@@ -169,7 +172,21 @@
      ======================================== */
   --header-height: 72px;
   --max-width-content: 1200px;
-  --sidebar-width: 280px;
+  --sidebar-width: 360px;
+  --detail-banner-height: 280px;
+
+  /* ========================================
+     INTERACTIVE STATES
+     ======================================== */
+  --button-height: 44px;          /* Min touch target (WCAG) */
+  --button-padding-x: var(--space-5);
+  --button-padding-y: var(--space-3);
+  --chip-height: 32px;
+  --chip-padding-x: var(--space-3);
+
+  /* Hover/Focus opacity adjustments */
+  --opacity-hover: 0.9;
+  --opacity-disabled: 0.5;
 
   /* ========================================
      Z-INDEX SCALE

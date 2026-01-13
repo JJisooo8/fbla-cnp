@@ -166,9 +166,9 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(reviewForm)
       });
-      
+
       const data = await res.json();
-      
+
       if (!res.ok) {
         alert(data.error || "Failed to submit review");
         return;
@@ -183,6 +183,88 @@ function App() {
       setSelectedBusiness(updatedBiz);
     } catch (err) {
       alert("Failed to submit review. Please try again.");
+    }
+  };
+
+  // Helper: Copy to clipboard with feedback
+  const copyToClipboard = (text, label) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`${label} copied to clipboard`);
+    }).catch(() => {
+      alert(`Failed to copy ${label}`);
+    });
+  };
+
+  // Helper: Parse hours string into structured array
+  const parseHours = (hoursString) => {
+    if (!hoursString) return null;
+
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const today = new Date().getDay();
+
+    // Simple hours parsing - expects format like "Mon-Fri 9:00 AM - 5:00 PM, Sat 10:00 AM - 4:00 PM"
+    const parts = hoursString.split(',').map(s => s.trim());
+    const hoursList = [];
+
+    if (parts.length === 1 && parts[0].includes('-')) {
+      // Format: "Mon-Fri 9:00 AM - 5:00 PM"
+      const match = parts[0].match(/^([A-Za-z]+)-([A-Za-z]+)\s+(.+)$/);
+      if (match) {
+        const [, startDay, endDay, time] = match;
+        const startIdx = dayNames.findIndex(d => d === startDay);
+        const endIdx = dayNames.findIndex(d => d === endDay);
+
+        if (startIdx !== -1 && endIdx !== -1) {
+          for (let i = startIdx; i <= endIdx; i++) {
+            hoursList.push({ day: dayNames[i], time, isToday: i === today });
+          }
+        }
+      }
+    } else {
+      // More complex format - try to parse each part
+      parts.forEach(part => {
+        const match = part.match(/^([A-Za-z]+)\s+(.+)$/);
+        if (match) {
+          const [, day, time] = match;
+          const dayIdx = dayNames.findIndex(d => d === day);
+          hoursList.push({ day, time, isToday: dayIdx === today });
+        }
+      });
+    }
+
+    // Fill in any missing days as "Closed"
+    dayNames.forEach((day, idx) => {
+      if (!hoursList.find(h => h.day === day)) {
+        hoursList.push({ day, time: 'Closed', isToday: idx === today });
+      }
+    });
+
+    // Sort by day order
+    hoursList.sort((a, b) => {
+      return dayNames.indexOf(a.day) - dayNames.indexOf(b.day);
+    });
+
+    return hoursList;
+  };
+
+  // Helper: Apply filter and return to browse
+  const applyFilter = (filterType, value) => {
+    setView("home");
+    if (filterType === "category") {
+      setCategory(value);
+    } else if (filterType === "tag") {
+      setSearchTerm(value);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Helper: Extract domain from URL
+  const extractDomain = (url) => {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.hostname.replace('www.', '');
+    } catch {
+      return url;
     }
   };
 
@@ -594,10 +676,14 @@ function App() {
         </main>
       )}
 
-      {/* Business Detail View */}
+      {/* Business Detail View - Redesigned */}
       {view === "business" && selectedBusiness && (
-        <main className={styles.content} id="main-content" role="main">
-          <button onClick={() => setView("home")} className={styles.backButton}>
+        <>
+          <button
+            onClick={() => setView("home")}
+            className={styles.backButton}
+            style={{ margin: 'var(--space-4)' }}
+          >
             ← Back to Browse
           </button>
 
@@ -605,219 +691,404 @@ function App() {
             <div className={styles.detailLoading}>Loading business details...</div>
           )}
 
-          <div className={styles.detailCard}>
+          <div className={styles.detailCard} style={{ maxWidth: '1400px', margin: '0 auto' }}>
+            {/* Controlled Aspect-Ratio Banner */}
             <img
               src={selectedBusiness.image}
               alt={selectedBusiness.name}
-              className={styles.detailImage}
+              className={styles.detailBanner}
             />
-            
-            <div className={styles.detailContent}>
-              <div className={styles.detailHeader}>
-                <div>
-                  <h2 className={styles.detailTitle}>{selectedBusiness.name}</h2>
-                  <div className={styles.detailMeta}>
-                    <span className={styles.category}>{selectedBusiness.category}</span>
-                    <span className={styles.priceRange}>{selectedBusiness.priceRange}</span>
+
+            {/* Compact Identity Header */}
+            <div className={styles.detailHeaderNew}>
+              <div className={styles.detailHeaderTop}>
+                <div className={styles.detailHeaderInfo}>
+                  <h1 className={styles.detailTitleNew}>{selectedBusiness.name}</h1>
+
+                  {/* Meta Row: Category, Price, Rating */}
+                  <div className={styles.detailMetaRow}>
+                    <button
+                      onClick={() => applyFilter("category", selectedBusiness.category)}
+                      className={styles.chipPrimaryInteractive}
+                      title={`Filter by ${selectedBusiness.category}`}
+                    >
+                      {selectedBusiness.category}
+                    </button>
+
+                    {selectedBusiness.priceRange && (
+                      <span
+                        className={styles.chip}
+                        title="Price level"
+                      >
+                        {selectedBusiness.priceRange}
+                      </span>
+                    )}
+
+                    <div className={styles.ratingDisplay}>
+                      <span className={styles.ratingStar}>★</span>
+                      <span className={styles.ratingValue}>
+                        {selectedBusiness.rating > 0 ? selectedBusiness.rating.toFixed(1) : '—'}
+                      </span>
+                      <span className={styles.ratingCount}>
+                        {selectedBusiness.reviewCount > 0
+                          ? `(${selectedBusiness.reviewCount})`
+                          : '(No ratings)'}
+                      </span>
+                    </div>
+
+                    {selectedBusiness.isOpenNow !== undefined && (
+                      <span className={selectedBusiness.isOpenNow ? styles.statusPillOpen : styles.statusPillClosed}>
+                        {selectedBusiness.isOpenNow ? '● Open now' : '● Closed'}
+                      </span>
+                    )}
                   </div>
+
+                  {/* Tags as Interactive Chips */}
+                  {selectedBusiness.tags && selectedBusiness.tags.length > 0 && (
+                    <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', marginTop: 'var(--space-3)' }}>
+                      {selectedBusiness.tags.map(tag => (
+                        <button
+                          key={tag}
+                          onClick={() => applyFilter("tag", tag)}
+                          className={styles.chipInteractive}
+                          title={`Search for ${tag}`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
+
+                {/* Favorite Button */}
                 <button
                   onClick={() => toggleFavorite(selectedBusiness.id)}
-                  className={styles.favoriteBtnLarge}
-                  aria-label={favorites.includes(selectedBusiness.id) ? `Remove ${selectedBusiness.name} from favorites` : `Add ${selectedBusiness.name} to favorites`}
-                  aria-pressed={favorites.includes(selectedBusiness.id)}
+                  className={favorites.includes(selectedBusiness.id) ? styles.favoriteBtnActive : styles.favoriteBtn}
+                  aria-label={favorites.includes(selectedBusiness.id) ? `Remove ${selectedBusiness.name} from favorites` : `Save ${selectedBusiness.name} to favorites`}
+                  title="Save to favorites"
                 >
                   {favorites.includes(selectedBusiness.id) ? "❤️" : "🤍"}
                 </button>
               </div>
 
-              <div className={styles.ratingSection}>
-                {selectedBusiness.rating > 0 ? (
-                  <div className={styles.bigRating} aria-label={`Average rating: ${selectedBusiness.rating.toFixed(1)} out of 5 stars`}>
-                    ⭐ {selectedBusiness.rating.toFixed(1)}
-                  </div>
-                ) : (
-                  <div className={styles.noRating}>No ratings yet</div>
-                )}
-                <div className={styles.reviewCount}>
-                  {selectedBusiness.reviewCount > 0
-                    ? `${selectedBusiness.reviewCount} reviews`
-                    : "No reviews yet"}
-                </div>
-              </div>
-
-              <p className={styles.detailDescription}>{selectedBusiness.description}</p>
-
-              {selectedBusiness.deal && (
-                <div className={styles.dealLarge}>
-                  🎁 <strong>Special Offer:</strong> {selectedBusiness.deal}
-                </div>
-              )}
-
-              <div className={styles.infoGrid}>
-                <div className={styles.infoItem}>
-                  <div className={styles.infoLabel}>📍 Address</div>
-                  <div className={styles.infoValue}>{selectedBusiness.address}</div>
-                </div>
-                <div className={styles.infoItem}>
-                  <div className={styles.infoLabel}>📞 Phone</div>
-                  <div className={styles.infoValue}>{selectedBusiness.phone}</div>
-                </div>
-                <div className={styles.infoItem}>
-                  <div className={styles.infoLabel}>🕐 Hours</div>
-                  <div className={styles.infoValue}>
-                    {selectedBusiness.hours}
-                    {selectedBusiness.isOpenNow !== undefined && (
-                      <span className={selectedBusiness.isOpenNow ? styles.openNow : styles.closedNow}>
-                        {selectedBusiness.isOpenNow ? ' • Open Now' : ' • Closed'}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {selectedBusiness.website && (
-                  <div className={styles.infoItem}>
-                    <div className={styles.infoLabel}>🌐 Website</div>
-                    <div className={styles.infoValue}>
-                      <a
-                        href={selectedBusiness.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.link}
-                      >
-                        Visit Website
-                      </a>
-                    </div>
-                  </div>
-                )}
+              {/* Primary Action Row */}
+              <div className={styles.detailActions}>
                 {selectedBusiness.googleMapsUrl && (
-                  <div className={styles.infoItem}>
-                    <div className={styles.infoLabel}>🗺️ Directions</div>
-                    <div className={styles.infoValue}>
-                      <a
-                        href={selectedBusiness.googleMapsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.link}
-                      >
-                        Open in Google Maps
-                      </a>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className={styles.tags}>
-                {selectedBusiness.tags.map(tag => (
-                  <span key={tag} className={styles.tag}>{tag}</span>
-                ))}
-              </div>
-
-              {/* Reviews Section */}
-              <div className={styles.reviewsSection}>
-                <div className={styles.reviewsHeader}>
-                  <h3 className={styles.reviewsTitle}>Customer Reviews</h3>
-                  {!showReviewForm && (
-                    <button onClick={startReview} className={styles.writeReviewBtn}>
-                      Write a Review
-                    </button>
-                  )}
-                </div>
-
-                {showReviewForm && verificationChallenge && (
-                  <form onSubmit={submitReview} className={styles.reviewForm} aria-labelledby="review-form-title">
-                    <h4 id="review-form-title" className={styles.formTitle}>Write Your Review</h4>
-
-                    <input
-                      type="text"
-                      placeholder="Your name"
-                      value={reviewForm.author}
-                      onChange={e => setReviewForm(prev => ({ ...prev, author: e.target.value }))}
-                      className={styles.input}
-                      aria-label="Your name"
-                      required
-                    />
-
-                    <div className={styles.formGroup}>
-                      <label className={styles.label} htmlFor="rating-slider">
-                        Rating: {reviewForm.rating} ⭐
-                      </label>
-                      <input
-                        id="rating-slider"
-                        type="range"
-                        min="1"
-                        max="5"
-                        value={reviewForm.rating}
-                        onChange={e => setReviewForm(prev => ({ ...prev, rating: parseInt(e.target.value) }))}
-                        className={styles.slider}
-                        aria-label={`Rating: ${reviewForm.rating} out of 5 stars`}
-                      />
-                    </div>
-
-                    <textarea
-                      placeholder="Share your experience (min 10 characters)..."
-                      value={reviewForm.comment}
-                      onChange={e => setReviewForm(prev => ({ ...prev, comment: e.target.value }))}
-                      className={styles.textarea}
-                      rows={4}
-                      aria-label="Your review"
-                      required
-                    />
-
-                    <div className={styles.verification}>
-                      <label className={styles.label} htmlFor="verification-answer">
-                        Verification (anti-spam): {verificationChallenge.question}
-                      </label>
-                      <input
-                        id="verification-answer"
-                        type="number"
-                        placeholder="Answer"
-                        value={reviewForm.verificationAnswer}
-                        onChange={e => setReviewForm(prev => ({ ...prev, verificationAnswer: e.target.value }))}
-                        className={styles.input}
-                        aria-label="Verification answer"
-                        required
-                      />
-                    </div>
-
-                    <div className={styles.formButtons}>
-                      <button type="submit" className={styles.submitBtn}>
-                        Submit Review
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setShowReviewForm(false)}
-                        className={styles.cancelBtn}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
+                  <a
+                    href={selectedBusiness.googleMapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.btnSecondary}
+                  >
+                    <svg className={styles.btnIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                    </svg>
+                    Directions
+                  </a>
                 )}
 
-                {selectedBusiness.reviews.length === 0 ? (
-                  <p className={styles.noReviews}>No reviews yet. Be the first to review!</p>
+                {selectedBusiness.phone && (
+                  <a
+                    href={`tel:${selectedBusiness.phone}`}
+                    className={styles.btnSecondary}
+                  >
+                    <svg className={styles.btnIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                    Call
+                  </a>
+                )}
+
+                {selectedBusiness.website ? (
+                  <a
+                    href={selectedBusiness.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.btnSecondary}
+                  >
+                    <svg className={styles.btnIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    Website
+                  </a>
                 ) : (
-                  <div className={styles.reviewsList}>
-                    {selectedBusiness.reviews.map(review => (
-                      <div key={review.id} className={styles.reviewItem}>
-                        <div className={styles.reviewHeader}>
-                          <strong className={styles.reviewAuthor}>{review.author}</strong>
-                          <div className={styles.reviewRating}>
-                            {"⭐".repeat(review.rating)}
-                          </div>
-                        </div>
-                        <p className={styles.reviewComment}>{review.comment}</p>
-                        <div className={styles.reviewDate}>
-                          {new Date(review.date).toLocaleDateString()}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <button
+                    className={styles.btnSecondary}
+                    disabled
+                    title="No website listed"
+                  >
+                    <svg className={styles.btnIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    Website
+                  </button>
                 )}
               </div>
             </div>
+
+            {/* Two-Column Layout: Main Content + Sidebar */}
+            <div className={styles.detailLayout}>
+              {/* Left Column: Main Content */}
+              <div className={styles.detailMain}>
+                {/* Description */}
+                {selectedBusiness.description && (
+                  <div className={styles.detailPanel}>
+                    <h2 className={styles.detailPanelHeader}>About</h2>
+                    <p style={{ fontSize: 'var(--text-body)', lineHeight: 'var(--leading-relaxed)', color: 'var(--color-gray-700)', margin: 0 }}>
+                      {selectedBusiness.description}
+                    </p>
+                  </div>
+                )}
+
+                {/* Deal Callout */}
+                {selectedBusiness.deal && (
+                  <div className={styles.detailPanel} style={{ backgroundColor: 'var(--color-warning-bg)', border: '2px solid var(--color-secondary-700)' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
+                      <span style={{ fontSize: '24px' }}>🎁</span>
+                      <div>
+                        <h3 className={styles.chipWarning} style={{ marginBottom: 'var(--space-2)' }}>Special Offer</h3>
+                        <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-warning)', margin: 0 }}>
+                          {selectedBusiness.deal}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Reviews Section */}
+                <div className={styles.detailPanel}>
+                  <div className={styles.sectionHeaderWithAction}>
+                    <h2 className={styles.sectionHeader}>Reviews</h2>
+                    {!showReviewForm && (
+                      <button onClick={startReview} className={styles.btnPrimary}>
+                        Write a Review
+                      </button>
+                    )}
+                  </div>
+
+                  {showReviewForm && verificationChallenge && (
+                    <form onSubmit={submitReview} className={styles.reviewForm} aria-labelledby="review-form-title">
+                      <h4 id="review-form-title" className={styles.formTitle}>Write Your Review</h4>
+
+                      <input
+                        type="text"
+                        placeholder="Your name"
+                        value={reviewForm.author}
+                        onChange={e => setReviewForm(prev => ({ ...prev, author: e.target.value }))}
+                        className={styles.input}
+                        aria-label="Your name"
+                        required
+                      />
+
+                      <div className={styles.formGroup}>
+                        <label className={styles.label} htmlFor="rating-slider">
+                          Rating: {reviewForm.rating} ⭐
+                        </label>
+                        <input
+                          id="rating-slider"
+                          type="range"
+                          min="1"
+                          max="5"
+                          value={reviewForm.rating}
+                          onChange={e => setReviewForm(prev => ({ ...prev, rating: parseInt(e.target.value) }))}
+                          className={styles.slider}
+                          aria-label={`Rating: ${reviewForm.rating} out of 5 stars`}
+                        />
+                      </div>
+
+                      <textarea
+                        placeholder="Share your experience (min 10 characters)..."
+                        value={reviewForm.comment}
+                        onChange={e => setReviewForm(prev => ({ ...prev, comment: e.target.value }))}
+                        className={styles.textarea}
+                        rows={4}
+                        aria-label="Your review"
+                        required
+                      />
+
+                      <div className={styles.verification}>
+                        <label className={styles.label} htmlFor="verification-answer">
+                          Quick check: {verificationChallenge.question}
+                        </label>
+                        <input
+                          id="verification-answer"
+                          type="number"
+                          placeholder="Answer"
+                          value={reviewForm.verificationAnswer}
+                          onChange={e => setReviewForm(prev => ({ ...prev, verificationAnswer: e.target.value }))}
+                          className={styles.input}
+                          aria-label="Verification answer"
+                          required
+                        />
+                        <p style={{ fontSize: 'var(--text-label)', color: 'var(--color-gray-500)', marginTop: 'var(--space-1)' }}>
+                          Verified by quick check to prevent spam
+                        </p>
+                      </div>
+
+                      <div className={styles.formButtons}>
+                        <button type="submit" className={styles.submitBtn}>
+                          Submit Review
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowReviewForm(false)}
+                          className={styles.cancelBtn}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {selectedBusiness.reviews.length === 0 ? (
+                    <div className={styles.emptyStateContainer}>
+                      <div className={styles.emptyStateIcon}>💬</div>
+                      <h3 className={styles.emptyStateTitle}>No reviews yet</h3>
+                      <p className={styles.emptyStateMessage}>
+                        This is a new listing. Be the first to share your experience!
+                      </p>
+                      {!showReviewForm && (
+                        <button onClick={startReview} className={styles.btnAccent}>
+                          Write the First Review
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={styles.reviewsList}>
+                      {selectedBusiness.reviews.map(review => (
+                        <div key={review.id} className={styles.reviewItem}>
+                          <div className={styles.reviewHeader}>
+                            <strong className={styles.reviewAuthor}>{review.author}</strong>
+                            <div className={styles.reviewRating}>
+                              {"⭐".repeat(review.rating)}
+                            </div>
+                          </div>
+                          <p className={styles.reviewComment}>{review.comment}</p>
+                          <div className={styles.reviewDate}>
+                            {new Date(review.date).toLocaleDateString()}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: Details Sidebar */}
+              <div className={styles.detailSidebar}>
+                {/* Contact & Location Panel */}
+                <div className={styles.detailPanel}>
+                  <h3 className={styles.detailPanelHeader}>Details</h3>
+
+                  {/* Address */}
+                  {selectedBusiness.address && (
+                    <div className={styles.detailPanelSection}>
+                      <div className={styles.detailPanelLabel}>Address</div>
+                      <div className={styles.detailPanelValue}>
+                        {selectedBusiness.googleMapsUrl ? (
+                          <a
+                            href={selectedBusiness.googleMapsUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={styles.interactiveLink}
+                          >
+                            {selectedBusiness.address}
+                          </a>
+                        ) : (
+                          selectedBusiness.address
+                        )}
+                        <button
+                          onClick={() => copyToClipboard(selectedBusiness.address, 'Address')}
+                          className={styles.copyAction}
+                          title="Copy address"
+                        >
+                          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Phone */}
+                  {selectedBusiness.phone && (
+                    <div className={styles.detailPanelSection}>
+                      <div className={styles.detailPanelLabel}>Phone</div>
+                      <div className={styles.detailPanelValue}>
+                        <a
+                          href={`tel:${selectedBusiness.phone}`}
+                          className={styles.interactiveLink}
+                        >
+                          {selectedBusiness.phone}
+                        </a>
+                        <button
+                          onClick={() => copyToClipboard(selectedBusiness.phone, 'Phone')}
+                          className={styles.copyAction}
+                          title="Copy phone number"
+                        >
+                          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Website */}
+                  <div className={styles.detailPanelSection}>
+                    <div className={styles.detailPanelLabel}>Website</div>
+                    {selectedBusiness.website ? (
+                      <div className={styles.websiteSection}>
+                        <a
+                          href={selectedBusiness.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.btnSecondary}
+                          style={{ width: '100%', justifyContent: 'center' }}
+                        >
+                          <svg className={styles.btnIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                          Visit Website
+                        </a>
+                        <div className={styles.websiteDomain}>
+                          {extractDomain(selectedBusiness.website)}
+                        </div>
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-gray-400)', margin: 0 }}>
+                        No website listed
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Hours */}
+                  {selectedBusiness.hours && (
+                    <div className={styles.detailPanelSection}>
+                      <div className={styles.detailPanelLabel}>Hours</div>
+                      {parseHours(selectedBusiness.hours) ? (
+                        <div className={styles.hoursList}>
+                          {parseHours(selectedBusiness.hours).map(({ day, time, isToday }) => (
+                            <div key={day} className={isToday ? styles.hoursRowToday : styles.hoursRow}>
+                              <div className={styles.hoursDay}>{day}</div>
+                              <div className={styles.hoursTime}>{time}</div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className={styles.detailPanelValue}>
+                          {selectedBusiness.hours}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-        </main>
+        </>
       )}
 
       {/* Favorites View */}
