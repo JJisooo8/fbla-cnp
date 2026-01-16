@@ -33,6 +33,12 @@ function App() {
   const [verificationChallenge, setVerificationChallenge] = useState(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
 
+  // Scroll position management
+  const [savedScrollPosition, setSavedScrollPosition] = useState(0);
+
+  // Copy button state management
+  const [copiedField, setCopiedField] = useState(null);
+
   // Load favorites from localStorage
   useEffect(() => {
     const saved = localStorage.getItem("locallink_favorites");
@@ -134,10 +140,16 @@ function App() {
   };
 
   const viewBusiness = (business) => {
+    // Save current scroll position before navigating
+    setSavedScrollPosition(window.scrollY);
+
     setSelectedBusiness(business);
     setView("business");
     setShowReviewForm(false);
     setDetailLoading(true);
+
+    // Scroll to top when opening business panel
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
     fetch(`${API_URL}/businesses/${business.id}`)
       .then(r => r.json())
@@ -187,11 +199,13 @@ function App() {
   };
 
   // Helper: Copy to clipboard with feedback
-  const copyToClipboard = (text, label) => {
+  const copyToClipboard = (text, fieldName) => {
     navigator.clipboard.writeText(text).then(() => {
-      alert(`${label} copied to clipboard`);
+      setCopiedField(fieldName);
+      // Reset after 2 seconds
+      setTimeout(() => setCopiedField(null), 2000);
     }).catch(() => {
-      alert(`Failed to copy ${label}`);
+      console.error(`Failed to copy ${fieldName}`);
     });
   };
 
@@ -202,44 +216,51 @@ function App() {
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const today = new Date().getDay();
 
+    // Use a Map to store hours by day (prevents duplicates)
+    const hoursMap = new Map();
+
     // Simple hours parsing - expects format like "Mon-Fri 9:00 AM - 5:00 PM, Sat 10:00 AM - 4:00 PM"
     const parts = hoursString.split(',').map(s => s.trim());
-    const hoursList = [];
 
-    if (parts.length === 1 && parts[0].includes('-')) {
-      // Format: "Mon-Fri 9:00 AM - 5:00 PM"
-      const match = parts[0].match(/^([A-Za-z]+)-([A-Za-z]+)\s+(.+)$/);
-      if (match) {
-        const [, startDay, endDay, time] = match;
+    parts.forEach(part => {
+      // Check for range format: "Mon-Fri 9:00 AM - 5:00 PM"
+      const rangeMatch = part.match(/^([A-Za-z]+)-([A-Za-z]+)\s+(.+)$/);
+      if (rangeMatch) {
+        const [, startDay, endDay, time] = rangeMatch;
         const startIdx = dayNames.findIndex(d => d === startDay);
         const endIdx = dayNames.findIndex(d => d === endDay);
 
         if (startIdx !== -1 && endIdx !== -1) {
           for (let i = startIdx; i <= endIdx; i++) {
-            hoursList.push({ day: dayNames[i], time, isToday: i === today });
+            // Only add if not already present (first entry wins)
+            if (!hoursMap.has(dayNames[i])) {
+              hoursMap.set(dayNames[i], { day: dayNames[i], time, isToday: i === today });
+            }
+          }
+        }
+      } else {
+        // Single day format: "Sat 10:00 AM - 4:00 PM"
+        const singleMatch = part.match(/^([A-Za-z]+)\s+(.+)$/);
+        if (singleMatch) {
+          const [, day, time] = singleMatch;
+          const dayIdx = dayNames.findIndex(d => d === day);
+          // Only add if not already present (first entry wins)
+          if (dayIdx !== -1 && !hoursMap.has(day)) {
+            hoursMap.set(day, { day, time, isToday: dayIdx === today });
           }
         }
       }
-    } else {
-      // More complex format - try to parse each part
-      parts.forEach(part => {
-        const match = part.match(/^([A-Za-z]+)\s+(.+)$/);
-        if (match) {
-          const [, day, time] = match;
-          const dayIdx = dayNames.findIndex(d => d === day);
-          hoursList.push({ day, time, isToday: dayIdx === today });
-        }
-      });
-    }
+    });
 
     // Fill in any missing days as "Closed"
     dayNames.forEach((day, idx) => {
-      if (!hoursList.find(h => h.day === day)) {
-        hoursList.push({ day, time: 'Closed', isToday: idx === today });
+      if (!hoursMap.has(day)) {
+        hoursMap.set(day, { day, time: 'Closed', isToday: idx === today });
       }
     });
 
-    // Sort by day order
+    // Convert Map to array and sort by day order
+    const hoursList = Array.from(hoursMap.values());
     hoursList.sort((a, b) => {
       return dayNames.indexOf(a.day) - dayNames.indexOf(b.day);
     });
@@ -659,7 +680,13 @@ function App() {
       {view === "business" && selectedBusiness && (
         <>
           <button
-            onClick={() => setView("home")}
+            onClick={() => {
+              setView("home");
+              // Restore scroll position after view change
+              setTimeout(() => {
+                window.scrollTo({ top: savedScrollPosition, behavior: 'smooth' });
+              }, 50);
+            }}
             className={styles.backButton}
             style={{ margin: 'var(--space-4)' }}
           >
@@ -763,18 +790,6 @@ function App() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                     </svg>
                     Directions
-                  </a>
-                )}
-
-                {selectedBusiness.phone && (
-                  <a
-                    href={`tel:${selectedBusiness.phone}`}
-                    className={styles.btnSecondary}
-                  >
-                    <svg className={styles.btnIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
-                    Call
                   </a>
                 )}
 
@@ -977,14 +992,25 @@ function App() {
                           selectedBusiness.address
                         )}
                         <button
-                          onClick={() => copyToClipboard(selectedBusiness.address, 'Address')}
-                          className={styles.copyAction}
+                          onClick={() => copyToClipboard(selectedBusiness.address, 'address')}
+                          className={copiedField === 'address' ? styles.copyActionSuccess : styles.copyAction}
                           title="Copy address"
                         >
-                          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                          Copy
+                          {copiedField === 'address' ? (
+                            <>
+                              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Copied!
+                            </>
+                          ) : (
+                            <>
+                              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                              Copy
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -1002,14 +1028,25 @@ function App() {
                           {selectedBusiness.phone}
                         </a>
                         <button
-                          onClick={() => copyToClipboard(selectedBusiness.phone, 'Phone')}
-                          className={styles.copyAction}
+                          onClick={() => copyToClipboard(selectedBusiness.phone, 'phone')}
+                          className={copiedField === 'phone' ? styles.copyActionSuccess : styles.copyAction}
                           title="Copy phone number"
                         >
-                          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                          </svg>
-                          Copy
+                          {copiedField === 'phone' ? (
+                            <>
+                              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Copied!
+                            </>
+                          ) : (
+                            <>
+                              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                              Copy
+                            </>
+                          )}
                         </button>
                       </div>
                     </div>
