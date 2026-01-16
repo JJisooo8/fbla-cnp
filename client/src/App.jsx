@@ -271,8 +271,37 @@ function App() {
   if (loading) {
     return (
       <div className={styles.container}>
-        <div className={styles.loading} role="status" aria-live="polite">
-          Loading LocalLink...
+        <header className={styles.header} role="banner">
+          <div className={styles.headerContent}>
+            <h1 className={styles.logo}>LocalLink</h1>
+            <nav className={styles.nav} aria-label="Main navigation">
+              <button className={styles.navButtonActive}>Home</button>
+              <button className={styles.navButton}>Favorites (0)</button>
+            </nav>
+          </div>
+        </header>
+        <div className={styles.loadingContainer} role="status" aria-live="polite">
+          <div className={styles.loadingHeader}>
+            <div className={styles.loadingSpinner}></div>
+            <span className={styles.loadingText}>Loading LocalLink...</span>
+          </div>
+          <div className={styles.skeletonGrid}>
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className={styles.skeletonCard}>
+                <div className={styles.skeletonImage}></div>
+                <div className={styles.skeletonCardContent}>
+                  <div className={styles.skeletonTitle}></div>
+                  <div className={styles.skeletonMeta}>
+                    <div className={styles.skeletonBadge}></div>
+                    <div className={styles.skeletonBadge}></div>
+                  </div>
+                  <div className={styles.skeletonText}></div>
+                  <div className={styles.skeletonTextShort}></div>
+                  <div className={styles.skeletonButton}></div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -478,66 +507,16 @@ function App() {
             </div>
           )}
 
-          {/* Community Insights */}
-          {analytics && (
-            <div className={styles.section}>
-              <h3 className={styles.sectionTitle}>Community Insights</h3>
-              <div className={styles.insightsGrid}>
-                <div className={styles.insightCard}>
-                  <h4 className={styles.insightTitle}>Top Categories</h4>
-                  <ul className={styles.insightList}>
-                    {Object.entries(categoryCounts)
-                      .sort((a, b) => b[1] - a[1])
-                      .slice(0, 3)
-                      .map(([cat, count]) => (
-                        <li key={cat} className={styles.insightItem}>
-                          <span>{cat}</span>
-                          <span className={styles.insightValue}>{count}</span>
-                        </li>
-                      ))}
-                  </ul>
-                </div>
-                <div className={styles.insightCard}>
-                  <h4 className={styles.insightTitle}>Top Rated</h4>
-                  <ul className={styles.insightList}>
-                    {topRated.map(item => (
-                      <li key={item.id} className={styles.insightItem}>
-                        <span>{item.name}</span>
-                        <span className={styles.insightValue}>⭐ {item.rating}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className={styles.insightCard}>
-                  <h4 className={styles.insightTitle}>Quick Picks</h4>
-                  <p className={styles.insightBody}>
-                    Filter by category or deals to find the perfect local spot for today.
-                  </p>
-                  <div className={styles.insightTags}>
-                    {["Food", "Retail", "Services"].map(cat => (
-                      <button
-                        key={cat}
-                        onClick={() => {
-                          setCategory(cat);
-                          setView("home");
-                        }}
-                        className={styles.insightTag}
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+          {/* Browse Section with Filters */}
+          <section className={styles.browseSection} data-section="filters" aria-labelledby="filters-title">
+            <div className={styles.browseSectionHeader}>
+              <div>
+                <h3 id="filters-title" className={styles.sectionTitle}>Browse All Businesses</h3>
+                <p className={styles.sectionSubtitle}>
+                  Showing {filteredBusinesses.length} of {totalBusinessesCount} local businesses
+                </p>
               </div>
             </div>
-          )}
-
-          {/* Filters */}
-          <section className={styles.filtersSection} data-section="filters" aria-labelledby="filters-title">
-            <h3 id="filters-title" className={styles.sectionTitle}>Browse All Businesses</h3>
-            <p className={styles.sectionSubtitle}>
-              Showing top {filteredBusinesses.length} results of {totalBusinessesCount} businesses.
-            </p>
 
             <div className={styles.filters} role="search">
               <input
@@ -548,7 +527,7 @@ function App() {
                 className={styles.searchInput}
                 aria-label="Search businesses by name, tags, or categories"
               />
-              
+
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
@@ -1172,10 +1151,47 @@ function App() {
 
       {/* Footer */}
       <footer className={styles.footer}>
-        <p className={styles.footerText}>
-          LocalLink - Supporting local businesses since 2024 | 
-          Made for FBLA Byte-Sized Business Boost
-        </p>
+        <div className={styles.footerContent}>
+          <div className={styles.footerBrand}>
+            <h3 className={styles.footerLogo}>LocalLink</h3>
+            <p className={styles.footerTagline}>
+              Connecting you with the heart of Cumming, Georgia's business community.
+              Discover, support, and celebrate local businesses.
+            </p>
+          </div>
+          <div className={styles.footerSection}>
+            <h4 className={styles.footerSectionTitle}>Quick Links</h4>
+            <button className={styles.footerLink} onClick={() => setView("home")}>
+              Browse Businesses
+            </button>
+            <button className={styles.footerLink} onClick={() => setView("favorites")}>
+              Your Favorites
+            </button>
+            <button className={styles.footerLink} onClick={() => setShowDealsOnly(true)}>
+              View Deals
+            </button>
+          </div>
+          <div className={styles.footerSection}>
+            <h4 className={styles.footerSectionTitle}>Categories</h4>
+            <button className={styles.footerLink} onClick={() => { setCategory("Food"); setView("home"); }}>
+              Food & Dining
+            </button>
+            <button className={styles.footerLink} onClick={() => { setCategory("Retail"); setView("home"); }}>
+              Retail & Shopping
+            </button>
+            <button className={styles.footerLink} onClick={() => { setCategory("Services"); setView("home"); }}>
+              Local Services
+            </button>
+          </div>
+        </div>
+        <div className={styles.footerBottom}>
+          <p className={styles.footerText}>
+            © 2024 LocalLink. Supporting local businesses.
+          </p>
+          <span className={styles.footerBadge}>
+            FBLA Byte-Sized Business Boost
+          </span>
+        </div>
       </footer>
     </div>
   );

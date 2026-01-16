@@ -155,17 +155,17 @@
   /* 🎨 CUSTOMIZE ANIMATION SPEEDS HERE!
      Change these values to speed up or slow down ALL site animations.
      Examples:
-     - Fast animations: 150ms, 250ms, 350ms
-     - Medium animations (current): 300ms, 500ms, 700ms
+     - Fast animations: 150ms, 200ms, 300ms (current - snappy feel)
+     - Medium animations: 300ms, 500ms, 700ms
      - Slow animations: 500ms, 800ms, 1200ms
   */
-  --transition-fast: 300ms ease-in-out;    /* Quick interactions (hover, focus) */
-  --transition-base: 500ms ease-in-out;    /* Standard animations (cards, buttons) */
-  --transition-slow: 700ms ease-in-out;    /* Dramatic effects (modals, page transitions) */
+  --transition-fast: 150ms ease-out;       /* Quick interactions (hover, focus) */
+  --transition-base: 200ms ease-out;       /* Standard animations (cards, buttons) */
+  --transition-slow: 300ms ease-out;       /* Dramatic effects (modals, page transitions) */
 
   /* Specialized animation curves */
-  --transition-bounce: 500ms cubic-bezier(0.68, -0.55, 0.265, 1.55);  /* Bouncy effect */
-  --transition-smooth: 500ms cubic-bezier(0.4, 0, 0.2, 1);  /* Material design smooth */
+  --transition-bounce: 300ms cubic-bezier(0.68, -0.55, 0.265, 1.55);  /* Bouncy effect */
+  --transition-smooth: 200ms cubic-bezier(0.4, 0, 0.2, 1);  /* Material design smooth */
 
   /* ========================================
      LAYOUT DIMENSIONS
