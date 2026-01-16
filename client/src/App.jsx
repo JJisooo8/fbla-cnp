@@ -149,7 +149,7 @@ function App() {
     setDetailLoading(true);
 
     // Scroll to top when opening business panel
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'instant' });
 
     fetch(`${API_URL}/businesses/${business.id}`)
       .then(r => r.json())
@@ -684,7 +684,7 @@ function App() {
               setView("home");
               // Restore scroll position after view change
               setTimeout(() => {
-                window.scrollTo({ top: savedScrollPosition, behavior: 'smooth' });
+                window.scrollTo({ top: savedScrollPosition, behavior: 'instant' });
               }, 50);
             }}
             className={styles.backButton}
