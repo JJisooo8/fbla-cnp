@@ -17,6 +17,8 @@ function App() {
   
   // Filters
   const [category, setCategory] = useState("All");
+  const [selectedTag, setSelectedTag] = useState("All");
+  const [availableTags, setAvailableTags] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [minRating, setMinRating] = useState("");
   const [showDealsOnly, setShowDealsOnly] = useState(false);
@@ -28,10 +30,13 @@ function App() {
     rating: 5,
     comment: "",
     verificationId: "",
-    verificationAnswer: ""
+    verificationAnswer: "",
+    recaptchaToken: ""
   });
   const [verificationChallenge, setVerificationChallenge] = useState(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
+  const [recaptchaConfig, setRecaptchaConfig] = useState({ recaptchaEnabled: false, recaptchaSiteKey: null });
+  const [recaptchaLoaded, setRecaptchaLoaded] = useState(false);
 
   // Scroll position management
   const [savedScrollPosition, setSavedScrollPosition] = useState(0);
@@ -57,13 +62,17 @@ function App() {
     Promise.all([
       fetch(`${API_URL}/businesses`).then(r => r.json()),
       fetch(`${API_URL}/trending`).then(r => r.json()),
-      fetch(`${API_URL}/analytics`).then(r => r.json())
+      fetch(`${API_URL}/analytics`).then(r => r.json()),
+      fetch(`${API_URL}/tags`).then(r => r.json()),
+      fetch(`${API_URL}/verification/config`).then(r => r.json())
     ])
-      .then(([bizData, trendData, analyticsData]) => {
+      .then(([bizData, trendData, analyticsData, tagsData, verificationConfig]) => {
         setBusinesses(bizData);
         setFilteredBusinesses(bizData);
         setTrending(trendData);
         setAnalytics(analyticsData);
+        setAvailableTags(tagsData);
+        setRecaptchaConfig(verificationConfig);
         setLoading(false);
       })
       .catch(err => {
@@ -73,10 +82,23 @@ function App() {
       });
   }, []);
 
+  // Load reCAPTCHA script when config is available
+  useEffect(() => {
+    if (recaptchaConfig.recaptchaEnabled && recaptchaConfig.recaptchaSiteKey && !recaptchaLoaded) {
+      const script = document.createElement('script');
+      script.src = `https://www.google.com/recaptcha/api.js?render=explicit`;
+      script.async = true;
+      script.defer = true;
+      script.onload = () => setRecaptchaLoaded(true);
+      document.head.appendChild(script);
+    }
+  }, [recaptchaConfig, recaptchaLoaded]);
+
   // Apply filters and search
   useEffect(() => {
     const params = new URLSearchParams();
     if (category !== "All") params.append("category", category);
+    if (selectedTag !== "All") params.append("tag", selectedTag);
     if (searchTerm) params.append("search", searchTerm);
     if (minRating) params.append("minRating", minRating);
     if (showDealsOnly) params.append("hasDeals", "true");
@@ -87,7 +109,7 @@ function App() {
       .then(r => r.json())
       .then(data => setFilteredBusinesses(data))
       .catch(err => console.error(err));
-  }, [category, searchTerm, minRating, showDealsOnly, sortBy]);
+  }, [category, selectedTag, searchTerm, minRating, showDealsOnly, sortBy]);
 
   // Fetch recommendations when favorites change
   useEffect(() => {
@@ -160,11 +182,35 @@ function App() {
 
   const startReview = async () => {
     try {
-      const res = await fetch(`${API_URL}/verification/challenge`);
-      const challenge = await res.json();
-      setVerificationChallenge(challenge);
-      setReviewForm(prev => ({ ...prev, verificationId: challenge.id }));
-      setShowReviewForm(true);
+      // If reCAPTCHA is enabled, we don't need the math challenge
+      if (recaptchaConfig.recaptchaEnabled) {
+        setVerificationChallenge(null);
+        setShowReviewForm(true);
+        // Render reCAPTCHA widget after form is shown
+        setTimeout(() => {
+          if (window.grecaptcha && recaptchaConfig.recaptchaSiteKey) {
+            const container = document.getElementById('recaptcha-container');
+            if (container && !container.hasChildNodes()) {
+              window.grecaptcha.render('recaptcha-container', {
+                sitekey: recaptchaConfig.recaptchaSiteKey,
+                callback: (token) => {
+                  setReviewForm(prev => ({ ...prev, recaptchaToken: token }));
+                },
+                'expired-callback': () => {
+                  setReviewForm(prev => ({ ...prev, recaptchaToken: '' }));
+                }
+              });
+            }
+          }
+        }, 100);
+      } else {
+        // Fall back to math challenge
+        const res = await fetch(`${API_URL}/verification/challenge`);
+        const challenge = await res.json();
+        setVerificationChallenge(challenge);
+        setReviewForm(prev => ({ ...prev, verificationId: challenge.id }));
+        setShowReviewForm(true);
+      }
     } catch (err) {
       alert("Failed to load verification. Please try again.");
     }
@@ -172,6 +218,13 @@ function App() {
 
   const submitReview = async (e) => {
     e.preventDefault();
+
+    // Validate reCAPTCHA if enabled
+    if (recaptchaConfig.recaptchaEnabled && !reviewForm.recaptchaToken) {
+      alert("Please complete the reCAPTCHA verification.");
+      return;
+    }
+
     try {
       const res = await fetch(`${API_URL}/businesses/${selectedBusiness.id}/reviews`, {
         method: "POST",
@@ -188,8 +241,8 @@ function App() {
 
       alert("Review submitted successfully!");
       setShowReviewForm(false);
-      setReviewForm({ author: "", rating: 5, comment: "", verificationId: "", verificationAnswer: "" });
-      
+      setReviewForm({ author: "", rating: 5, comment: "", verificationId: "", verificationAnswer: "", recaptchaToken: "" });
+
       // Refresh business data
       const updatedBiz = await fetch(`${API_URL}/businesses/${selectedBusiness.id}`).then(r => r.json());
       setSelectedBusiness(updatedBiz);
@@ -268,15 +321,23 @@ function App() {
     return hoursList;
   };
 
-  // Helper: Apply filter and return to browse
+  // Helper: Apply filter and return to browse section
   const applyFilter = (filterType, value) => {
     setView("home");
     if (filterType === "category") {
       setCategory(value);
+      setSelectedTag("All"); // Reset tag filter when changing category
     } else if (filterType === "tag") {
-      setSearchTerm(value);
+      // Use the tag dropdown instead of search bar
+      setSelectedTag(value);
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Scroll to the browse section after a short delay to allow view change
+    setTimeout(() => {
+      const filtersSection = document.querySelector('[data-section="filters"]');
+      if (filtersSection) {
+        filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
   };
 
   // Helper: Extract domain from URL
@@ -419,12 +480,12 @@ function App() {
           {analytics && (
             <section className={styles.statsGrid} aria-label="Community statistics">
               <div className={styles.statCard}>
-                <div className={styles.statNumber}>{totalBusinessesCount}</div>
-                <div className={styles.statLabel}>Local Businesses</div>
-              </div>
-              <div className={styles.statCard}>
                 <div className={styles.statNumber}>{analytics.totalUserReviews || 0}</div>
                 <div className={styles.statLabel}>Community Reviews</div>
+              </div>
+              <div className={styles.statCard}>
+                <div className={styles.statNumber}>{totalBusinessesCount}</div>
+                <div className={styles.statLabel}>Local Businesses</div>
               </div>
               <div className={styles.statCard}>
                 <div className={styles.statNumber}>{analytics.dealsAvailable}</div>
@@ -542,16 +603,19 @@ function App() {
             <div className={styles.filters} role="search">
               <input
                 type="text"
-                placeholder="Search businesses, tags, or categories..."
+                placeholder="Search businesses..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className={styles.searchInput}
-                aria-label="Search businesses by name, tags, or categories"
+                aria-label="Search businesses by name"
               />
 
               <select
                 value={category}
-                onChange={e => setCategory(e.target.value)}
+                onChange={e => {
+                  setCategory(e.target.value);
+                  setSelectedTag("All"); // Reset tag when category changes
+                }}
                 className={styles.select}
                 aria-label="Filter by category"
               >
@@ -559,6 +623,20 @@ function App() {
                 <option value="Food">Food ({totalCategoryCounts.Food || 0})</option>
                 <option value="Retail">Retail ({totalCategoryCounts.Retail || 0})</option>
                 <option value="Services">Services ({totalCategoryCounts.Services || 0})</option>
+              </select>
+
+              <select
+                value={selectedTag}
+                onChange={e => setSelectedTag(e.target.value)}
+                className={styles.select}
+                aria-label="Filter by label/type"
+              >
+                <option value="All">All Labels</option>
+                {availableTags.map(({ tag, count }) => (
+                  <option key={tag} value={tag}>
+                    {tag} ({count})
+                  </option>
+                ))}
               </select>
 
               <select
@@ -570,18 +648,6 @@ function App() {
                 <option value="">Any Rating</option>
                 <option value="4">4+ Stars</option>
                 <option value="4.5">4.5+ Stars</option>
-              </select>
-
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value)}
-                className={styles.select}
-                aria-label="Sort businesses"
-              >
-                <option value="rating">Sort: Rating</option>
-                <option value="reviews">Sort: Most Reviews</option>
-                <option value="name">Sort: Name</option>
-                <option value="local">Sort: Local Favorites</option>
               </select>
 
               <label className={styles.checkbox}>
@@ -860,7 +926,7 @@ function App() {
                     )}
                   </div>
 
-                  {showReviewForm && verificationChallenge && (
+                  {showReviewForm && (verificationChallenge || recaptchaConfig.recaptchaEnabled) && (
                     <form onSubmit={submitReview} className={styles.reviewForm} aria-labelledby="review-form-title">
                       <h4 id="review-form-title" className={styles.formTitle}>Write Your Review</h4>
 
@@ -900,23 +966,40 @@ function App() {
                         required
                       />
 
+                      {/* Verification: reCAPTCHA or Math Challenge */}
                       <div className={styles.verification}>
-                        <label className={styles.label} htmlFor="verification-answer">
-                          Quick check: {verificationChallenge.question}
-                        </label>
-                        <input
-                          id="verification-answer"
-                          type="number"
-                          placeholder="Answer"
-                          value={reviewForm.verificationAnswer}
-                          onChange={e => setReviewForm(prev => ({ ...prev, verificationAnswer: e.target.value }))}
-                          className={styles.input}
-                          aria-label="Verification answer"
-                          required
-                        />
-                        <p style={{ fontSize: 'var(--text-label)', color: 'var(--color-gray-500)', marginTop: 'var(--space-1)' }}>
-                          Verified by quick check to prevent spam
-                        </p>
+                        {recaptchaConfig.recaptchaEnabled ? (
+                          <>
+                            <label className={styles.label}>
+                              Please verify you're human:
+                            </label>
+                            <div id="recaptcha-container" style={{ marginTop: 'var(--space-2)' }}></div>
+                            {reviewForm.recaptchaToken && (
+                              <p style={{ fontSize: 'var(--text-label)', color: 'var(--color-success)', marginTop: 'var(--space-1)' }}>
+                                Verified successfully
+                              </p>
+                            )}
+                          </>
+                        ) : verificationChallenge && (
+                          <>
+                            <label className={styles.label} htmlFor="verification-answer">
+                              Quick check: {verificationChallenge.question}
+                            </label>
+                            <input
+                              id="verification-answer"
+                              type="number"
+                              placeholder="Answer"
+                              value={reviewForm.verificationAnswer}
+                              onChange={e => setReviewForm(prev => ({ ...prev, verificationAnswer: e.target.value }))}
+                              className={styles.input}
+                              aria-label="Verification answer"
+                              required
+                            />
+                            <p style={{ fontSize: 'var(--text-label)', color: 'var(--color-gray-500)', marginTop: 'var(--space-1)' }}>
+                              Verified by quick check to prevent spam
+                            </p>
+                          </>
+                        )}
                       </div>
 
                       <div className={styles.formButtons}>
