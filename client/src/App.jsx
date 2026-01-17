@@ -2,8 +2,10 @@ import { useEffect, useState } from "react";
 import styles from "./App.module.css";
 
 // Use relative path in production (same domain), localhost in development
-const API_URL = import.meta.env.VITE_API_URL || 
-  (import.meta.env.PROD ? "/api" : "http://localhost:3001/api");
+// Always use relative path in production to avoid CORS and work on any domain (preview/production)
+const API_URL = import.meta.env.DEV 
+  ? "http://localhost:3001/api"
+  : "/api";
 
 function App() {
   const [view, setView] = useState("home"); // home, business, favorites
