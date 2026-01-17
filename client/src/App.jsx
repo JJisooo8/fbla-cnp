@@ -61,29 +61,51 @@ function App() {
     localStorage.setItem("locallink_favorites", JSON.stringify(favorites));
   }, [favorites]);
 
-  // Fetch initial data
+  // Fetch with retry for cold start delays
+  const fetchWithRetry = async (url, retries = 3, delay = 2000) => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json();
+      } catch (err) {
+        if (i === retries - 1) throw err;
+        await new Promise(r => setTimeout(r, delay * (i + 1)));
+      }
+    }
+  };
+
+  // Fetch initial data with retry logic for Vercel cold starts
   useEffect(() => {
-    Promise.all([
-      fetch(`${API_URL}/businesses`).then(r => r.json()),
-      fetch(`${API_URL}/trending`).then(r => r.json()),
-      fetch(`${API_URL}/analytics`).then(r => r.json()),
-      fetch(`${API_URL}/tags`).then(r => r.json()),
-      fetch(`${API_URL}/verification/config`).then(r => r.json())
-    ])
-      .then(([bizData, trendData, analyticsData, tagsData, verificationConfig]) => {
+    const loadData = async () => {
+      try {
+        // Fetch businesses first (most important, triggers cold start)
+        const bizData = await fetchWithRetry(`${API_URL}/businesses`, 3, 3000);
         setBusinesses(bizData);
         setFilteredBusinesses(bizData);
+
+        // Then fetch supporting data in parallel
+        const [trendData, analyticsData, tagsData, verificationConfig] = await Promise.all([
+          fetchWithRetry(`${API_URL}/trending`, 2, 2000),
+          fetchWithRetry(`${API_URL}/analytics`, 2, 2000),
+          fetchWithRetry(`${API_URL}/tags`, 2, 2000),
+          fetchWithRetry(`${API_URL}/verification/config`, 2, 2000)
+        ]);
+
         setTrending(trendData);
         setAnalytics(analyticsData);
         setAvailableTags(tagsData);
         setRecaptchaConfig(verificationConfig);
         setLoading(false);
-      })
-      .catch(err => {
+      } catch (err) {
         console.error('Error fetching data:', err);
-        alert('Failed to fetch business data. Please try again.');
+        // Don't show alert - just log and keep loading state
+        // The user can refresh to retry
         setLoading(false);
-      });
+      }
+    };
+
+    loadData();
   }, []);
 
   // Load reCAPTCHA script when config is available
