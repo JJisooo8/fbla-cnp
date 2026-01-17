@@ -1,11 +1,19 @@
 {
   "buildCommand": "cd client && npm install && npm run build",
   "outputDirectory": "client/dist",
-  "devCommand": "cd client && npm run dev",
-  "installCommand": "npm install && cd client && npm install && cd ../server && npm install",
+  "installCommand": "npm install && cd client && npm install && cd ../server && npm install && cd ../api && npm install",
+  "functions": {
+    "api/index.js": {
+      "includeFiles": "server/**"
+    }
+  },
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/api/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
   ]
