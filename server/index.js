@@ -18,7 +18,10 @@ const __dirname = path.dirname(__filename);
 const cache = new NodeCache({ stdTTL: 3600 });
 
 // Path to persistent review storage
-const REVIEWS_FILE = path.join(__dirname, "reviews.json");
+// In Vercel, use /tmp for writable storage, otherwise use __dirname
+const REVIEWS_FILE = process.env.VERCEL 
+  ? path.join("/tmp", "reviews.json")
+  : path.join(__dirname, "reviews.json");
 
 // Load reviews from file
 function loadReviews() {
@@ -1470,13 +1473,23 @@ app.get("/api/analytics", async (req, res) => {
   }
 });
 
-const PORT = 3001;
-app.listen(PORT, () => {
-  console.log(`🚀 LocalLink API running on http://localhost:${PORT}`);
-  console.log(`🗺️  Data Source: OpenStreetMap (FREE!)`);
-  console.log(`📍 Location: Cumming, Georgia`);
-  console.log(`📏 Search radius: 10 miles (${SEARCH_RADIUS_METERS} meters)`);
-  console.log(`🧭 Yelp enrichment: ${YELP_API_KEY ? "enabled" : "disabled"}`);
-  console.log(`🖼️  Google image search: ${GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_ENGINE_ID ? "enabled" : "disabled"}`);
-  console.log(`🔐 reCAPTCHA: ${RECAPTCHA_ENABLED ? "enabled" : "disabled (using math challenge)"}`);
-});
+// Export app for Vercel serverless functions
+export default app;
+
+// Only start listening if running directly (not imported as a module)
+// Check if this file is being run directly vs imported
+const isMainModule = import.meta.url.endsWith(process.argv[1]) || 
+                     process.argv[1]?.includes('server/index.js');
+
+if (isMainModule && !process.env.VERCEL) {
+  const PORT = 3001;
+  app.listen(PORT, () => {
+    console.log(`🚀 LocalLink API running on http://localhost:${PORT}`);
+    console.log(`🗺️  Data Source: OpenStreetMap (FREE!)`);
+    console.log(`📍 Location: Cumming, Georgia`);
+    console.log(`📏 Search radius: 10 miles (${SEARCH_RADIUS_METERS} meters)`);
+    console.log(`🧭 Yelp enrichment: ${YELP_API_KEY ? "enabled" : "disabled"}`);
+    console.log(`🖼️  Google image search: ${GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_ENGINE_ID ? "enabled" : "disabled"}`);
+    console.log(`🔐 reCAPTCHA: ${RECAPTCHA_ENABLED ? "enabled" : "disabled (using math challenge)"}`);
+  });
+}
