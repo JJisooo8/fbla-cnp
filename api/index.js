@@ -1,10 +1,7 @@
-// Vercel serverless function wrapper for Express app
-// Vercel automatically routes /api/* requests to this function
-
+// Vercel serverless function for Express app
+// Import the Express app from the server directory
 import app from '../server/index.js';
 
-// Vercel expects a handler function that receives (req, res)
-export default (req, res) => {
-  // Let Express handle the request
-  return app(req, res);
-};
+// Export the Express app directly - Vercel will handle routing
+// Vercel automatically routes /api/* requests to functions in /api directory
+export default app;
