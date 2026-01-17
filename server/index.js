@@ -621,6 +621,13 @@ function transformOSMToBusiness(osmElement) {
   const localReviewSummary = getLocalReviewSummary(id);
   const reviewCount = localReviewSummary.reviewCount;
 
+  // Generate Google Maps URL for directions
+  const lat = osmElement.lat || osmElement.center?.lat;
+  const lon = osmElement.lon || osmElement.center?.lon;
+  const googleMapsUrl = lat && lon
+    ? `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' ' + address)}`;
+
   const business = {
     id,
     name,
@@ -637,9 +644,10 @@ function transformOSMToBusiness(osmElement) {
     priceRange: '$$', // OSM doesn't have price info
     website: tags.website || tags['contact:website'] || null,
     isOpenNow: isOpenNow(tags.opening_hours),
+    googleMapsUrl,
     osmId: osmElement.id,
-    lat: osmElement.lat || osmElement.center?.lat,
-    lon: osmElement.lon || osmElement.center?.lon,
+    lat,
+    lon,
     reviews: [],
     relevancyScore: calculateRelevancyScore(name, tags, reviewCount),
     isChain: isChainBusiness(name, tags)
@@ -691,6 +699,13 @@ function transformYelpToBusiness(yelpBusiness) {
     ? `Local ${categoryLabel.toLowerCase()} in Cumming, Georgia.`
     : buildGenericDescription({ category });
 
+  // Generate Google Maps URL for directions
+  const lat = yelpBusiness.coordinates?.latitude;
+  const lon = yelpBusiness.coordinates?.longitude;
+  const googleMapsUrl = lat && lon
+    ? `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' ' + address)}`;
+
   return {
     id: `yelp-${yelpBusiness.id}`,
     yelpId: yelpBusiness.id,
@@ -710,9 +725,10 @@ function transformYelpToBusiness(yelpBusiness) {
     priceRange: yelpBusiness.price || "$$",
     website: yelpBusiness.url,
     isOpenNow: yelpBusiness.is_closed === false ? true : undefined,
+    googleMapsUrl,
     osmId: null,
-    lat: yelpBusiness.coordinates?.latitude,
-    lon: yelpBusiness.coordinates?.longitude,
+    lat,
+    lon,
     reviews: localReviewSummary.reviews,
     relevancyScore,
     isChain: isChainBusiness(name, { brand: yelpBusiness.brand })
@@ -833,6 +849,7 @@ function mergeBusinesses(osmBusinesses, yelpBusinesses) {
       image: yelpTransformed.image || osm.image,
       priceRange: yelpTransformed.priceRange || osm.priceRange,
       website: osm.website || yelpTransformed.website,
+      googleMapsUrl: osm.googleMapsUrl || yelpTransformed.googleMapsUrl,
       tags: Array.from(new Set([...(osm.tags || []), ...(yelpTransformed.tags || [])])).slice(0, 5),
       deal: osm.deal || yelpTransformed.deal,
       lat: yelpTransformed.lat || osm.lat,
