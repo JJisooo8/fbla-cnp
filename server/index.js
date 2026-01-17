@@ -59,7 +59,35 @@ const YELP_API_KEY = process.env.YELP_API_KEY;
 const GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY;
 const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
 
+// reCAPTCHA configuration
+const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY;
+const RECAPTCHA_ENABLED = !!RECAPTCHA_SECRET_KEY;
+
 const imageCache = new NodeCache({ stdTTL: 86400 });
+
+// Verify reCAPTCHA token with Google
+async function verifyRecaptcha(token) {
+  if (!RECAPTCHA_ENABLED) {
+    return { success: true, fallback: true }; // Fallback to math challenge if not configured
+  }
+
+  try {
+    const response = await axios.post(
+      'https://www.google.com/recaptcha/api/siteverify',
+      null,
+      {
+        params: {
+          secret: RECAPTCHA_SECRET_KEY,
+          response: token
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('reCAPTCHA verification error:', error.message);
+    return { success: false, error: 'Verification failed' };
+  }
+}
 
 const app = express();
 app.use(cors());
@@ -222,7 +250,69 @@ const CATEGORY_ALIASES = {
     "desserts",
     "bars",
     "icecream",
-    "pizza"
+    "pizza",
+    "cuban",
+    "mexican",
+    "italian",
+    "chinese",
+    "japanese",
+    "thai",
+    "vietnamese",
+    "korean",
+    "indian",
+    "mediterranean",
+    "greek",
+    "american",
+    "southern",
+    "bbq",
+    "seafood",
+    "sushi",
+    "burgers",
+    "sandwiches",
+    "delis",
+    "breakfast_brunch",
+    "brunch",
+    "diners",
+    "steakhouses",
+    "tacos",
+    "tex-mex",
+    "latin",
+    "caribbean",
+    "asianfusion",
+    "newamerican",
+    "tradamerican",
+    "fastfood",
+    "hotdogs",
+    "chicken_wings",
+    "chickenshop",
+    "beer_and_wine",
+    "wine_bars",
+    "sportsbars",
+    "pubs",
+    "cocktailbars",
+    "beerbar",
+    "breweries",
+    "distilleries",
+    "wineries",
+    "juicebars",
+    "bubbletea",
+    "tea",
+    "donuts",
+    "bagels",
+    "acaibowls",
+    "creperies",
+    "gelato",
+    "froyo",
+    "candy",
+    "chocolate",
+    "ethnic_food",
+    "foodtrucks",
+    "streetvendors",
+    "cheesesteaks",
+    "cajun",
+    "soulfood",
+    "waffles",
+    "pancakes"
   ],
   Retail: [
     "shopping",
@@ -245,6 +335,25 @@ const CATEGORY_ALIASES = {
   ]
 };
 
+// Categories to exclude (parks, public services, etc.)
+const EXCLUDED_YELP_CATEGORIES = [
+  "parks",
+  "playgrounds",
+  "dog_parks",
+  "publicservicesgovt",
+  "landmarks",
+  "hiking",
+  "beaches",
+  "lakes",
+  "campgrounds",
+  "publicgardens",
+  "communitycenters",
+  "libraries",
+  "museums",
+  "religiousorgs",
+  "churches"
+];
+
 function normalizeName(value) {
   return (value || "")
     .toLowerCase()
@@ -266,10 +375,31 @@ function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
 
 function mapYelpCategoriesToCategory(categories = []) {
   const aliases = categories.map(cat => cat.alias);
+
+  // Check if any category is in the excluded list
+  if (aliases.some(alias => EXCLUDED_YELP_CATEGORIES.includes(alias))) {
+    return "Excluded";
+  }
+
   if (aliases.some(alias => CATEGORY_ALIASES.Food.includes(alias))) return "Food";
   if (aliases.some(alias => CATEGORY_ALIASES.Retail.includes(alias))) return "Retail";
   if (aliases.some(alias => CATEGORY_ALIASES.Services.includes(alias))) return "Services";
+
+  // Default to Food for anything restaurant-like or food-related
+  // Check category titles for food-related keywords
+  const titles = categories.map(cat => (cat.title || '').toLowerCase());
+  const foodKeywords = ['restaurant', 'food', 'cafe', 'diner', 'grill', 'kitchen', 'eatery', 'bistro', 'tavern', 'bar', 'pub', 'pizza', 'burger', 'taco', 'sushi', 'bbq', 'bakery', 'coffee', 'tea', 'juice', 'smoothie', 'ice cream', 'dessert', 'breakfast', 'brunch', 'lunch', 'dinner', 'cuisine', 'cuban', 'mexican', 'italian', 'chinese', 'japanese', 'thai', 'indian', 'korean', 'vietnamese', 'mediterranean', 'greek', 'american', 'southern', 'cajun', 'seafood', 'steakhouse', 'wings', 'chicken', 'sandwich', 'deli', 'brewery', 'winery', 'distillery'];
+
+  if (titles.some(title => foodKeywords.some(keyword => title.includes(keyword)))) {
+    return "Food";
+  }
+
   return "Services";
+}
+
+function isExcludedYelpBusiness(categories = []) {
+  const aliases = categories.map(cat => cat.alias);
+  return aliases.some(alias => EXCLUDED_YELP_CATEGORIES.includes(alias));
 }
 
 function buildYelpTags(categories = []) {
@@ -519,7 +649,18 @@ function transformOSMToBusiness(osmElement) {
 }
 
 function transformYelpToBusiness(yelpBusiness) {
+  // Check if this business should be excluded (parks, public services, etc.)
+  if (isExcludedYelpBusiness(yelpBusiness.categories)) {
+    return null; // Will be filtered out
+  }
+
   const category = mapYelpCategoriesToCategory(yelpBusiness.categories);
+
+  // Double-check: if category is Excluded, return null
+  if (category === "Excluded") {
+    return null;
+  }
+
   const tags = buildYelpTags(yelpBusiness.categories);
   const name = yelpBusiness.name;
   const address = yelpBusiness.location?.display_address?.join(", ") || "Cumming, GA";
@@ -624,6 +765,7 @@ async function fetchBusinesses() {
   const yelpBusinesses = await fetchYelpBusinesses();
   return yelpBusinesses
     .map(transformYelpToBusiness)
+    .filter(biz => biz !== null) // Filter out excluded businesses (parks, public services, etc.)
     .sort((a, b) => b.relevancyScore - a.relevancyScore)
     .slice(0, 300);
 }
@@ -672,6 +814,11 @@ function mergeBusinesses(osmBusinesses, yelpBusinesses) {
     usedYelpIds.add(bestMatch.id);
     const yelpTransformed = transformYelpToBusiness(bestMatch);
 
+    // If Yelp business was excluded (parks, etc.), just return the OSM data
+    if (!yelpTransformed) {
+      return osm;
+    }
+
     return {
       ...osm,
       name: yelpTransformed.name || osm.name,
@@ -693,7 +840,8 @@ function mergeBusinesses(osmBusinesses, yelpBusinesses) {
 
   const yelpOnly = yelpBusinesses
     .filter(biz => !usedYelpIds.has(biz.id))
-    .map(transformYelpToBusiness);
+    .map(transformYelpToBusiness)
+    .filter(biz => biz !== null); // Filter out excluded businesses
 
   return [...merged, ...yelpOnly];
 }
@@ -924,6 +1072,7 @@ app.get("/api/businesses", async (req, res) => {
   try {
     const {
       category,
+      tag,
       search,
       minRating,
       hasDeals,
@@ -938,6 +1087,14 @@ app.get("/api/businesses", async (req, res) => {
     // Filter by category
     if (category && category !== "All") {
       result = result.filter(b => b.category === category);
+    }
+
+    // Filter by specific tag (from dropdown)
+    if (tag && tag !== "All") {
+      const tagLower = tag.toLowerCase();
+      result = result.filter(b =>
+        b.tags.some(t => t.toLowerCase() === tagLower)
+      );
     }
 
     // Filter by minimum rating
@@ -1036,7 +1193,15 @@ app.get("/api/businesses/:id", async (req, res) => {
   }
 });
 
-// Get verification challenge
+// Get verification configuration (whether reCAPTCHA is enabled)
+app.get("/api/verification/config", (req, res) => {
+  res.json({
+    recaptchaEnabled: RECAPTCHA_ENABLED,
+    recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || null
+  });
+});
+
+// Get verification challenge (fallback when reCAPTCHA is not configured)
 app.get("/api/verification/challenge", (req, res) => {
   try {
     const challenge = generateChallenge();
@@ -1046,11 +1211,11 @@ app.get("/api/verification/challenge", (req, res) => {
   }
 });
 
-// Submit a local review with verification
-app.post("/api/businesses/:id/reviews", (req, res) => {
+// Submit a local review with verification (supports reCAPTCHA or math challenge)
+app.post("/api/businesses/:id/reviews", async (req, res) => {
   try {
     const businessId = req.params.id;
-    const { author, rating, comment, verificationId, verificationAnswer } = req.body;
+    const { author, rating, comment, verificationId, verificationAnswer, recaptchaToken } = req.body;
 
     // Validation
     if (!author || typeof author !== "string" || author.trim().length < 2) {
@@ -1065,22 +1230,31 @@ app.post("/api/businesses/:id/reviews", (req, res) => {
       return res.status(400).json({ error: "Comment must be at least 10 characters" });
     }
 
-    // Verify anti-spam challenge
-    if (!verificationId || !verificationAnswer) {
-      return res.status(400).json({ error: "Verification is required" });
-    }
+    // Verify anti-spam: Try reCAPTCHA first, fall back to math challenge
+    if (RECAPTCHA_ENABLED && recaptchaToken) {
+      // Verify reCAPTCHA token
+      const recaptchaResult = await verifyRecaptcha(recaptchaToken);
+      if (!recaptchaResult.success) {
+        return res.status(400).json({ error: "reCAPTCHA verification failed. Please try again." });
+      }
+    } else {
+      // Fall back to math challenge verification
+      if (!verificationId || !verificationAnswer) {
+        return res.status(400).json({ error: "Verification is required" });
+      }
 
-    const challenge = verificationChallenges.get(verificationId);
-    if (!challenge) {
-      return res.status(400).json({ error: "Verification expired or invalid" });
-    }
+      const challenge = verificationChallenges.get(verificationId);
+      if (!challenge) {
+        return res.status(400).json({ error: "Verification expired or invalid" });
+      }
 
-    if (challenge.answer !== parseInt(verificationAnswer)) {
-      return res.status(400).json({ error: "Verification failed. Please try again." });
-    }
+      if (challenge.answer !== parseInt(verificationAnswer)) {
+        return res.status(400).json({ error: "Verification failed. Please try again." });
+      }
 
-    // Remove used challenge
-    verificationChallenges.delete(verificationId);
+      // Remove used challenge
+      verificationChallenges.delete(verificationId);
+    }
 
     // Create review
     const review = {
@@ -1174,27 +1348,75 @@ app.post("/api/recommendations", async (req, res) => {
   }
 });
 
-// Get trending/top businesses
+// Manually curated trending businesses
+const TRENDING_BUSINESS_NAMES = [
+  "Raising Cane's",
+  "Kung Fu Tea",
+  "Marlow's Tavern"
+];
+
+// Get trending/top businesses (manually curated)
 app.get("/api/trending", async (req, res) => {
   try {
-    // Fetch all businesses from OSM
     const businesses = await fetchBusinesses();
 
-    // Calculate trending score: rating * log(reviewCount) + deal bonus
-    const trending = businesses
-      .map(b => {
-        const trendScore =
-          b.rating * Math.log10(b.reviewCount + 1) * 10 +
-          (b.deal ? 5 : 0);
-        return { ...b, trendScore };
-      })
-      .sort((a, b) => b.trendScore - a.trendScore)
-      .slice(0, 3);
+    // Find the manually selected trending businesses
+    const trending = [];
+    for (const trendingName of TRENDING_BUSINESS_NAMES) {
+      const match = businesses.find(b =>
+        b.name.toLowerCase().includes(trendingName.toLowerCase()) ||
+        trendingName.toLowerCase().includes(b.name.toLowerCase())
+      );
+      if (match) {
+        trending.push(match);
+      }
+    }
+
+    // If we couldn't find all 3, fill with top-rated non-chain businesses
+    if (trending.length < 3) {
+      const fallback = businesses
+        .filter(b => !b.isChain && !trending.some(t => t.id === b.id))
+        .sort((a, b) => b.relevancyScore - a.relevancyScore)
+        .slice(0, 3 - trending.length);
+      trending.push(...fallback);
+    }
 
     res.json(trending);
   } catch (error) {
     console.error('Error fetching trending businesses:', error);
     res.status(500).json({ error: error.message || "Failed to fetch trending businesses" });
+  }
+});
+
+// Get unique tags for category filter dropdown
+app.get("/api/tags", async (req, res) => {
+  try {
+    const businesses = await fetchBusinesses();
+
+    // Collect all unique tags with their counts
+    const tagCounts = {};
+    businesses.forEach(b => {
+      (b.tags || []).forEach(tag => {
+        const normalizedTag = tag.toLowerCase().trim();
+        if (normalizedTag && normalizedTag.length > 1) {
+          tagCounts[normalizedTag] = (tagCounts[normalizedTag] || 0) + 1;
+        }
+      });
+    });
+
+    // Sort by count and filter to only include tags with at least 2 businesses
+    const tags = Object.entries(tagCounts)
+      .filter(([, count]) => count >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .map(([tag, count]) => ({
+        tag: tag.charAt(0).toUpperCase() + tag.slice(1), // Capitalize first letter
+        count
+      }));
+
+    res.json(tags);
+  } catch (error) {
+    console.error('Error fetching tags:', error);
+    res.status(500).json({ error: error.message || "Failed to fetch tags" });
   }
 });
 
@@ -1256,4 +1478,5 @@ app.listen(PORT, () => {
   console.log(`📏 Search radius: 10 miles (${SEARCH_RADIUS_METERS} meters)`);
   console.log(`🧭 Yelp enrichment: ${YELP_API_KEY ? "enabled" : "disabled"}`);
   console.log(`🖼️  Google image search: ${GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_ENGINE_ID ? "enabled" : "disabled"}`);
+  console.log(`🔐 reCAPTCHA: ${RECAPTCHA_ENABLED ? "enabled" : "disabled (using math challenge)"}`);
 });
