@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import styles from "./App.module.css";
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
 
 function App() {
   const [view, setView] = useState("home"); // home, business, favorites
