@@ -53,6 +53,9 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
+  // Demo mode status
+  const [demoStatus, setDemoStatus] = useState(null);
+
   // Scroll position management
   const [savedScrollPosition, setSavedScrollPosition] = useState(0);
 
@@ -96,11 +99,12 @@ function App() {
         setFilteredBusinesses(bizData);
 
         // Then fetch supporting data in parallel
-        const [trendData, analyticsData, tagsData, verificationConfig] = await Promise.all([
+        const [trendData, analyticsData, tagsData, verificationConfig, demoStatusData] = await Promise.all([
           fetchWithRetry(`${API_URL}/trending`, 2, 2000),
           fetchWithRetry(`${API_URL}/analytics`, 2, 2000),
           fetchWithRetry(`${API_URL}/tags`, 2, 2000),
-          fetchWithRetry(`${API_URL}/verification/config`, 2, 2000)
+          fetchWithRetry(`${API_URL}/verification/config`, 2, 2000),
+          fetchWithRetry(`${API_URL}/demo-status`, 2, 2000).catch(() => null)
         ]);
 
         setTrending(trendData);
@@ -108,6 +112,10 @@ function App() {
         setAvailableTags(tagsData);
         console.log("Verification config loaded:", verificationConfig);
         setRecaptchaConfig(verificationConfig || { recaptchaEnabled: false, recaptchaSiteKey: null });
+        if (demoStatusData) {
+          console.log("Demo status loaded:", demoStatusData);
+          setDemoStatus(demoStatusData);
+        }
         setLoading(false);
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -580,6 +588,43 @@ function App() {
 
   return (
     <div className={styles.container}>
+      {/* Demo Mode Banner */}
+      {demoStatus?.offlineMode && demoStatus?.metadata && (
+        <div className={styles.demoBanner} role="banner" aria-label="Demo mode indicator">
+          <span className={styles.demoBannerIcon}>📴</span>
+          <div className={styles.demoBannerContent}>
+            <span className={styles.demoBannerTitle}>Demo Mode - Offline Data</span>
+            <div className={styles.demoBannerDetails}>
+              <span className={styles.demoBannerDetail}>
+                <span className={styles.demoBannerPill}>{demoStatus.businessCount} businesses</span>
+              </span>
+              <span className={styles.demoBannerDetail}>
+                Synced: {new Date(demoStatus.metadata.seedDate).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit'
+                })}
+              </span>
+              {demoStatus.productionUrl && (
+                <span className={styles.demoBannerDetail}>
+                  Live site:{' '}
+                  <a
+                    href={demoStatus.productionUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.demoBannerLink}
+                  >
+                    {demoStatus.productionUrl.replace('https://', '')}
+                  </a>
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Skip Link for Accessibility */}
       <a href="#main-content" className="skip-link">
         Skip to main content
