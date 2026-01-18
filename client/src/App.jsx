@@ -106,7 +106,8 @@ function App() {
         setTrending(trendData);
         setAnalytics(analyticsData);
         setAvailableTags(tagsData);
-        setRecaptchaConfig(verificationConfig);
+        console.log("Verification config loaded:", verificationConfig);
+        setRecaptchaConfig(verificationConfig || { recaptchaEnabled: false, recaptchaSiteKey: null });
         setLoading(false);
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -122,11 +123,18 @@ function App() {
   // Load reCAPTCHA script when config is available
   useEffect(() => {
     if (recaptchaConfig.recaptchaEnabled && recaptchaConfig.recaptchaSiteKey && !recaptchaLoaded) {
+      console.log("Loading reCAPTCHA script with site key:", recaptchaConfig.recaptchaSiteKey);
       const script = document.createElement('script');
       script.src = `https://www.google.com/recaptcha/api.js?render=explicit`;
       script.async = true;
       script.defer = true;
-      script.onload = () => setRecaptchaLoaded(true);
+      script.onload = () => {
+        console.log("reCAPTCHA script loaded successfully");
+        setRecaptchaLoaded(true);
+      };
+      script.onerror = (err) => {
+        console.error("Failed to load reCAPTCHA script:", err);
+      };
       document.head.appendChild(script);
     }
   }, [recaptchaConfig, recaptchaLoaded]);
@@ -220,12 +228,39 @@ function App() {
   const startReview = async () => {
     try {
       // If reCAPTCHA is enabled, we don't need the math challenge
-      if (recaptchaConfig.recaptchaEnabled) {
+      if (recaptchaConfig.recaptchaEnabled && recaptchaConfig.recaptchaSiteKey) {
         setVerificationChallenge(null);
         setShowReviewForm(true);
-        // Render reCAPTCHA widget after form is shown
-        setTimeout(() => {
-          if (window.grecaptcha && recaptchaConfig.recaptchaSiteKey) {
+
+        // Wait for reCAPTCHA script to be ready
+        const waitForRecaptcha = () => {
+          return new Promise((resolve, reject) => {
+            // If already loaded, resolve immediately
+            if (window.grecaptcha && window.grecaptcha.render) {
+              resolve();
+              return;
+            }
+
+            // Otherwise wait up to 5 seconds
+            let attempts = 0;
+            const maxAttempts = 50;
+            const interval = setInterval(() => {
+              attempts++;
+              if (window.grecaptcha && window.grecaptcha.render) {
+                clearInterval(interval);
+                resolve();
+              } else if (attempts >= maxAttempts) {
+                clearInterval(interval);
+                reject(new Error("reCAPTCHA script failed to load"));
+              }
+            }, 100);
+          });
+        };
+
+        // Render reCAPTCHA widget after form is shown and script is ready
+        setTimeout(async () => {
+          try {
+            await waitForRecaptcha();
             const container = document.getElementById('recaptcha-container');
             if (container && !container.hasChildNodes()) {
               window.grecaptcha.render('recaptcha-container', {
@@ -238,17 +273,25 @@ function App() {
                 }
               });
             }
+          } catch (err) {
+            console.error("reCAPTCHA render error:", err);
+            // Fall back to showing a message
+            alert("reCAPTCHA failed to load. Please refresh the page and try again.");
           }
         }, 100);
       } else {
         // Fall back to math challenge
         const res = await fetch(`${API_URL}/verification/challenge`);
+        if (!res.ok) {
+          throw new Error(`Server error: ${res.status}`);
+        }
         const challenge = await res.json();
         setVerificationChallenge(challenge);
         setReviewForm(prev => ({ ...prev, verificationId: challenge.id }));
         setShowReviewForm(true);
       }
     } catch (err) {
+      console.error("Verification load error:", err);
       alert("Failed to load verification. Please try again.");
     }
   };
