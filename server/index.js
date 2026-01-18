@@ -9,10 +9,45 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 
 // Load environment variables
-dotenv.config();
+// Try multiple paths for .env file
+const envPaths = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), 'server', '.env'),
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '.env')
+];
+
+let envLoaded = false;
+for (const envPath of envPaths) {
+  const result = dotenv.config({ path: envPath });
+  if (!result.error) {
+    console.log(`[ENV] Loaded .env from: ${envPath}`);
+    envLoaded = true;
+    break;
+  }
+}
+if (!envLoaded && !process.env.VERCEL) {
+  console.log('[ENV] No .env file found, using system environment variables');
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// ============================================
+// STARTUP LOGGING - Appears in Vercel Function Logs
+// ============================================
+console.log('========================================');
+console.log('[STARTUP] LocalLink API Initializing...');
+console.log(`[STARTUP] Environment: ${process.env.VERCEL ? 'Vercel' : 'Local'}`);
+console.log(`[STARTUP] Node Version: ${process.version}`);
+console.log(`[STARTUP] Working Directory: ${process.cwd()}`);
+console.log('----------------------------------------');
+console.log('[CONFIG] Environment Variables Status:');
+console.log(`  - YELP_API_KEY: ${process.env.YELP_API_KEY ? 'SET (' + process.env.YELP_API_KEY.substring(0, 10) + '...)' : 'NOT SET'}`);
+console.log(`  - GOOGLE_SEARCH_API_KEY: ${process.env.GOOGLE_SEARCH_API_KEY ? 'SET' : 'NOT SET'}`);
+console.log(`  - GOOGLE_SEARCH_ENGINE_ID: ${process.env.GOOGLE_SEARCH_ENGINE_ID ? 'SET' : 'NOT SET'}`);
+console.log(`  - RECAPTCHA_SECRET_KEY: ${process.env.RECAPTCHA_SECRET_KEY ? 'SET (' + process.env.RECAPTCHA_SECRET_KEY.substring(0, 10) + '...)' : 'NOT SET'}`);
+console.log(`  - RECAPTCHA_SITE_KEY: ${process.env.RECAPTCHA_SITE_KEY ? 'SET (' + process.env.RECAPTCHA_SITE_KEY.substring(0, 10) + '...)' : 'NOT SET'}`);
+console.log('========================================')
 
 // Cache for OpenStreetMap API responses (TTL: 1 hour)
 const cache = new NodeCache({ stdTTL: 3600 });
@@ -95,6 +130,19 @@ async function verifyRecaptcha(token) {
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Request logging middleware - logs appear in Vercel Function Logs
+app.use((req, res, next) => {
+  const start = Date.now();
+  console.log(`[REQ] ${req.method} ${req.path}`);
+
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`[RES] ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
+  });
+
+  next();
+});
 
 // ====================
 // HELPER FUNCTIONS
@@ -739,16 +787,18 @@ function transformYelpToBusiness(yelpBusiness) {
 
 async function fetchYelpBusinesses() {
   if (!YELP_API_KEY) {
-    console.warn("⚠️  Yelp API key not set. Skipping Yelp enrichment.");
+    console.log("[YELP] API key not set. Skipping Yelp enrichment.");
     return [];
   }
 
+  console.log("[YELP] Starting Yelp API fetch...");
   const results = [];
   const limit = 50;
   const totalWanted = 300;
 
   try {
     for (let offset = 0; offset < totalWanted; offset += limit) {
+      console.log(`[YELP] Fetching offset ${offset}...`);
       const response = await axios.get(`${YELP_API_BASE_URL}/businesses/search`, {
         headers: { Authorization: `Bearer ${YELP_API_KEY}` },
         params: {
@@ -769,8 +819,9 @@ async function fetchYelpBusinesses() {
         break;
       }
     }
+    console.log(`[YELP] Successfully fetched ${results.length} businesses from Yelp`);
   } catch (error) {
-    console.error("Error fetching Yelp businesses:", error.message);
+    console.error("[YELP] Error fetching Yelp businesses:", error.message);
   }
 
   return results;
@@ -983,10 +1034,11 @@ async function fetchOSMBusinesses(lat = CUMMING_GA_LAT, lon = CUMMING_GA_LON, ra
   const cacheKey = `osm:${lat}:${lon}:${radius}`;
   const cached = cache.get(cacheKey);
   if (cached) {
-    console.log('📦 Returning cached OSM results');
+    console.log('[OSM] Returning cached results (cache TTL: 1 hour)');
     return cached;
   }
 
+  console.log('[OSM] Cache miss - fetching fresh data from OpenStreetMap...');
   try {
     // Overpass QL query to get businesses
     // Exclude parking lots, ATMs, and other non-businesses
@@ -1217,14 +1269,18 @@ app.get("/api/businesses/:id", async (req, res) => {
 
 // Get verification configuration (whether reCAPTCHA is enabled)
 app.get("/api/verification/config", (req, res) => {
-  res.json({
+  const config = {
     recaptchaEnabled: RECAPTCHA_ENABLED,
     recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || null
-  });
+  };
+  console.log('[API] /api/verification/config called');
+  console.log(`[API] Returning: recaptchaEnabled=${config.recaptchaEnabled}, siteKey=${config.recaptchaSiteKey ? 'SET' : 'NULL'}`);
+  res.json(config);
 });
 
 // Get verification challenge (fallback when reCAPTCHA is not configured)
 app.get("/api/verification/challenge", (req, res) => {
+  console.log('[API] /api/verification/challenge called');
   try {
     const challenge = generateChallenge();
     res.json(challenge);
