@@ -1316,12 +1316,19 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
     }
 
     // Verify anti-spam: Try reCAPTCHA first, fall back to math challenge
+    console.log(`[REVIEW] Submitting review for business ${businessId}`);
+    console.log(`[REVIEW] reCAPTCHA enabled: ${RECAPTCHA_ENABLED}, token provided: ${!!recaptchaToken}`);
+
     if (RECAPTCHA_ENABLED && recaptchaToken) {
       // Verify reCAPTCHA token
+      console.log('[REVIEW] Verifying reCAPTCHA token...');
       const recaptchaResult = await verifyRecaptcha(recaptchaToken);
+      console.log('[REVIEW] reCAPTCHA result:', JSON.stringify(recaptchaResult));
       if (!recaptchaResult.success) {
+        console.log('[REVIEW] reCAPTCHA verification failed:', recaptchaResult['error-codes'] || recaptchaResult.error);
         return res.status(400).json({ error: "reCAPTCHA verification failed. Please try again." });
       }
+      console.log('[REVIEW] reCAPTCHA verification successful');
     } else {
       // Fall back to math challenge verification
       if (!verificationId || !verificationAnswer) {

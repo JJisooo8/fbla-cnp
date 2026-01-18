@@ -321,7 +321,8 @@ function App() {
       const updatedBiz = await fetch(`${API_URL}/businesses/${selectedBusiness.id}`).then(r => r.json());
       setSelectedBusiness(updatedBiz);
     } catch (err) {
-      alert("Failed to submit review. Please try again.");
+      console.error("Review submission error:", err);
+      alert(`Failed to submit review: ${err.message || "Unknown error"}. Please try again.`);
       // Reset reCAPTCHA on error
       if (window.grecaptcha) {
         window.grecaptcha.reset();
