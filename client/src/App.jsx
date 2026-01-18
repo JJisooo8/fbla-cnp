@@ -227,13 +227,30 @@ function App() {
   const startReview = async () => {
     try {
       // Check if reCAPTCHA is available (loaded from index.html)
-      const recaptchaAvailable = window.grecaptcha && recaptchaConfig.recaptchaSiteKey;
+      const recaptchaAvailable = window.grecaptcha && window.grecaptcha.render && recaptchaConfig.recaptchaSiteKey;
 
       if (recaptchaAvailable) {
-        // Use reCAPTCHA - just show the form, widget will render automatically
+        // Use reCAPTCHA - show the form, then explicitly render the widget
         setVerificationChallenge(null);
         setShowReviewForm(true);
         console.log("Starting review with reCAPTCHA, site key:", recaptchaConfig.recaptchaSiteKey);
+
+        // Wait for React to render the DOM, then explicitly render reCAPTCHA
+        setTimeout(() => {
+          const container = document.getElementById('recaptcha-container');
+          if (container && window.grecaptcha && window.grecaptcha.render) {
+            // Clear any existing widget
+            container.innerHTML = '';
+            try {
+              window.grecaptcha.render('recaptcha-container', {
+                sitekey: recaptchaConfig.recaptchaSiteKey
+              });
+              console.log("reCAPTCHA widget rendered successfully");
+            } catch (err) {
+              console.error("Error rendering reCAPTCHA:", err);
+            }
+          }
+        }, 100);
       } else {
         // Fall back to math challenge
         console.log("reCAPTCHA not available, using math challenge");
@@ -1151,10 +1168,9 @@ function App() {
                             <label className={styles.label}>
                               Please verify you're human:
                             </label>
-                            {/* Standard Google reCAPTCHA v2 widget */}
+                            {/* reCAPTCHA widget - explicitly rendered via grecaptcha.render() */}
                             <div
-                              className="g-recaptcha"
-                              data-sitekey={recaptchaConfig.recaptchaSiteKey}
+                              id="recaptcha-container"
                               style={{ marginTop: '8px' }}
                             ></div>
                           </>

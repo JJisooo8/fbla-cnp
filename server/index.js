@@ -822,6 +822,11 @@ async function fetchYelpBusinesses() {
     console.log(`[YELP] Successfully fetched ${results.length} businesses from Yelp`);
   } catch (error) {
     console.error("[YELP] Error fetching Yelp businesses:", error.message);
+    // Log more details about the error for debugging
+    if (error.response) {
+      console.error("[YELP] Response status:", error.response.status);
+      console.error("[YELP] Response data:", JSON.stringify(error.response.data));
+    }
   }
 
   return results;
