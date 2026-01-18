@@ -851,6 +851,9 @@
   border: 1px solid var(--color-gray-200);
   position: relative;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .businessCard:hover {
@@ -877,6 +880,9 @@
 
 .businessContent {
   padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .businessHeader {
@@ -977,6 +983,7 @@
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: var(--shadow-sm);
+  margin-top: auto;
 }
 
 .viewButton:hover {
@@ -1395,6 +1402,156 @@
   transform: translateY(-2px);
 }
 
+/* Anonymous Checkbox */
+.anonymousCheckbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  cursor: pointer;
+  font-size: var(--text-base);
+  color: var(--color-gray-700);
+}
+
+.anonymousCheckbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--color-primary-700);
+}
+
+/* Category Ratings Form */
+.categoryRatingsForm {
+  background-color: var(--color-white);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--color-gray-200);
+}
+
+.categoryRatingsTitle {
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  color: var(--color-gray-700);
+  margin: 0 0 var(--space-3) 0;
+}
+
+.categoryRatingsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4);
+}
+
+@media (max-width: 480px) {
+  .categoryRatingsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.categoryRatingItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.categoryLabel {
+  font-size: var(--text-sm);
+  color: var(--color-gray-600);
+  font-weight: var(--font-medium);
+}
+
+.categorySlider {
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+  accent-color: var(--color-primary-700);
+}
+
+/* Aggregate Category Ratings */
+.aggregateCategoryRatings {
+  background-color: var(--color-white);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  margin-bottom: var(--space-6);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-gray-200);
+}
+
+.aggregateTitle {
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--color-gray-700);
+  margin: 0 0 var(--space-4) 0;
+}
+
+.aggregateGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.aggregateItem {
+  display: grid;
+  grid-template-columns: 100px 1fr 40px;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.aggregateLabel {
+  font-size: var(--text-sm);
+  color: var(--color-gray-600);
+  font-weight: var(--font-medium);
+}
+
+.aggregateBar {
+  height: 8px;
+  background-color: var(--color-gray-200);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.aggregateBarFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary-500), var(--color-primary-700));
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+
+.aggregateValue {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-gray-700);
+  text-align: right;
+}
+
+.aggregateNote {
+  font-size: var(--text-xs);
+  color: var(--color-gray-500);
+  margin: var(--space-4) 0 0 0;
+  text-align: center;
+}
+
+/* Review Category Badges */
+.reviewCategoryRatings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.reviewCategoryBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-2);
+  background-color: var(--color-gray-100);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--color-gray-600);
+  font-weight: var(--font-medium);
+}
+
 /* ========================================
    REVIEWS LIST
    ======================================== */
@@ -1626,6 +1783,39 @@
 
 .browseBtn:hover::before {
   transform: translateX(100%);
+}
+
+/* Clear Favorites Button */
+.clearFavoritesContainer {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-gray-200);
+}
+
+.clearFavoritesBtn {
+  padding: var(--space-3) var(--space-8);
+  background-color: #2563eb;
+  color: var(--color-white);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  transition: all var(--transition-base);
+  box-shadow: var(--shadow-sm);
+}
+
+.clearFavoritesBtn:hover {
+  background-color: #1d4ed8;
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.clearFavoritesBtn:active {
+  background-color: #1e40af;
+  transform: translateY(0);
 }
 
 /* ========================================

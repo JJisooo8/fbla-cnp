@@ -327,7 +327,36 @@ function getLocalReviewSummary(id) {
   const rating = reviewCount > 0
     ? visibleReviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount
     : 0;
-  return { reviewCount, rating, reviews: [...visibleReviews] };
+
+  // Calculate aggregate category ratings (only if 10+ reviews)
+  let categoryRatings = null;
+  if (reviewCount >= 10) {
+    const reviewsWithCategories = visibleReviews.filter(r =>
+      r.foodQuality || r.service || r.cleanliness || r.atmosphere
+    );
+
+    if (reviewsWithCategories.length >= 5) {
+      const totals = { foodQuality: 0, service: 0, cleanliness: 0, atmosphere: 0 };
+      const counts = { foodQuality: 0, service: 0, cleanliness: 0, atmosphere: 0 };
+
+      reviewsWithCategories.forEach(r => {
+        if (r.foodQuality) { totals.foodQuality += r.foodQuality; counts.foodQuality++; }
+        if (r.service) { totals.service += r.service; counts.service++; }
+        if (r.cleanliness) { totals.cleanliness += r.cleanliness; counts.cleanliness++; }
+        if (r.atmosphere) { totals.atmosphere += r.atmosphere; counts.atmosphere++; }
+      });
+
+      categoryRatings = {
+        foodQuality: counts.foodQuality > 0 ? Math.round((totals.foodQuality / counts.foodQuality) * 10) / 10 : null,
+        service: counts.service > 0 ? Math.round((totals.service / counts.service) * 10) / 10 : null,
+        cleanliness: counts.cleanliness > 0 ? Math.round((totals.cleanliness / counts.cleanliness) * 10) / 10 : null,
+        atmosphere: counts.atmosphere > 0 ? Math.round((totals.atmosphere / counts.atmosphere) * 10) / 10 : null,
+        reviewsWithRatings: reviewsWithCategories.length
+      };
+    }
+  }
+
+  return { reviewCount, rating, reviews: [...visibleReviews], categoryRatings };
 }
 
 // Get fallback image by category
@@ -369,6 +398,38 @@ async function fetchGoogleImage(query) {
   }
 }
 
+// Build a meaningful description from available Yelp data
+function buildBusinessDescription(yelpBusiness, category) {
+  const categoryLabels = (yelpBusiness.categories || [])
+    .map(c => c.title)
+    .filter(Boolean)
+    .slice(0, 3);
+
+  if (categoryLabels.length === 0) {
+    return null; // No description available
+  }
+
+  const categoryText = categoryLabels.join(", ");
+  const priceText = yelpBusiness.price ? ` (${yelpBusiness.price})` : "";
+  const ratingText = yelpBusiness.rating ? ` Rated ${yelpBusiness.rating} stars on Yelp.` : "";
+  const locationText = yelpBusiness.location?.city || "Cumming";
+
+  // Build transactions info (delivery, pickup, etc.)
+  const transactions = yelpBusiness.transactions || [];
+  let transactionText = "";
+  if (transactions.length > 0) {
+    const transactionLabels = transactions.map(t => {
+      if (t === "delivery") return "delivery";
+      if (t === "pickup") return "pickup";
+      if (t === "restaurant_reservation") return "reservations";
+      return t;
+    });
+    transactionText = ` Offers ${transactionLabels.join(", ")}.`;
+  }
+
+  return `${categoryText}${priceText} serving the ${locationText} area.${ratingText}${transactionText}`;
+}
+
 // Transform Yelp business to our format
 function transformYelpToBusiness(yelpBusiness) {
   if (isExcludedYelpBusiness(yelpBusiness.categories)) return null;
@@ -384,17 +445,14 @@ function transformYelpToBusiness(yelpBusiness) {
   const localReviewSummary = getLocalReviewSummary(id);
   const relevancyScore = calculateRelevancyScore(name, yelpBusiness.review_count || 0);
 
-  const categoryLabel = yelpBusiness.categories
-    ?.map(c => c.title)
-    .filter(Boolean)
-    .slice(0, 2)
-    .join(" & ");
-
   const lat = yelpBusiness.coordinates?.latitude;
   const lon = yelpBusiness.coordinates?.longitude;
   const googleMapsUrl = lat && lon
     ? `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' ' + address)}`;
+
+  // Build a more informative description
+  const description = buildBusinessDescription(yelpBusiness, category);
 
   return {
     id,
@@ -405,9 +463,7 @@ function transformYelpToBusiness(yelpBusiness) {
     reviewCount: localReviewSummary.reviewCount,
     yelpRating: yelpBusiness.rating,
     yelpReviewCount: yelpBusiness.review_count,
-    description: categoryLabel
-      ? `Local ${categoryLabel.toLowerCase()} in Cumming, Georgia.`
-      : `Local ${category.toLowerCase()} business in Cumming, Georgia.`,
+    description,
     address,
     phone: yelpBusiness.display_phone || "Phone not available",
     hours: "Hours available on business page",
@@ -525,11 +581,12 @@ function formatYelpHours(hours = []) {
     .join(", ");
 }
 
-// Main function to fetch businesses (offline-first, then Yelp)
+// Main function to fetch businesses (Yelp API first, offline as fallback only)
 async function fetchBusinesses() {
-  // In offline mode or if we have offline data and no API key, use local data
-  if (OFFLINE_MODE || (offlineBusinesses.length > 0 && !YELP_API_KEY)) {
-    console.log('[FETCH] Using offline data');
+  // ONLY use offline data if explicitly in OFFLINE_MODE
+  // In production, always use Yelp API
+  if (OFFLINE_MODE) {
+    console.log('[FETCH] Using offline data (OFFLINE_MODE=true)');
     // Apply local reviews to offline data and convert local images to URLs
     return offlineBusinesses.map(biz => {
       const localReviewSummary = getLocalReviewSummary(biz.id);
@@ -546,8 +603,27 @@ async function fetchBusinesses() {
     });
   }
 
-  // Otherwise fetch from Yelp
-  return await fetchYelpBusinesses();
+  // Fetch from Yelp API
+  const yelpData = await fetchYelpBusinesses();
+
+  // Only fall back to offline data if Yelp fails and we have offline data
+  if (yelpData.length === 0 && offlineBusinesses.length > 0 && !YELP_API_KEY) {
+    console.log('[FETCH] Yelp returned no data, falling back to offline data');
+    return offlineBusinesses.map(biz => {
+      const localReviewSummary = getLocalReviewSummary(biz.id);
+      return {
+        ...biz,
+        image: biz.localImage
+          ? `/api/images/${biz.localImage}`
+          : (biz.image || getCategoryImage(biz.category)),
+        rating: localReviewSummary.rating,
+        reviewCount: localReviewSummary.reviewCount,
+        reviews: localReviewSummary.reviews
+      };
+    });
+  }
+
+  return yelpData;
 }
 
 // Function to get offline businesses by ID (for detail view)
@@ -787,6 +863,7 @@ app.get("/api/businesses/:id", async (req, res) => {
     business.reviews = localReviewSummary.reviews;
     business.rating = localReviewSummary.rating;
     business.reviewCount = localReviewSummary.reviewCount;
+    business.categoryRatings = localReviewSummary.categoryRatings;
 
     res.json(business);
   } catch (error) {
@@ -799,10 +876,24 @@ app.get("/api/businesses/:id", async (req, res) => {
 app.post("/api/businesses/:id/reviews", async (req, res) => {
   try {
     const businessId = req.params.id;
-    const { author, rating, comment, verificationId, verificationAnswer, recaptchaToken } = req.body;
+    const {
+      author,
+      rating,
+      comment,
+      verificationId,
+      verificationAnswer,
+      recaptchaToken,
+      // New category ratings
+      foodQuality,
+      service,
+      cleanliness,
+      atmosphere,
+      isAnonymous
+    } = req.body;
 
-    // Validation
-    if (!author || typeof author !== "string" || author.trim().length < 2) {
+    // Validation - for anonymous reviews, we still need some identifier internally
+    const authorName = isAnonymous ? "Anonymous" : (author || "").trim();
+    if (!isAnonymous && (!author || typeof author !== "string" || author.trim().length < 2)) {
       return res.status(400).json({ error: "Valid author name is required (min 2 characters)" });
     }
 
@@ -812,6 +903,27 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
 
     if (!comment || typeof comment !== "string" || comment.trim().length < 10) {
       return res.status(400).json({ error: "Comment must be at least 10 characters" });
+    }
+
+    // Validate category ratings (optional, but if provided must be 1-5)
+    const validateCategoryRating = (val, name) => {
+      if (val !== undefined && val !== null) {
+        if (typeof val !== "number" || val < 1 || val > 5) {
+          return `${name} rating must be between 1 and 5`;
+        }
+      }
+      return null;
+    };
+
+    const categoryErrors = [
+      validateCategoryRating(foodQuality, "Food quality"),
+      validateCategoryRating(service, "Service"),
+      validateCategoryRating(cleanliness, "Cleanliness"),
+      validateCategoryRating(atmosphere, "Atmosphere")
+    ].filter(Boolean);
+
+    if (categoryErrors.length > 0) {
+      return res.status(400).json({ error: categoryErrors[0] });
     }
 
     // Verify anti-spam
@@ -844,15 +956,21 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
       verificationChallenges.delete(verificationId);
     }
 
-    // Create review
+    // Create review with new fields
     const review = {
       id: crypto.randomUUID(),
-      author: author.trim(),
+      author: authorName,
+      isAnonymous: !!isAnonymous,
       rating,
       comment: comment.trim(),
       date: new Date().toISOString(),
       helpful: 0,
-      source: 'local'
+      source: 'local',
+      // Category ratings (optional)
+      ...(foodQuality && { foodQuality }),
+      ...(service && { service }),
+      ...(cleanliness && { cleanliness }),
+      ...(atmosphere && { atmosphere })
     };
 
     const reviews = localReviews.get(businessId) || [];
