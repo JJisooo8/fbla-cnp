@@ -42,6 +42,17 @@ function App() {
   const [recaptchaConfig, setRecaptchaConfig] = useState({ recaptchaEnabled: false, recaptchaSiteKey: null });
   const [recaptchaLoaded, setRecaptchaLoaded] = useState(false);
 
+  // Review sorting and interactions
+  const [reviewSortBy, setReviewSortBy] = useState("relevant");
+  const [upvotedReviews, setUpvotedReviews] = useState(() => {
+    const saved = localStorage.getItem("locallink_upvoted_reviews");
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [reportedReviews, setReportedReviews] = useState(() => {
+    const saved = localStorage.getItem("locallink_reported_reviews");
+    return saved ? JSON.parse(saved) : [];
+  });
+
   // Scroll position management
   const [savedScrollPosition, setSavedScrollPosition] = useState(0);
 
@@ -275,6 +286,106 @@ function App() {
     } catch (err) {
       alert("Failed to submit review. Please try again.");
     }
+  };
+
+  // Save upvoted/reported reviews to localStorage
+  useEffect(() => {
+    localStorage.setItem("locallink_upvoted_reviews", JSON.stringify(upvotedReviews));
+  }, [upvotedReviews]);
+
+  useEffect(() => {
+    localStorage.setItem("locallink_reported_reviews", JSON.stringify(reportedReviews));
+  }, [reportedReviews]);
+
+  // Upvote a review
+  const upvoteReview = async (reviewId) => {
+    if (upvotedReviews.includes(reviewId)) {
+      return; // Already upvoted
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/businesses/${selectedBusiness.id}/reviews/${reviewId}/upvote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+
+      if (res.ok) {
+        setUpvotedReviews(prev => [...prev, reviewId]);
+        // Refresh business data to get updated helpful count
+        const updatedBiz = await fetch(`${API_URL}/businesses/${selectedBusiness.id}`).then(r => r.json());
+        setSelectedBusiness(updatedBiz);
+      }
+    } catch (err) {
+      console.error("Failed to upvote review:", err);
+    }
+  };
+
+  // Report a review
+  const reportReview = async (reviewId, reason) => {
+    if (reportedReviews.includes(reviewId)) {
+      alert("You have already reported this review.");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/businesses/${selectedBusiness.id}/reviews/${reviewId}/report`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason })
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setReportedReviews(prev => [...prev, reviewId]);
+        alert(data.message);
+        // Refresh business data
+        const updatedBiz = await fetch(`${API_URL}/businesses/${selectedBusiness.id}`).then(r => r.json());
+        setSelectedBusiness(updatedBiz);
+      } else {
+        alert(data.error || "Failed to report review");
+      }
+    } catch (err) {
+      console.error("Failed to report review:", err);
+      alert("Failed to report review. Please try again.");
+    }
+  };
+
+  // Sort reviews based on selected criteria
+  const getSortedReviews = (reviews) => {
+    if (!reviews || reviews.length === 0) return [];
+
+    const sorted = [...reviews];
+
+    switch (reviewSortBy) {
+      case "relevant":
+        // Relevance: combination of upvotes + comment length + recency
+        sorted.sort((a, b) => {
+          const scoreA = (a.helpful || 0) * 10 + Math.min(a.comment.length / 20, 10) + (new Date(a.date).getTime() / 1e12);
+          const scoreB = (b.helpful || 0) * 10 + Math.min(b.comment.length / 20, 10) + (new Date(b.date).getTime() / 1e12);
+          return scoreB - scoreA;
+        });
+        break;
+      case "newest":
+        sorted.sort((a, b) => new Date(b.date) - new Date(a.date));
+        break;
+      case "oldest":
+        sorted.sort((a, b) => new Date(a.date) - new Date(b.date));
+        break;
+      case "highest":
+        sorted.sort((a, b) => b.rating - a.rating || new Date(b.date) - new Date(a.date));
+        break;
+      case "lowest":
+        sorted.sort((a, b) => a.rating - b.rating || new Date(b.date) - new Date(a.date));
+        break;
+      case "helpful":
+        sorted.sort((a, b) => (b.helpful || 0) - (a.helpful || 0) || new Date(b.date) - new Date(a.date));
+        break;
+      default:
+        break;
+    }
+
+    return sorted;
   };
 
   // Helper: Copy to clipboard with feedback
@@ -945,11 +1056,28 @@ function App() {
                 <div className={styles.detailPanel}>
                   <div className={styles.sectionHeaderWithAction}>
                     <h2 className={styles.sectionHeader}>Reviews</h2>
-                    {!showReviewForm && (
-                      <button onClick={startReview} className={styles.btnPrimary}>
-                        Write a Review
-                      </button>
-                    )}
+                    <div className={styles.reviewActions}>
+                      {selectedBusiness.reviews.length > 1 && (
+                        <select
+                          value={reviewSortBy}
+                          onChange={e => setReviewSortBy(e.target.value)}
+                          className={styles.reviewSortSelect}
+                          aria-label="Sort reviews"
+                        >
+                          <option value="relevant">Most Relevant</option>
+                          <option value="newest">Newest First</option>
+                          <option value="oldest">Oldest First</option>
+                          <option value="highest">Highest Rated</option>
+                          <option value="lowest">Lowest Rated</option>
+                          <option value="helpful">Most Helpful</option>
+                        </select>
+                      )}
+                      {!showReviewForm && (
+                        <button onClick={startReview} className={styles.btnPrimary}>
+                          Write a Review
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {showReviewForm && (verificationChallenge || recaptchaConfig.recaptchaEnabled) && (
@@ -1058,7 +1186,7 @@ function App() {
                     </div>
                   ) : (
                     <div className={styles.reviewsList}>
-                      {selectedBusiness.reviews.map(review => (
+                      {getSortedReviews(selectedBusiness.reviews).map(review => (
                         <div key={review.id} className={styles.reviewItem}>
                           <div className={styles.reviewHeader}>
                             <strong className={styles.reviewAuthor}>{review.author}</strong>
@@ -1067,8 +1195,35 @@ function App() {
                             </div>
                           </div>
                           <p className={styles.reviewComment}>{review.comment}</p>
-                          <div className={styles.reviewDate}>
-                            {new Date(review.date).toLocaleDateString()}
+                          <div className={styles.reviewFooter}>
+                            <div className={styles.reviewDate}>
+                              {new Date(review.date).toLocaleDateString()}
+                            </div>
+                            <div className={styles.reviewInteractions}>
+                              <button
+                                onClick={() => upvoteReview(review.id)}
+                                className={upvotedReviews.includes(review.id) ? styles.upvoteButtonActive : styles.upvoteButton}
+                                disabled={upvotedReviews.includes(review.id)}
+                                title={upvotedReviews.includes(review.id) ? "You found this helpful" : "Mark as helpful"}
+                              >
+                                <span className={styles.upvoteIcon}>👍</span>
+                                <span>{review.helpful || 0}</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const reason = window.prompt(
+                                    "Why are you reporting this review?\n\nOptions:\n- Spam or fake review\n- Inappropriate content\n- Off-topic\n- Other",
+                                    "Inappropriate content"
+                                  );
+                                  if (reason) reportReview(review.id, reason);
+                                }}
+                                className={reportedReviews.includes(review.id) ? styles.reportButtonReported : styles.reportButton}
+                                disabled={reportedReviews.includes(review.id)}
+                                title={reportedReviews.includes(review.id) ? "You reported this review" : "Report this review"}
+                              >
+                                {reportedReviews.includes(review.id) ? "Reported" : "Report"}
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
