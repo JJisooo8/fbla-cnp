@@ -347,26 +347,32 @@ function App() {
     localStorage.setItem("locallink_reported_reviews", JSON.stringify(reportedReviews));
   }, [reportedReviews]);
 
-  // Upvote a review
+  // Upvote or remove upvote from a review
   const upvoteReview = async (reviewId) => {
-    if (upvotedReviews.includes(reviewId)) {
-      return; // Already upvoted
-    }
+    const alreadyUpvoted = upvotedReviews.includes(reviewId);
 
     try {
-      const res = await fetch(`${API_URL}/businesses/${selectedBusiness.id}/reviews/${reviewId}/upvote`, {
+      const endpoint = alreadyUpvoted
+        ? `${API_URL}/businesses/${selectedBusiness.id}/reviews/${reviewId}/remove-upvote`
+        : `${API_URL}/businesses/${selectedBusiness.id}/reviews/${reviewId}/upvote`;
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" }
       });
 
       if (res.ok) {
-        setUpvotedReviews(prev => [...prev, reviewId]);
+        if (alreadyUpvoted) {
+          setUpvotedReviews(prev => prev.filter(id => id !== reviewId));
+        } else {
+          setUpvotedReviews(prev => [...prev, reviewId]);
+        }
         // Refresh business data to get updated helpful count
         const updatedBiz = await fetch(`${API_URL}/businesses/${selectedBusiness.id}`).then(r => r.json());
         setSelectedBusiness(updatedBiz);
       }
     } catch (err) {
-      console.error("Failed to upvote review:", err);
+      console.error("Failed to toggle upvote:", err);
     }
   };
 
@@ -421,15 +427,6 @@ function App() {
         break;
       case "oldest":
         sorted.sort((a, b) => new Date(a.date) - new Date(b.date));
-        break;
-      case "highest":
-        sorted.sort((a, b) => b.rating - a.rating || new Date(b.date) - new Date(a.date));
-        break;
-      case "lowest":
-        sorted.sort((a, b) => a.rating - b.rating || new Date(b.date) - new Date(a.date));
-        break;
-      case "helpful":
-        sorted.sort((a, b) => (b.helpful || 0) - (a.helpful || 0) || new Date(b.date) - new Date(a.date));
         break;
       default:
         break;
@@ -1154,9 +1151,6 @@ function App() {
                           <option value="relevant">Most Relevant</option>
                           <option value="newest">Newest First</option>
                           <option value="oldest">Oldest First</option>
-                          <option value="highest">Highest Rated</option>
-                          <option value="lowest">Lowest Rated</option>
-                          <option value="helpful">Most Helpful</option>
                         </select>
                       )}
                       {!showReviewForm && (
@@ -1170,6 +1164,12 @@ function App() {
                   {showReviewForm && (verificationChallenge || recaptchaConfig.recaptchaSiteKey) && (
                     <form onSubmit={submitReview} className={styles.reviewForm} aria-labelledby="review-form-title">
                       <h4 id="review-form-title" className={styles.formTitle}>Write Your Review</h4>
+
+                      {demoStatus?.offlineMode && (
+                        <p className={styles.offlineNotice}>
+                          (Currently in offline demo mode - reviews will not be reflected on the live website)
+                        </p>
+                      )}
 
                       <input
                         type="text"
@@ -1289,8 +1289,7 @@ function App() {
                               <button
                                 onClick={() => upvoteReview(review.id)}
                                 className={upvotedReviews.includes(review.id) ? styles.upvoteButtonActive : styles.upvoteButton}
-                                disabled={upvotedReviews.includes(review.id)}
-                                title={upvotedReviews.includes(review.id) ? "You found this helpful" : "Mark as helpful"}
+                                title={upvotedReviews.includes(review.id) ? "Click to remove your upvote" : "Mark as helpful"}
                               >
                                 <span className={styles.upvoteIcon}>👍</span>
                                 <span>{review.helpful || 0}</span>

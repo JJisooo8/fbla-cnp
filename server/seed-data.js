@@ -384,6 +384,61 @@ async function seedData() {
       if (localImagePath) imageCount++;
     }
 
+    // Generate a better description
+    const generateDescription = () => {
+      const allCategories = (yelpBusiness.categories || []).map(c => c.title).filter(Boolean);
+      const price = yelpBusiness.price || '';
+      const rating = yelpBusiness.rating;
+
+      // Build description parts
+      let desc = '';
+
+      // Start with category-specific intro
+      if (category === 'Food') {
+        if (allCategories.length >= 2) {
+          desc = `${allCategories.slice(0, 2).join(' and ')} establishment`;
+        } else if (allCategories.length === 1) {
+          desc = `${allCategories[0]} spot`;
+        } else {
+          desc = 'Restaurant';
+        }
+      } else if (category === 'Retail') {
+        desc = allCategories.length > 0 ? `${allCategories[0]} store` : 'Retail shop';
+      } else {
+        desc = allCategories.length > 0 ? `${allCategories[0]} provider` : 'Local service';
+      }
+
+      desc += ' in the Cumming, Georgia area';
+
+      // Add price range context
+      if (price === '$') {
+        desc += ' offering budget-friendly options';
+      } else if (price === '$$') {
+        desc += ' with moderate pricing';
+      } else if (price === '$$$') {
+        desc += ' featuring upscale offerings';
+      } else if (price === '$$$$') {
+        desc += ' providing a premium experience';
+      }
+
+      // Add rating context if highly rated on Yelp
+      if (rating >= 4.5) {
+        desc += '. Highly rated by the local community';
+      } else if (rating >= 4.0) {
+        desc += '. Well-reviewed by customers';
+      }
+
+      desc += '.';
+
+      // Add additional categories if there are more
+      if (allCategories.length > 2) {
+        const extraCats = allCategories.slice(2, 4).join(', ');
+        desc += ` Also known for ${extraCats.toLowerCase()}.`;
+      }
+
+      return desc;
+    };
+
     const business = {
       id,
       yelpId: yelpBusiness.id,
@@ -393,9 +448,7 @@ async function seedData() {
       reviewCount: 0,
       yelpRating: yelpBusiness.rating,
       yelpReviewCount: yelpBusiness.review_count,
-      description: categoryLabel
-        ? `Local ${categoryLabel.toLowerCase()} in Cumming, Georgia.`
-        : `Local ${category.toLowerCase()} business in Cumming, Georgia.`,
+      description: generateDescription(),
       address,
       phone: yelpBusiness.display_phone || "Phone not available",
       hours,
