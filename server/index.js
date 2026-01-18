@@ -794,7 +794,7 @@ async function fetchYelpBusinesses() {
   console.log("[YELP] Starting Yelp API fetch...");
   const results = [];
   const limit = 50;
-  const totalWanted = 300;
+  const totalWanted = 240; // Yelp API limit: offset+limit must be <= 240
 
   try {
     for (let offset = 0; offset < totalWanted; offset += limit) {
