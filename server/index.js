@@ -9,7 +9,6 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 
 // Load environment variables
-// Try multiple paths for .env file
 const envPaths = [
   path.resolve(process.cwd(), '.env'),
   path.resolve(process.cwd(), 'server', '.env'),
@@ -33,28 +32,27 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ============================================
-// STARTUP LOGGING - Appears in Vercel Function Logs
+// STARTUP LOGGING
 // ============================================
 console.log('========================================');
 console.log('[STARTUP] LocalLink API Initializing...');
 console.log(`[STARTUP] Environment: ${process.env.VERCEL ? 'Vercel' : 'Local'}`);
 console.log(`[STARTUP] Node Version: ${process.version}`);
-console.log(`[STARTUP] Working Directory: ${process.cwd()}`);
 console.log('----------------------------------------');
 console.log('[CONFIG] Environment Variables Status:');
 console.log(`  - YELP_API_KEY: ${process.env.YELP_API_KEY ? 'SET (' + process.env.YELP_API_KEY.substring(0, 10) + '...)' : 'NOT SET'}`);
 console.log(`  - GOOGLE_SEARCH_API_KEY: ${process.env.GOOGLE_SEARCH_API_KEY ? 'SET' : 'NOT SET'}`);
 console.log(`  - GOOGLE_SEARCH_ENGINE_ID: ${process.env.GOOGLE_SEARCH_ENGINE_ID ? 'SET' : 'NOT SET'}`);
-console.log(`  - RECAPTCHA_SECRET_KEY: ${process.env.RECAPTCHA_SECRET_KEY ? 'SET (' + process.env.RECAPTCHA_SECRET_KEY.substring(0, 10) + '...)' : 'NOT SET'}`);
-console.log(`  - RECAPTCHA_SITE_KEY: ${process.env.RECAPTCHA_SITE_KEY ? 'SET (' + process.env.RECAPTCHA_SITE_KEY.substring(0, 10) + '...)' : 'NOT SET'}`);
-console.log('========================================')
+console.log(`  - RECAPTCHA_SECRET_KEY: ${process.env.RECAPTCHA_SECRET_KEY ? 'SET' : 'NOT SET'}`);
+console.log(`  - RECAPTCHA_SITE_KEY: ${process.env.RECAPTCHA_SITE_KEY ? 'SET' : 'NOT SET'}`);
+console.log('========================================');
 
-// Cache for OpenStreetMap API responses (TTL: 1 hour)
+// Cache for API responses (TTL: 1 hour)
 const cache = new NodeCache({ stdTTL: 3600 });
+const imageCache = new NodeCache({ stdTTL: 86400 });
 
 // Path to persistent review storage
-// In Vercel, use /tmp for writable storage, otherwise use __dirname
-const REVIEWS_FILE = process.env.VERCEL 
+const REVIEWS_FILE = process.env.VERCEL
   ? path.join("/tmp", "reviews.json")
   : path.join(__dirname, "reviews.json");
 
@@ -81,10 +79,10 @@ function saveReviews() {
   }
 }
 
-// Store local reviews for businesses (keyed by business id)
+// Store local reviews for businesses
 const localReviews = loadReviews();
 
-// Store verification challenges in memory (in production, use Redis or database)
+// Store verification challenges in memory
 const verificationChallenges = new Map();
 
 // Cumming, Georgia coordinates and search radius
@@ -92,6 +90,7 @@ const CUMMING_GA_LAT = 34.2073;
 const CUMMING_GA_LON = -84.1402;
 const SEARCH_RADIUS_METERS = 16093; // 10 miles in meters
 
+// API Configuration
 const YELP_API_BASE_URL = "https://api.yelp.com/v3";
 const YELP_API_KEY = process.env.YELP_API_KEY;
 const GOOGLE_SEARCH_API_KEY = process.env.GOOGLE_SEARCH_API_KEY;
@@ -101,12 +100,10 @@ const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
 const RECAPTCHA_SECRET_KEY = process.env.RECAPTCHA_SECRET_KEY;
 const RECAPTCHA_ENABLED = !!RECAPTCHA_SECRET_KEY;
 
-const imageCache = new NodeCache({ stdTTL: 86400 });
-
 // Verify reCAPTCHA token with Google
 async function verifyRecaptcha(token) {
   if (!RECAPTCHA_ENABLED) {
-    return { success: true, fallback: true }; // Fallback to math challenge if not configured
+    return { success: true, fallback: true };
   }
 
   try {
@@ -131,16 +128,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Request logging middleware - logs appear in Vercel Function Logs
+// Request logging middleware
 app.use((req, res, next) => {
   const start = Date.now();
   console.log(`[REQ] ${req.method} ${req.path}`);
-
   res.on('finish', () => {
     const duration = Date.now() - start;
     console.log(`[RES] ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`);
   });
-
   next();
 });
 
@@ -148,110 +143,69 @@ app.use((req, res, next) => {
 // HELPER FUNCTIONS
 // ====================
 
-// Map OSM amenity/shop tags to our categories
-function mapOSMTypeToCategory(tags) {
-  const { amenity, shop, leisure, tourism, craft } = tags;
+// Category mapping for Yelp categories
+const CATEGORY_ALIASES = {
+  Food: [
+    "restaurants", "food", "cafes", "coffee", "bakeries", "desserts", "bars",
+    "icecream", "pizza", "mexican", "italian", "chinese", "japanese", "thai",
+    "vietnamese", "korean", "indian", "mediterranean", "greek", "american",
+    "southern", "bbq", "seafood", "sushi", "burgers", "sandwiches", "delis",
+    "breakfast_brunch", "brunch", "diners", "steakhouses", "tacos", "tex-mex",
+    "fastfood", "hotdogs", "chicken_wings", "chickenshop", "sportsbars", "pubs",
+    "cocktailbars", "breweries", "juicebars", "bubbletea", "tea", "donuts",
+    "bagels", "gelato", "froyo", "candy", "chocolate", "foodtrucks", "cajun",
+    "soulfood", "waffles", "pancakes", "cuban", "latin", "caribbean", "asianfusion"
+  ],
+  Retail: [
+    "shopping", "fashion", "departmentstores", "grocery", "bookstores",
+    "giftshops", "electronics", "furniture", "homeandgarden", "jewelry",
+    "sportinggoods", "toys", "pets", "flowers", "cosmetics"
+  ],
+  Services: [
+    "localservices", "homeservices", "auto", "health", "beautysvc", "fitness",
+    "education", "professional", "financialservices", "realestate", "eventservices",
+    "petservices", "automotive", "hairsalons", "spas", "gyms", "yoga", "dentists",
+    "doctors", "veterinarians"
+  ]
+};
 
-  // Food category
-  const foodAmenities = ['restaurant', 'cafe', 'fast_food', 'bar', 'pub', 'food_court', 'ice_cream', 'biergarten'];
-  const foodShops = ['bakery', 'butcher', 'cheese', 'chocolate', 'coffee', 'confectionery', 'deli', 'farm', 'seafood', 'spices', 'tea', 'wine', 'alcohol', 'beverages'];
+// Categories to exclude
+const EXCLUDED_YELP_CATEGORIES = [
+  "parks", "playgrounds", "dog_parks", "publicservicesgovt", "landmarks",
+  "hiking", "beaches", "lakes", "campgrounds", "publicgardens",
+  "communitycenters", "libraries", "museums", "religiousorgs", "churches"
+];
 
-  if (foodAmenities.includes(amenity) || foodShops.includes(shop)) {
-    return 'Food';
+function mapYelpCategoriesToCategory(categories = []) {
+  const aliases = categories.map(cat => cat.alias);
+
+  if (aliases.some(alias => EXCLUDED_YELP_CATEGORIES.includes(alias))) {
+    return "Excluded";
   }
 
-  // Retail category
-  const retailShops = ['supermarket', 'convenience', 'department_store', 'general', 'mall', 'clothes', 'shoes', 'jewelry', 'books', 'gift', 'furniture', 'electronics', 'mobile_phone', 'computer', 'toys', 'sports', 'bicycle', 'car', 'florist', 'garden_centre', 'pet', 'hardware', 'art', 'variety_store', 'cosmetics', 'doityourself', 'stationery'];
+  if (aliases.some(alias => CATEGORY_ALIASES.Food.includes(alias))) return "Food";
+  if (aliases.some(alias => CATEGORY_ALIASES.Retail.includes(alias))) return "Retail";
+  if (aliases.some(alias => CATEGORY_ALIASES.Services.includes(alias))) return "Services";
 
-  if (retailShops.includes(shop)) {
-    return 'Retail';
+  // Check titles for food-related keywords
+  const titles = categories.map(cat => (cat.title || '').toLowerCase());
+  const foodKeywords = ['restaurant', 'food', 'cafe', 'diner', 'grill', 'kitchen',
+    'eatery', 'bistro', 'bar', 'pub', 'pizza', 'burger', 'taco', 'sushi', 'bbq',
+    'bakery', 'coffee', 'tea', 'ice cream', 'dessert', 'breakfast', 'brunch'];
+
+  if (titles.some(title => foodKeywords.some(keyword => title.includes(keyword)))) {
+    return "Food";
   }
 
-  // Services category
-  const serviceAmenities = ['pharmacy', 'clinic', 'dentist', 'doctors', 'hospital', 'veterinary', 'bank', 'post_office', 'fuel', 'charging_station', 'car_wash', 'car_rental', 'bicycle_rental'];
-  const serviceCraft = ['carpenter', 'electrician', 'gardener', 'hvac', 'painter', 'plumber', 'shoemaker', 'tailor'];
-  const serviceShops = ['hairdresser', 'beauty', 'laundry', 'dry_cleaning', 'travel_agency', 'estate_agent'];
-
-  if (serviceAmenities.includes(amenity) || serviceCraft.includes(craft) || serviceShops.includes(shop)) {
-    return 'Services';
-  }
-
-  // Leisure/Tourism can be categorized
-  if (leisure || tourism) {
-    return 'Services';
-  }
-
-  return 'Other';
+  return "Services";
 }
 
-// Get category-appropriate image
-function getCategoryImage(category, tags) {
-  const { amenity, shop, cuisine, leisure } = tags;
-
-  // Food images based on type
-  if (category === 'Food') {
-    if (amenity === 'cafe' || shop === 'coffee') return 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=400';
-    if (amenity === 'restaurant') {
-      if (cuisine === 'pizza') return 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400';
-      if (cuisine === 'italian') return 'https://images.unsplash.com/photo-1498579150354-977475b7ea0b?w=400';
-      if (cuisine === 'asian' || cuisine === 'chinese' || cuisine === 'japanese') return 'https://images.unsplash.com/photo-1580822184713-fc5400e7fe10?w=400';
-      if (cuisine === 'mexican') return 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=400';
-      return 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400';
-    }
-    if (amenity === 'fast_food') return 'https://images.unsplash.com/photo-1561758033-d89a9ad46330?w=400';
-    if (amenity === 'bar' || amenity === 'pub') return 'https://images.unsplash.com/photo-1514933651103-005eec06c04b?w=400';
-    if (shop === 'bakery') return 'https://images.unsplash.com/photo-1486427944299-d1955d23e34d?w=400';
-    return 'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=400';
-  }
-
-  // Retail images
-  if (category === 'Retail') {
-    if (shop === 'books') return 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=400';
-    if (shop === 'clothes' || shop === 'shoes') return 'https://images.unsplash.com/photo-1441984904996-e0b6ba687e04?w=400';
-    if (shop === 'supermarket' || shop === 'convenience') return 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=400';
-    if (shop === 'florist' || shop === 'garden_centre') return 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400';
-    if (shop === 'electronics' || shop === 'mobile_phone' || shop === 'computer') return 'https://images.unsplash.com/photo-1491933382434-500287f9b54b?w=400';
-    if (shop === 'pet') return 'https://images.unsplash.com/photo-1548681528-6a5c45b66b42?w=400';
-    if (shop === 'furniture') return 'https://images.unsplash.com/photo-1538688525198-9b88f6f53126?w=400';
-    return 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=400';
-  }
-
-  // Services images
-  if (category === 'Services') {
-    if (amenity === 'pharmacy') return 'https://images.unsplash.com/photo-1587854692152-cbe660dbde88?w=400';
-    if (amenity === 'dentist' || amenity === 'doctors' || amenity === 'clinic') return 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=400';
-    if (shop === 'hairdresser' || shop === 'beauty') return 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400';
-    if (amenity === 'fuel' || amenity === 'car_wash') return 'https://images.unsplash.com/photo-1545158535-c3f7168c28b6?w=400';
-    if (leisure === 'fitness_centre') return 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=400';
-    return 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=400';
-  }
-
-  return 'https://images.unsplash.com/photo-1556761175-b413da4baf72?w=400';
+function isExcludedYelpBusiness(categories = []) {
+  const aliases = categories.map(cat => cat.alias);
+  return aliases.some(alias => EXCLUDED_YELP_CATEGORIES.includes(alias));
 }
 
-// Format opening hours from OSM format
-function formatOpeningHours(openingHours) {
-  if (!openingHours) return 'Hours not available';
-
-  // OSM opening_hours can be complex, we'll simplify it
-  // Examples: "Mo-Fr 09:00-17:00", "24/7", "Mo-Su 08:00-20:00"
-  if (openingHours === '24/7') return 'Open 24 hours';
-
-  // For complex formats, just return as-is
-  return openingHours;
-}
-
-// Check if business is currently open
-function isOpenNow(openingHours) {
-  if (!openingHours) return undefined;
-  if (openingHours === '24/7') return true;
-
-  // Simplified check - in production, use a proper opening hours library
-  // For now, we'll return undefined (unknown)
-  return undefined;
-}
-
-// Generate deterministic mock deals for demo purposes
+// Generate mock deals for demo
 function getMockDeal(category, name) {
   const dealsByCategory = {
     Food: [
@@ -277,479 +231,122 @@ function getMockDeal(category, name) {
     ]
   };
 
-  const seed = crypto
-    .createHash("md5")
-    .update(`${category}-${name}`)
-    .digest("hex");
+  const seed = crypto.createHash("md5").update(`${category}-${name}`).digest("hex");
   const roll = parseInt(seed.slice(0, 2), 16);
 
-  if (roll % 5 !== 0) {
-    return null;
-  }
+  if (roll % 5 !== 0) return null;
 
   const options = dealsByCategory[category] || dealsByCategory.Services;
   return options[roll % options.length];
 }
 
-const CATEGORY_ALIASES = {
-  Food: [
-    "restaurants",
-    "food",
-    "cafes",
-    "coffee",
-    "bakeries",
-    "desserts",
-    "bars",
-    "icecream",
-    "pizza",
-    "cuban",
-    "mexican",
-    "italian",
-    "chinese",
-    "japanese",
-    "thai",
-    "vietnamese",
-    "korean",
-    "indian",
-    "mediterranean",
-    "greek",
-    "american",
-    "southern",
-    "bbq",
-    "seafood",
-    "sushi",
-    "burgers",
-    "sandwiches",
-    "delis",
-    "breakfast_brunch",
-    "brunch",
-    "diners",
-    "steakhouses",
-    "tacos",
-    "tex-mex",
-    "latin",
-    "caribbean",
-    "asianfusion",
-    "newamerican",
-    "tradamerican",
-    "fastfood",
-    "hotdogs",
-    "chicken_wings",
-    "chickenshop",
-    "beer_and_wine",
-    "wine_bars",
-    "sportsbars",
-    "pubs",
-    "cocktailbars",
-    "beerbar",
-    "breweries",
-    "distilleries",
-    "wineries",
-    "juicebars",
-    "bubbletea",
-    "tea",
-    "donuts",
-    "bagels",
-    "acaibowls",
-    "creperies",
-    "gelato",
-    "froyo",
-    "candy",
-    "chocolate",
-    "ethnic_food",
-    "foodtrucks",
-    "streetvendors",
-    "cheesesteaks",
-    "cajun",
-    "soulfood",
-    "waffles",
-    "pancakes"
-  ],
-  Retail: [
-    "shopping",
-    "fashion",
-    "departmentstores",
-    "grocery",
-    "bookstores",
-    "giftshops",
-    "electronics",
-    "furniture"
-  ],
-  Services: [
-    "homedocservices",
-    "auto",
-    "health",
-    "beautysvc",
-    "fitness",
-    "education",
-    "professional"
-  ]
-};
-
-// Categories to exclude (parks, public services, etc.)
-const EXCLUDED_YELP_CATEGORIES = [
-  "parks",
-  "playgrounds",
-  "dog_parks",
-  "publicservicesgovt",
-  "landmarks",
-  "hiking",
-  "beaches",
-  "lakes",
-  "campgrounds",
-  "publicgardens",
-  "communitycenters",
-  "libraries",
-  "museums",
-  "religiousorgs",
-  "churches"
-];
-
-function normalizeName(value) {
-  return (value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-function haversineDistanceMeters(lat1, lon1, lat2, lon2) {
-  const toRad = (deg) => (deg * Math.PI) / 180;
-  const R = 6371000;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function mapYelpCategoriesToCategory(categories = []) {
-  const aliases = categories.map(cat => cat.alias);
-
-  // Check if any category is in the excluded list
-  if (aliases.some(alias => EXCLUDED_YELP_CATEGORIES.includes(alias))) {
-    return "Excluded";
-  }
-
-  if (aliases.some(alias => CATEGORY_ALIASES.Food.includes(alias))) return "Food";
-  if (aliases.some(alias => CATEGORY_ALIASES.Retail.includes(alias))) return "Retail";
-  if (aliases.some(alias => CATEGORY_ALIASES.Services.includes(alias))) return "Services";
-
-  // Default to Food for anything restaurant-like or food-related
-  // Check category titles for food-related keywords
-  const titles = categories.map(cat => (cat.title || '').toLowerCase());
-  const foodKeywords = ['restaurant', 'food', 'cafe', 'diner', 'grill', 'kitchen', 'eatery', 'bistro', 'tavern', 'bar', 'pub', 'pizza', 'burger', 'taco', 'sushi', 'bbq', 'bakery', 'coffee', 'tea', 'juice', 'smoothie', 'ice cream', 'dessert', 'breakfast', 'brunch', 'lunch', 'dinner', 'cuisine', 'cuban', 'mexican', 'italian', 'chinese', 'japanese', 'thai', 'indian', 'korean', 'vietnamese', 'mediterranean', 'greek', 'american', 'southern', 'cajun', 'seafood', 'steakhouse', 'wings', 'chicken', 'sandwich', 'deli', 'brewery', 'winery', 'distillery'];
-
-  if (titles.some(title => foodKeywords.some(keyword => title.includes(keyword)))) {
-    return "Food";
-  }
-
-  return "Services";
-}
-
-function isExcludedYelpBusiness(categories = []) {
-  const aliases = categories.map(cat => cat.alias);
-  return aliases.some(alias => EXCLUDED_YELP_CATEGORIES.includes(alias));
-}
-
-function buildYelpTags(categories = []) {
-  return categories.map(cat => cat.title).filter(Boolean);
-}
-
-function humanizeBusinessType(value) {
-  if (!value) return "business";
-
-  const replacements = {
-    alcohol: "liquor store",
-    fast_food: "fast food restaurant",
-    food_court: "food court",
-    cafe: "cafe",
-    pub: "pub",
-    bar: "bar",
-    ice_cream: "ice cream shop",
-    pharmacy: "pharmacy",
-    hairdresser: "salon",
-    beauty: "beauty studio",
-    fuel: "gas station",
-    car_wash: "car wash",
-    convenience: "convenience store",
-    supermarket: "supermarket",
-    bakery: "bakery",
-    butcher: "butcher shop",
-    deli: "deli",
-    florist: "florist",
-    coffee: "coffee shop",
-    clothes: "clothing store",
-    shoes: "shoe store",
-    jewelry: "jewelry store",
-    gift: "gift shop"
-  };
-
-  const normalized = value.replace(/_/g, " ").toLowerCase();
-  return replacements[value] || normalized;
-}
-
-function buildGenericDescription({
-  type,
-  cuisine,
-  category
-}) {
-  const typeLabel = humanizeBusinessType(type);
-  const cuisineLabel = cuisine ? cuisine.replace(/_/g, " ").toLowerCase() : null;
-  const categoryLabel = category ? category.toLowerCase() : "local";
-
-  if (cuisineLabel) {
-    return `Local ${cuisineLabel} ${typeLabel} in Cumming, Georgia.`;
-  }
-
-  if (typeLabel !== "business") {
-    return `Local ${typeLabel} in Cumming, Georgia.`;
-  }
-
-  return `Local ${categoryLabel} business in Cumming, Georgia.`;
-}
-
-function getLocalReviewSummary(id) {
-  const localReviewsList = localReviews.get(id) || [];
-  // Filter out hidden reviews (those with 3+ reports)
-  const visibleReviews = localReviewsList.filter(r => !r.hidden);
-  const reviewCount = visibleReviews.length;
-  const rating = reviewCount > 0
-    ? visibleReviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount
-    : 0;
-
-  return { reviewCount, rating, reviews: [...visibleReviews] };
-}
-
-// Detect if a business is a major chain/franchise
-function isChainBusiness(name, tags) {
+// Detect chain businesses
+function isChainBusiness(name) {
   if (!name) return false;
-
   const nameLower = name.toLowerCase();
-
-  // Major national/international chains to filter
   const chainKeywords = [
     'walmart', 'target', 'costco', 'publix', 'kroger', 'whole foods',
     'cvs', 'walgreens', 'rite aid', 'dollar general', 'dollar tree',
     'mcdonald', 'burger king', 'wendy', 'taco bell', 'kfc', 'subway',
     'starbucks', 'dunkin', 'chick-fil-a', 'chipotle', 'panera',
     'home depot', 'lowe', 'best buy', 'petsmart', 'petco',
-    'tj maxx', 'marshalls', 'ross', 'old navy', 'gap',
-    'shell', 'chevron', 'exxon', 'bp', 'mobil', 'marathon', 'circle k',
-    'bank of america', 'wells fargo', 'chase', 'citibank',
-    'at&t', 'verizon', 't-mobile', 'sprint',
-    '7-eleven', 'circle k', 'speedway', 'wawa'
+    'shell', 'chevron', 'exxon', 'bp', 'mobil', '7-eleven', 'wawa'
   ];
-
-  // Check if name contains any chain keywords
-  for (const keyword of chainKeywords) {
-    if (nameLower.includes(keyword)) {
-      return true;
-    }
-  }
-
-  // Check for chain indicators in tags
-  if (tags.brand && chainKeywords.some(k => tags.brand.toLowerCase().includes(k))) {
-    return true;
-  }
-
-  return false;
+  return chainKeywords.some(keyword => nameLower.includes(keyword));
 }
 
-// Calculate relevancy score for a business
-// Higher scores = more relevant (local, family-owned, startups)
-function calculateRelevancyScore(name, tags, reviewCount) {
-  let score = 50; // Base score
+// Calculate relevancy score
+function calculateRelevancyScore(name, yelpReviewCount) {
+  let score = 50;
 
-  // MAJOR PENALTY: Chain businesses
-  if (isChainBusiness(name, tags)) {
-    score -= 50; // Penalty for chains (but not complete exclusion)
-  }
+  if (isChainBusiness(name)) score -= 40;
 
-  // BONUS: Craft businesses (likely family-owned)
-  if (tags.craft) {
-    score += 40; // Carpenters, electricians, plumbers are usually local
-  }
+  // Smaller businesses get bonus
+  if (yelpReviewCount < 50) score += 15;
+  else if (yelpReviewCount < 100) score += 10;
+  else if (yelpReviewCount > 500) score -= 10;
 
-  // BONUS: Independent indicators
-  if (tags['brand:wikidata'] === undefined && tags.brand === undefined) {
-    score += 20; // No brand tag suggests independent
-  }
-
-  // BONUS: Smaller operations (likely local)
-  if (reviewCount < 50) {
-    score += 15; // Newer or smaller businesses
-  } else if (reviewCount < 100) {
-    score += 10;
-  } else if (reviewCount > 200) {
-    score -= 5; // Very popular might indicate chain
-  }
-
-  // BONUS: Family/local keywords in name
+  // Local-sounding names get bonus
   const nameLower = (name || '').toLowerCase();
-  const localKeywords = ['family', 'local', 'hometown', 'mom', 'pop', '& son', '& daughter', 'brothers', 'sisters'];
-  if (localKeywords.some(k => nameLower.includes(k))) {
-    score += 30;
-  }
+  const localKeywords = ['family', 'local', 'hometown', 'mom', 'pop', '& son', 'brothers'];
+  if (localKeywords.some(k => nameLower.includes(k))) score += 25;
 
-  // BONUS: Personal names in business (Joe's, Maria's, Smith's)
-  if (nameLower.match(/\w+'s\s/) || nameLower.match(/^[A-Z][a-z]+'s/)) {
-    score += 25;
-  }
-
-  // BONUS: Specific local business types
-  const shopType = tags.shop || '';
-  const amenityType = tags.amenity || '';
-
-  // Local favorites
-  if (['deli', 'butcher', 'bakery', 'farm', 'cheese', 'chocolate', 'confectionery', 'coffee', 'tea'].includes(shopType)) {
-    score += 15;
-  }
-
-  if (['cafe', 'restaurant'].includes(amenityType) && !isChainBusiness(name, tags)) {
-    score += 15;
-  }
-
-  // BONUS: Has website (shows professionalism for small business)
-  if (tags.website || tags['contact:website']) {
-    score += 10;
-  }
-
-  // PENALTY: Parking lots, ATMs, vending machines (not real businesses)
-  if (amenityType === 'parking' || amenityType === 'atm' || amenityType === 'vending_machine') {
-    score -= 200; // Essentially exclude these
-  }
-
-  // PENALTY: Utilities and infrastructure
-  if (amenityType === 'fuel' && !tags.shop) {
-    score -= 10; // Gas stations are less interesting unless they have a shop
-  }
+  // Personal names get bonus (Joe's, Maria's, etc.)
+  if (nameLower.match(/\w+'s\s/) || nameLower.match(/^[a-z]+'s/i)) score += 20;
 
   return score;
 }
 
-// Transform OSM data to our business format
-function transformOSMToBusiness(osmElement) {
-  const tags = osmElement.tags || {};
-  const category = mapOSMTypeToCategory(tags);
-
-  // Generate a consistent ID from OSM id
-  const id = `osm-${osmElement.id}`;
-
-  // Get name or use type as fallback
-  const name = tags.name || tags['name:en'] || tags.amenity || tags.shop || 'Local Business';
-
-  // Build description
-  let description = tags.description || '';
-  if (!description) {
-    const type = tags.amenity || tags.shop || tags.craft || tags.tourism || 'business';
-    description = buildGenericDescription({
-      type,
-      cuisine: tags.cuisine,
-      category
-    });
-  }
-
-  // Address
-  const address = tags['addr:full'] ||
-    [tags['addr:housenumber'], tags['addr:street'], tags['addr:city'], tags['addr:state'], tags['addr:postcode']]
-      .filter(Boolean).join(', ') ||
-    'Cumming, GA';
-
-  // Build tags array
-  const businessTags = [];
-  if (tags.cuisine) businessTags.push(tags.cuisine);
-  if (tags.amenity) businessTags.push(tags.amenity.replace(/_/g, ' '));
-  if (tags.shop) businessTags.push(tags.shop.replace(/_/g, ' '));
-  if (tags.outdoor_seating === 'yes') businessTags.push('Outdoor Seating');
-  if (tags.wifi === 'yes' || tags.wifi === 'free') businessTags.push('WiFi');
-  if (tags.wheelchair === 'yes') businessTags.push('Wheelchair Accessible');
-  if (tags.takeaway === 'yes') businessTags.push('Takeout');
-  if (tags.delivery === 'yes') businessTags.push('Delivery');
-
-  const localReviewSummary = getLocalReviewSummary(id);
-  const reviewCount = localReviewSummary.reviewCount;
-
-  // Generate Google Maps URL for directions
-  const lat = osmElement.lat || osmElement.center?.lat;
-  const lon = osmElement.lon || osmElement.center?.lon;
-  const googleMapsUrl = lat && lon
-    ? `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`
-    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' ' + address)}`;
-
-  const business = {
-    id,
-    name,
-    category,
-    rating: localReviewSummary.rating,
-    reviewCount: localReviewSummary.reviewCount,
-    description,
-    address,
-    phone: tags.phone || tags['contact:phone'] || 'Phone not available',
-    hours: formatOpeningHours(tags.opening_hours),
-    image: getCategoryImage(category, tags),
-    deal: getMockDeal(category, name),
-    tags: businessTags.slice(0, 5),
-    priceRange: '$$', // OSM doesn't have price info
-    website: tags.website || tags['contact:website'] || null,
-    isOpenNow: isOpenNow(tags.opening_hours),
-    googleMapsUrl,
-    osmId: osmElement.id,
-    lat,
-    lon,
-    reviews: [],
-    relevancyScore: calculateRelevancyScore(name, tags, reviewCount),
-    isChain: isChainBusiness(name, tags)
-  };
-
-  // Add local reviews if any
-  business.reviews = localReviewSummary.reviews;
-
-  return business;
+function getLocalReviewSummary(id) {
+  const localReviewsList = localReviews.get(id) || [];
+  const visibleReviews = localReviewsList.filter(r => !r.hidden);
+  const reviewCount = visibleReviews.length;
+  const rating = reviewCount > 0
+    ? visibleReviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount
+    : 0;
+  return { reviewCount, rating, reviews: [...visibleReviews] };
 }
 
-function transformYelpToBusiness(yelpBusiness) {
-  // Check if this business should be excluded (parks, public services, etc.)
-  if (isExcludedYelpBusiness(yelpBusiness.categories)) {
-    return null; // Will be filtered out
-  }
+// Get fallback image by category
+function getCategoryImage(category) {
+  const images = {
+    Food: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400',
+    Retail: 'https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=400',
+    Services: 'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=400'
+  };
+  return images[category] || images.Services;
+}
 
-  const category = mapYelpCategoriesToCategory(yelpBusiness.categories);
+// Fetch Google Image as fallback
+async function fetchGoogleImage(query) {
+  if (!GOOGLE_SEARCH_API_KEY || !GOOGLE_SEARCH_ENGINE_ID || !query) return null;
 
-  // Double-check: if category is Excluded, return null
-  if (category === "Excluded") {
+  const cached = imageCache.get(query);
+  if (cached) return cached;
+
+  try {
+    const response = await axios.get("https://www.googleapis.com/customsearch/v1", {
+      params: {
+        key: GOOGLE_SEARCH_API_KEY,
+        cx: GOOGLE_SEARCH_ENGINE_ID,
+        q: query,
+        searchType: "image",
+        num: 1,
+        safe: "active"
+      },
+      timeout: 10000
+    });
+
+    const result = response.data?.items?.[0]?.link || null;
+    if (result) imageCache.set(query, result);
+    return result;
+  } catch (error) {
+    console.error("Error fetching Google image:", error.message);
     return null;
   }
+}
 
-  const tags = buildYelpTags(yelpBusiness.categories);
+// Transform Yelp business to our format
+function transformYelpToBusiness(yelpBusiness) {
+  if (isExcludedYelpBusiness(yelpBusiness.categories)) return null;
+
+  const category = mapYelpCategoriesToCategory(yelpBusiness.categories);
+  if (category === "Excluded") return null;
+
+  const id = `yelp-${yelpBusiness.id}`;
   const name = yelpBusiness.name;
   const address = yelpBusiness.location?.display_address?.join(", ") || "Cumming, GA";
+  const tags = (yelpBusiness.categories || []).map(cat => cat.title).filter(Boolean).slice(0, 5);
 
-  const localReviewSummary = getLocalReviewSummary(`yelp-${yelpBusiness.id}`);
-
-  const relevancyScore = calculateRelevancyScore(
-    name,
-    {
-      amenity: category === "Food" ? "restaurant" : undefined,
-      shop: category === "Retail" ? "shop" : undefined,
-      craft: category === "Services" ? "service" : undefined,
-      website: yelpBusiness.url
-    },
-    0
-  );
+  const localReviewSummary = getLocalReviewSummary(id);
+  const relevancyScore = calculateRelevancyScore(name, yelpBusiness.review_count || 0);
 
   const categoryLabel = yelpBusiness.categories
-    ?.map(categoryItem => categoryItem.title)
+    ?.map(c => c.title)
     .filter(Boolean)
     .slice(0, 2)
     .join(" & ");
 
-  const description = categoryLabel
-    ? `Local ${categoryLabel.toLowerCase()} in Cumming, Georgia.`
-    : buildGenericDescription({ category });
-
-  // Generate Google Maps URL for directions
   const lat = yelpBusiness.coordinates?.latitude;
   const lon = yelpBusiness.coordinates?.longitude;
   const googleMapsUrl = lat && lon
@@ -757,47 +354,56 @@ function transformYelpToBusiness(yelpBusiness) {
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' ' + address)}`;
 
   return {
-    id: `yelp-${yelpBusiness.id}`,
+    id,
     yelpId: yelpBusiness.id,
     name,
     category,
     rating: localReviewSummary.rating,
     reviewCount: localReviewSummary.reviewCount,
+    yelpRating: yelpBusiness.rating,
+    yelpReviewCount: yelpBusiness.review_count,
     description: categoryLabel
       ? `Local ${categoryLabel.toLowerCase()} in Cumming, Georgia.`
-      : buildGenericDescription({ category }),
+      : `Local ${category.toLowerCase()} business in Cumming, Georgia.`,
     address,
     phone: yelpBusiness.display_phone || "Phone not available",
     hours: "Hours available on business page",
-    image: yelpBusiness.image_url || getCategoryImage(category, {}),
+    image: yelpBusiness.image_url || null, // Will be filled with Google Image if null
     deal: getMockDeal(category, name),
-    tags: tags.slice(0, 5),
+    tags,
     priceRange: yelpBusiness.price || "$$",
     website: yelpBusiness.url,
     isOpenNow: yelpBusiness.is_closed === false ? true : undefined,
     googleMapsUrl,
-    osmId: null,
     lat,
     lon,
     reviews: localReviewSummary.reviews,
     relevancyScore,
-    isChain: isChainBusiness(name, { brand: yelpBusiness.brand })
+    isChain: isChainBusiness(name)
   };
 }
 
+// Fetch businesses from Yelp
 async function fetchYelpBusinesses() {
   if (!YELP_API_KEY) {
-    console.log("[YELP] API key not set. Skipping Yelp enrichment.");
+    console.log("[YELP] API key not set. Cannot fetch businesses.");
     return [];
   }
 
-  console.log("[YELP] Starting Yelp API fetch...");
+  const cacheKey = `yelp:${CUMMING_GA_LAT}:${CUMMING_GA_LON}`;
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    console.log('[YELP] Returning cached results');
+    return cached;
+  }
+
+  console.log("[YELP] Fetching businesses from Yelp API...");
   const results = [];
   const limit = 50;
-  const totalWanted = 240; // Yelp API limit: offset+limit must be <= 240
+  const maxOffset = 200; // Stay well under Yelp's 240 limit
 
   try {
-    for (let offset = 0; offset < totalWanted; offset += limit) {
+    for (let offset = 0; offset < maxOffset; offset += limit) {
       console.log(`[YELP] Fetching offset ${offset}...`);
       const response = await axios.get(`${YELP_API_BASE_URL}/businesses/search`, {
         headers: { Authorization: `Bearer ${YELP_API_KEY}` },
@@ -814,116 +420,35 @@ async function fetchYelpBusinesses() {
 
       const businesses = response.data.businesses || [];
       results.push(...businesses);
+      console.log(`[YELP] Got ${businesses.length} businesses at offset ${offset}`);
 
-      if (businesses.length < limit) {
-        break;
-      }
+      if (businesses.length < limit) break;
     }
-    console.log(`[YELP] Successfully fetched ${results.length} businesses from Yelp`);
+
+    console.log(`[YELP] Successfully fetched ${results.length} total businesses`);
+
+    // Transform and filter
+    const transformed = results
+      .map(transformYelpToBusiness)
+      .filter(biz => biz !== null);
+
+    // Sort by relevancy (local businesses first)
+    transformed.sort((a, b) => b.relevancyScore - a.relevancyScore);
+
+    cache.set(cacheKey, transformed);
+    return transformed;
+
   } catch (error) {
-    console.error("[YELP] Error fetching Yelp businesses:", error.message);
-    // Log more details about the error for debugging
+    console.error("[YELP] Error fetching businesses:", error.message);
     if (error.response) {
       console.error("[YELP] Response status:", error.response.status);
       console.error("[YELP] Response data:", JSON.stringify(error.response.data));
     }
+    return [];
   }
-
-  return results;
 }
 
-async function fetchBusinesses() {
-  try {
-    return await fetchOSMBusinesses();
-  } catch (error) {
-    console.error("⚠️  Falling back to Yelp-only data:", error.message);
-  }
-
-  const yelpBusinesses = await fetchYelpBusinesses();
-  return yelpBusinesses
-    .map(transformYelpToBusiness)
-    .filter(biz => biz !== null) // Filter out excluded businesses (parks, public services, etc.)
-    .sort((a, b) => b.relevancyScore - a.relevancyScore)
-    .slice(0, 300);
-}
-
-function mergeBusinesses(osmBusinesses, yelpBusinesses) {
-  const usedYelpIds = new Set();
-  const normalizedYelp = yelpBusinesses.map(biz => ({
-    raw: biz,
-    normalizedName: normalizeName(biz.name),
-    lat: biz.coordinates?.latitude,
-    lon: biz.coordinates?.longitude
-  }));
-
-  const merged = osmBusinesses.map(osm => {
-    const osmName = normalizeName(osm.name);
-    let bestMatch = null;
-    let bestDistance = Infinity;
-
-    for (const candidate of normalizedYelp) {
-      if (!candidate.lat || !candidate.lon) continue;
-      if (usedYelpIds.has(candidate.raw.id)) continue;
-
-      const distance = haversineDistanceMeters(
-        osm.lat,
-        osm.lon,
-        candidate.lat,
-        candidate.lon
-      );
-
-      if (distance > 500) continue; // ~0.3 miles
-
-      const matchesName =
-        candidate.normalizedName.includes(osmName) ||
-        osmName.includes(candidate.normalizedName);
-
-      if (matchesName && distance < bestDistance) {
-        bestMatch = candidate.raw;
-        bestDistance = distance;
-      }
-    }
-
-    if (!bestMatch) {
-      return osm;
-    }
-
-    usedYelpIds.add(bestMatch.id);
-    const yelpTransformed = transformYelpToBusiness(bestMatch);
-
-    // If Yelp business was excluded (parks, etc.), just return the OSM data
-    if (!yelpTransformed) {
-      return osm;
-    }
-
-    return {
-      ...osm,
-      name: yelpTransformed.name || osm.name,
-      category: yelpTransformed.category || osm.category,
-      rating: yelpTransformed.rating || osm.rating,
-      reviewCount: yelpTransformed.reviewCount || osm.reviewCount,
-      phone: yelpTransformed.phone || osm.phone,
-      address: yelpTransformed.address || osm.address,
-      image: yelpTransformed.image || osm.image,
-      priceRange: yelpTransformed.priceRange || osm.priceRange,
-      website: osm.website || yelpTransformed.website,
-      googleMapsUrl: osm.googleMapsUrl || yelpTransformed.googleMapsUrl,
-      tags: Array.from(new Set([...(osm.tags || []), ...(yelpTransformed.tags || [])])).slice(0, 5),
-      deal: osm.deal || yelpTransformed.deal,
-      lat: yelpTransformed.lat || osm.lat,
-      lon: yelpTransformed.lon || osm.lon,
-      yelpId: bestMatch.id
-    };
-  });
-
-  const yelpOnly = yelpBusinesses
-    .filter(biz => !usedYelpIds.has(biz.id))
-    .map(transformYelpToBusiness)
-    .filter(biz => biz !== null); // Filter out excluded businesses
-
-  return [...merged, ...yelpOnly];
-}
-
+// Fetch detailed info for a single business
 async function fetchYelpBusinessDetails(yelpId) {
   if (!YELP_API_KEY || !yelpId) return null;
 
@@ -939,35 +464,12 @@ async function fetchYelpBusinessDetails(yelpId) {
   }
 }
 
-async function fetchYelpReviews(yelpId) {
-  if (!YELP_API_KEY || !yelpId) return [];
-
-  try {
-    const response = await axios.get(`${YELP_API_BASE_URL}/businesses/${yelpId}/reviews`, {
-      headers: { Authorization: `Bearer ${YELP_API_KEY}` },
-      timeout: 15000
-    });
-
-    return (response.data.reviews || []).map(review => ({
-      id: review.id,
-      author: review.user?.name || "Yelp Reviewer",
-      rating: review.rating,
-      comment: review.text,
-      date: review.time_created,
-      helpful: 0,
-      source: "yelp"
-    }));
-  } catch (error) {
-    console.error("Error fetching Yelp reviews:", error.message);
-    return [];
-  }
-}
-
+// Format Yelp hours
 function formatYelpHours(hours = []) {
   if (!hours.length) return "Hours not available";
 
   const dayMap = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const ranges = hours[0].open || [];
+  const ranges = hours[0]?.open || [];
   if (!ranges.length) return "Hours not available";
 
   return ranges
@@ -980,146 +482,39 @@ function formatYelpHours(hours = []) {
     .join(", ");
 }
 
-async function fetchGoogleImage(query) {
-  if (!GOOGLE_SEARCH_API_KEY || !GOOGLE_SEARCH_ENGINE_ID || !query) {
-    return null;
-  }
-
-  const cached = imageCache.get(query);
-  if (cached) {
-    return cached;
-  }
-
-  try {
-    const response = await axios.get("https://www.googleapis.com/customsearch/v1", {
-      params: {
-        key: GOOGLE_SEARCH_API_KEY,
-        cx: GOOGLE_SEARCH_ENGINE_ID,
-        q: query,
-        searchType: "image",
-        num: 1,
-        safe: "active"
-      },
-      timeout: 15000
-    });
-
-    const result = response.data?.items?.[0]?.link || null;
-    if (result) {
-      imageCache.set(query, result);
-    }
-    return result;
-  } catch (error) {
-    console.error("Error fetching Google image:", error.message);
-    return null;
-  }
+// Main function to fetch businesses (Yelp only)
+async function fetchBusinesses() {
+  return await fetchYelpBusinesses();
 }
 
+// Enrich businesses without images using Google
 async function enrichBusinessImages(businesses) {
   const enriched = [];
-
   for (const business of businesses) {
     if (business.image) {
       enriched.push(business);
       continue;
     }
 
+    // Try Google Images as fallback
     const imageQuery = `${business.name} ${business.address || "Cumming GA"}`;
     const image = await fetchGoogleImage(imageQuery);
     enriched.push({
       ...business,
-      image: image || getCategoryImage(business.category, {})
+      image: image || getCategoryImage(business.category)
     });
   }
-
   return enriched;
 }
 
-// Fetch businesses from OpenStreetMap using Overpass API
-async function fetchOSMBusinesses(lat = CUMMING_GA_LAT, lon = CUMMING_GA_LON, radius = SEARCH_RADIUS_METERS) {
-  const cacheKey = `osm:${lat}:${lon}:${radius}`;
-  const cached = cache.get(cacheKey);
-  if (cached) {
-    console.log('[OSM] Returning cached results (cache TTL: 1 hour)');
-    return cached;
-  }
-
-  console.log('[OSM] Cache miss - fetching fresh data from OpenStreetMap...');
-  try {
-    // Overpass QL query to get businesses
-    // Exclude parking lots, ATMs, and other non-businesses
-    const query = `
-      [out:json][timeout:25];
-      (
-        node["amenity"]["amenity"!="parking"]["amenity"!="atm"]["amenity"!="vending_machine"]["amenity"!="bench"]["amenity"!="waste_basket"](around:${radius},${lat},${lon});
-        way["amenity"]["amenity"!="parking"]["amenity"!="atm"]["amenity"!="vending_machine"]["amenity"!="bench"]["amenity"!="waste_basket"](around:${radius},${lat},${lon});
-        node["shop"](around:${radius},${lat},${lon});
-        way["shop"](around:${radius},${lat},${lon});
-        node["craft"](around:${radius},${lat},${lon});
-        way["craft"](around:${radius},${lat},${lon});
-        node["tourism"~"hotel|motel|guest_house|hostel|museum|attraction"](around:${radius},${lat},${lon});
-        way["tourism"~"hotel|motel|guest_house|hostel|museum|attraction"](around:${radius},${lat},${lon});
-      );
-      out center tags;
-    `;
-
-    const response = await axios.post(
-      'https://overpass-api.de/api/interpreter',
-      query,
-      {
-        headers: { 'Content-Type': 'text/plain' },
-        timeout: 30000
-      }
-    );
-
-    const elements = response.data.elements || [];
-    console.log(`✅ Fetched ${elements.length} businesses from OpenStreetMap`);
-
-    // Transform and filter businesses
-    const businesses = elements
-      .filter(el => el.tags && (el.tags.name || el.tags.amenity || el.tags.shop))
-      .map(el => transformOSMToBusiness(el))
-      .filter(b => b.category !== 'Other') // Filter out uncategorized
-      .filter(b => b.relevancyScore > -150); // Filter out only non-businesses (parking, ATMs, etc.)
-
-    // Sort by relevancy score (highest first) to prioritize local/family-owned
-    businesses.sort((a, b) => b.relevancyScore - a.relevancyScore);
-
-    // Increase limit to 300 to include some chains for searchability
-    const limitedBusinesses = businesses.slice(0, 300);
-
-    const chainCount = limitedBusinesses.filter(b => b.isChain).length;
-    const localCount = limitedBusinesses.filter(b => !b.isChain).length;
-
-    console.log(`📊 Filtered to ${limitedBusinesses.length} relevant businesses`);
-    console.log(`🎯 Top business: ${limitedBusinesses[0]?.name} (score: ${limitedBusinesses[0]?.relevancyScore})`);
-    console.log(`🏪 ${localCount} local businesses, ${chainCount} chains`);
-
-    const yelpBusinesses = await fetchYelpBusinesses();
-    const mergedBusinesses = mergeBusinesses(
-      limitedBusinesses,
-      yelpBusinesses
-    );
-
-    const mergedLimited = mergedBusinesses
-      .sort((a, b) => b.relevancyScore - a.relevancyScore)
-      .slice(0, 300);
-
-    cache.set(cacheKey, mergedLimited);
-    return mergedLimited;
-  } catch (error) {
-    console.error('❌ OpenStreetMap API error:', error.message);
-    throw new Error('Failed to fetch businesses');
-  }
-}
-
-// Utility: Generate simple math challenge for spam prevention
+// Generate math challenge for spam prevention
 function generateChallenge() {
   const a = Math.floor(Math.random() * 10) + 1;
   const b = Math.floor(Math.random() * 10) + 1;
   const id = crypto.randomUUID();
   const answer = a + b;
 
-  verificationChallenges.set(id, { answer, expires: Date.now() + 300000 }); // 5 min expiry
+  verificationChallenges.set(id, { answer, expires: Date.now() + 300000 });
 
   // Clean up expired challenges
   for (const [key, value] of verificationChallenges.entries()) {
@@ -1140,26 +535,23 @@ app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     message: "Server is healthy",
-    dataSource: "OpenStreetMap + Yelp (if configured)",
+    dataSource: "Yelp API",
     location: "Cumming, Georgia",
     radius: "10 miles"
   });
 });
 
-// Get verification configuration (whether reCAPTCHA is enabled)
-// IMPORTANT: This route must be defined BEFORE /api/businesses/:id to avoid route conflicts
+// Get verification configuration
 app.get("/api/verification/config", (req, res) => {
   const config = {
     recaptchaEnabled: RECAPTCHA_ENABLED,
     recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || null
   };
   console.log('[API] /api/verification/config called');
-  console.log(`[API] Returning: recaptchaEnabled=${config.recaptchaEnabled}, siteKey=${config.recaptchaSiteKey ? 'SET' : 'NULL'}`);
   res.json(config);
 });
 
-// Get verification challenge (fallback when reCAPTCHA is not configured)
-// IMPORTANT: This route must be defined BEFORE /api/businesses/:id to avoid route conflicts
+// Get verification challenge
 app.get("/api/verification/challenge", (req, res) => {
   console.log('[API] /api/verification/challenge called');
   try {
@@ -1170,32 +562,22 @@ app.get("/api/verification/challenge", (req, res) => {
   }
 });
 
-// Get all businesses with optional filters and search
+// Get all businesses
 app.get("/api/businesses", async (req, res) => {
   try {
-    const {
-      category,
-      tag,
-      search,
-      minRating,
-      hasDeals,
-      sort,
-      limit
-    } = req.query;
+    const { category, tag, search, minRating, hasDeals, sort, limit } = req.query;
 
-    // Fetch businesses from OpenStreetMap (Cumming, GA only)
-    const businesses = await fetchBusinesses();
-    let result = [...businesses];
+    let businesses = await fetchBusinesses();
 
     // Filter by category
     if (category && category !== "All") {
-      result = result.filter(b => b.category === category);
+      businesses = businesses.filter(b => b.category === category);
     }
 
-    // Filter by specific tag (from dropdown)
+    // Filter by tag
     if (tag && tag !== "All") {
       const tagLower = tag.toLowerCase();
-      result = result.filter(b =>
+      businesses = businesses.filter(b =>
         b.tags.some(t => t.toLowerCase() === tagLower)
       );
     }
@@ -1204,19 +586,19 @@ app.get("/api/businesses", async (req, res) => {
     if (minRating) {
       const min = parseFloat(minRating);
       if (!isNaN(min)) {
-        result = result.filter(b => b.rating >= min);
+        businesses = businesses.filter(b => b.rating >= min);
       }
     }
 
-    // Filter by deals (will filter out most since OSM doesn't have deals)
+    // Filter by deals
     if (hasDeals === "true") {
-      result = result.filter(b => b.deal !== null);
+      businesses = businesses.filter(b => b.deal !== null);
     }
 
-    // Search functionality
+    // Search
     if (search && search.trim()) {
       const searchLower = search.toLowerCase().trim();
-      result = result.filter(b =>
+      businesses = businesses.filter(b =>
         b.name.toLowerCase().includes(searchLower) ||
         b.description.toLowerCase().includes(searchLower) ||
         b.tags.some(tag => tag.toLowerCase().includes(searchLower)) ||
@@ -1226,25 +608,27 @@ app.get("/api/businesses", async (req, res) => {
 
     // Sorting
     if (sort === "rating") {
-      result.sort((a, b) => b.rating - a.rating);
+      businesses.sort((a, b) => b.rating - a.rating);
     } else if (sort === "reviews") {
-      result.sort((a, b) => b.reviewCount - a.reviewCount);
+      businesses.sort((a, b) => b.reviewCount - a.reviewCount);
     } else if (sort === "name") {
-      result.sort((a, b) => a.name.localeCompare(b.name));
+      businesses.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sort === "local") {
-      result.sort((a, b) => b.relevancyScore - a.relevancyScore);
+      businesses.sort((a, b) => b.relevancyScore - a.relevancyScore);
     }
 
+    // Limit results
     const limitValue = limit ? parseInt(limit, 10) : null;
     if (limitValue && Number.isFinite(limitValue)) {
-      result = result.slice(0, Math.max(1, limitValue));
+      businesses = businesses.slice(0, Math.max(1, limitValue));
     }
 
+    // Enrich images if needed
     if (GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_ENGINE_ID) {
-      result = await enrichBusinessImages(result);
+      businesses = await enrichBusinessImages(businesses);
     }
 
-    res.json(result);
+    res.json(businesses);
   } catch (error) {
     console.error('Error in /api/businesses:', error);
     res.status(500).json({ error: error.message || "Failed to fetch businesses" });
@@ -1255,8 +639,6 @@ app.get("/api/businesses", async (req, res) => {
 app.get("/api/businesses/:id", async (req, res) => {
   try {
     const businessId = req.params.id;
-
-    // Fetch all businesses and find the one
     const businesses = await fetchBusinesses();
     const business = businesses.find(b => b.id === businessId);
 
@@ -1264,9 +646,9 @@ app.get("/api/businesses/:id", async (req, res) => {
       return res.status(404).json({ error: "Business not found" });
     }
 
+    // Fetch detailed info from Yelp
     if (business.yelpId) {
       const details = await fetchYelpBusinessDetails(business.yelpId);
-
       if (details) {
         business.hours = formatYelpHours(details.hours);
         business.image = details.photos?.[0] || business.image;
@@ -1274,16 +656,18 @@ app.get("/api/businesses/:id", async (req, res) => {
       }
     }
 
+    // If still no image, try Google Images
     if (!business.image) {
       const imageQuery = `${business.name} ${business.address || "Cumming GA"}`;
       business.image = await fetchGoogleImage(imageQuery);
     }
 
+    // Fallback to category image
     if (!business.image) {
-      business.image = getCategoryImage(business.category, {});
+      business.image = getCategoryImage(business.category);
     }
 
-    // Always get fresh reviews for the detail view
+    // Get fresh reviews
     const localReviewSummary = getLocalReviewSummary(businessId);
     business.reviews = localReviewSummary.reviews;
     business.rating = localReviewSummary.rating;
@@ -1296,7 +680,7 @@ app.get("/api/businesses/:id", async (req, res) => {
   }
 });
 
-// Submit a local review with verification (supports reCAPTCHA or math challenge)
+// Submit review
 app.post("/api/businesses/:id/reviews", async (req, res) => {
   try {
     const businessId = req.params.id;
@@ -1315,12 +699,11 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
       return res.status(400).json({ error: "Comment must be at least 10 characters" });
     }
 
-    // Verify anti-spam: Try reCAPTCHA first, fall back to math challenge
+    // Verify anti-spam
     console.log(`[REVIEW] Submitting review for business ${businessId}`);
     console.log(`[REVIEW] reCAPTCHA enabled: ${RECAPTCHA_ENABLED}, token provided: ${!!recaptchaToken}`);
 
     if (RECAPTCHA_ENABLED && recaptchaToken) {
-      // Verify reCAPTCHA token
       console.log('[REVIEW] Verifying reCAPTCHA token...');
       const recaptchaResult = await verifyRecaptcha(recaptchaToken);
       console.log('[REVIEW] reCAPTCHA result:', JSON.stringify(recaptchaResult));
@@ -1330,7 +713,6 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
       }
       console.log('[REVIEW] reCAPTCHA verification successful');
     } else {
-      // Fall back to math challenge verification
       if (!verificationId || !verificationAnswer) {
         return res.status(400).json({ error: "Verification is required" });
       }
@@ -1344,7 +726,6 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
         return res.status(400).json({ error: "Verification failed. Please try again." });
       }
 
-      // Remove used challenge
       verificationChallenges.delete(verificationId);
     }
 
@@ -1359,188 +740,120 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
       source: 'local'
     };
 
-    // Store local review
     const reviews = localReviews.get(businessId) || [];
     reviews.push(review);
     localReviews.set(businessId, reviews);
-
-    // Save reviews to persistent storage
     saveReviews();
-
-    // Clear cache so next fetch gets fresh data
     cache.flushAll();
 
-    res.status(201).json({
-      message: "Review submitted successfully",
-      review
-    });
+    res.status(201).json({ message: "Review submitted successfully", review });
   } catch (error) {
     console.error('Error submitting review:', error);
     res.status(500).json({ error: "Failed to submit review" });
   }
 });
 
-// Upvote a review (increment helpful count)
+// Upvote review
 app.post("/api/businesses/:businessId/reviews/:reviewId/upvote", (req, res) => {
   try {
     const { businessId, reviewId } = req.params;
-
     const reviews = localReviews.get(businessId);
-    if (!reviews) {
-      return res.status(404).json({ error: "Business not found" });
-    }
+
+    if (!reviews) return res.status(404).json({ error: "Business not found" });
 
     const review = reviews.find(r => r.id === reviewId);
-    if (!review) {
-      return res.status(404).json({ error: "Review not found" });
-    }
+    if (!review) return res.status(404).json({ error: "Review not found" });
 
-    // Increment helpful count
     review.helpful = (review.helpful || 0) + 1;
-
-    // Save to persistent storage
     saveReviews();
 
-    res.json({
-      message: "Upvote recorded",
-      helpful: review.helpful
-    });
+    res.json({ message: "Upvote recorded", helpful: review.helpful });
   } catch (error) {
     console.error('Error upvoting review:', error);
     res.status(500).json({ error: "Failed to upvote review" });
   }
 });
 
-// Report a review
+// Report review
 app.post("/api/businesses/:businessId/reviews/:reviewId/report", (req, res) => {
   try {
     const { businessId, reviewId } = req.params;
     const { reason } = req.body;
-
     const reviews = localReviews.get(businessId);
-    if (!reviews) {
-      return res.status(404).json({ error: "Business not found" });
-    }
+
+    if (!reviews) return res.status(404).json({ error: "Business not found" });
 
     const review = reviews.find(r => r.id === reviewId);
-    if (!review) {
-      return res.status(404).json({ error: "Review not found" });
-    }
+    if (!review) return res.status(404).json({ error: "Review not found" });
 
-    // Initialize reports array if it doesn't exist
-    if (!review.reports) {
-      review.reports = [];
-    }
+    if (!review.reports) review.reports = [];
+    review.reports.push({ reason: reason || "Inappropriate content", date: new Date().toISOString() });
 
-    // Add report with timestamp
-    review.reports.push({
-      reason: reason || "Inappropriate content",
-      date: new Date().toISOString()
-    });
+    if (review.reports.length >= 3) review.hidden = true;
 
-    // Auto-hide reviews with 3+ reports (can be manually reviewed later)
-    if (review.reports.length >= 3) {
-      review.hidden = true;
-    }
-
-    // Save to persistent storage
     saveReviews();
-
-    res.json({
-      message: "Report submitted. Thank you for helping keep our community safe.",
-      reportCount: review.reports.length
-    });
+    res.json({ message: "Report submitted. Thank you for helping keep our community safe.", reportCount: review.reports.length });
   } catch (error) {
     console.error('Error reporting review:', error);
     res.status(500).json({ error: "Failed to report review" });
   }
 });
 
-// Get recommendations based on user's favorite categories
+// Recommendations
 app.post("/api/recommendations", async (req, res) => {
   try {
-    const {
-      favoriteIds = [],
-      preferredCategories = []
-    } = req.body;
-
-    // Fetch all businesses from OSM
+    const { favoriteIds = [], preferredCategories = [] } = req.body;
     const businesses = await fetchBusinesses();
 
-    // If user has favorites, analyze their preferences
     let categoryScores = {};
+    favoriteIds.forEach(id => {
+      const business = businesses.find(b => b.id === id);
+      if (business) {
+        categoryScores[business.category] = (categoryScores[business.category] || 0) + 1;
+      }
+    });
 
-    if (favoriteIds.length > 0) {
-      favoriteIds.forEach(id => {
-        const business = businesses.find(b => b.id === id);
-        if (business) {
-          categoryScores[business.category] = (categoryScores[business.category] || 0) + 1;
-        }
-      });
-    }
-
-    // Add explicitly preferred categories
     preferredCategories.forEach(cat => {
       categoryScores[cat] = (categoryScores[cat] || 0) + 2;
     });
 
-    // Score all businesses
     const scored = businesses
-      .filter(b => !favoriteIds.includes(b.id)) // Exclude already favorited
+      .filter(b => !favoriteIds.includes(b.id))
       .map(b => {
         let score = 0;
-
-        // Category preference
         score += (categoryScores[b.category] || 0) * 10;
-
-        // High rating bonus
-        if (b.rating >= 4.7) score += 15;
-        else if (b.rating >= 4.5) score += 10;
-
-        // Has deals bonus
+        if (b.yelpRating >= 4.5) score += 15;
+        else if (b.yelpRating >= 4.0) score += 10;
         if (b.deal) score += 5;
-
-        // Popular (many reviews) bonus
-        if (b.reviewCount > 200) score += 8;
-        else if (b.reviewCount > 100) score += 5;
-
         return { ...b, recommendationScore: score };
       })
       .sort((a, b) => b.recommendationScore - a.recommendationScore)
-      .slice(0, 4); // Top 4 recommendations
+      .slice(0, 4);
 
     res.json(scored);
   } catch (error) {
     console.error('Error generating recommendations:', error);
-    res.status(500).json({ error: error.message || "Failed to generate recommendations" });
+    res.status(500).json({ error: "Failed to generate recommendations" });
   }
 });
 
-// Manually curated trending businesses
-const TRENDING_BUSINESS_NAMES = [
-  "Raising Cane's",
-  "Kung Fu Tea",
-  "Marlow's Tavern"
-];
+// Trending businesses
+const TRENDING_BUSINESS_NAMES = ["Raising Cane's", "Kung Fu Tea", "Marlow's Tavern"];
 
-// Get trending/top businesses (manually curated)
 app.get("/api/trending", async (req, res) => {
   try {
     const businesses = await fetchBusinesses();
-
-    // Find the manually selected trending businesses
     const trending = [];
+
     for (const trendingName of TRENDING_BUSINESS_NAMES) {
       const match = businesses.find(b =>
         b.name.toLowerCase().includes(trendingName.toLowerCase()) ||
         trendingName.toLowerCase().includes(b.name.toLowerCase())
       );
-      if (match) {
-        trending.push(match);
-      }
+      if (match) trending.push(match);
     }
 
-    // If we couldn't find all 3, fill with top-rated non-chain businesses
+    // Fill with top-rated local businesses
     if (trending.length < 3) {
       const fallback = businesses
         .filter(b => !b.isChain && !trending.some(t => t.id === b.id))
@@ -1552,17 +865,16 @@ app.get("/api/trending", async (req, res) => {
     res.json(trending);
   } catch (error) {
     console.error('Error fetching trending businesses:', error);
-    res.status(500).json({ error: error.message || "Failed to fetch trending businesses" });
+    res.status(500).json({ error: "Failed to fetch trending businesses" });
   }
 });
 
-// Get unique tags for category filter dropdown
+// Tags
 app.get("/api/tags", async (req, res) => {
   try {
     const businesses = await fetchBusinesses();
-
-    // Collect all unique tags with their counts
     const tagCounts = {};
+
     businesses.forEach(b => {
       (b.tags || []).forEach(tag => {
         const normalizedTag = tag.toLowerCase().trim();
@@ -1572,31 +884,28 @@ app.get("/api/tags", async (req, res) => {
       });
     });
 
-    // Sort by count and filter to only include tags with at least 2 businesses
     const tags = Object.entries(tagCounts)
       .filter(([, count]) => count >= 2)
       .sort((a, b) => b[1] - a[1])
       .map(([tag, count]) => ({
-        tag: tag.charAt(0).toUpperCase() + tag.slice(1), // Capitalize first letter
+        tag: tag.charAt(0).toUpperCase() + tag.slice(1),
         count
       }));
 
     res.json(tags);
   } catch (error) {
     console.error('Error fetching tags:', error);
-    res.status(500).json({ error: error.message || "Failed to fetch tags" });
+    res.status(500).json({ error: "Failed to fetch tags" });
   }
 });
 
-// Get analytics/stats
+// Analytics
 app.get("/api/analytics", async (req, res) => {
   try {
-    // Fetch all businesses from OSM
     const businesses = await fetchBusinesses();
-
     const totalBusinesses = businesses.length;
     const avgRating = totalBusinesses > 0
-      ? businesses.reduce((sum, b) => sum + b.rating, 0) / totalBusinesses
+      ? businesses.reduce((sum, b) => sum + (b.yelpRating || 0), 0) / totalBusinesses
       : 0;
 
     const byCategory = businesses.reduce((acc, b) => {
@@ -1604,57 +913,48 @@ app.get("/api/analytics", async (req, res) => {
       return acc;
     }, {});
 
-    const totalByCategory = byCategory;
-
     const topRated = [...businesses]
-      .sort((a, b) => b.rating - a.rating)
+      .sort((a, b) => (b.yelpRating || 0) - (a.yelpRating || 0))
       .slice(0, 3)
-      .map(b => ({ id: b.id, name: b.name, rating: b.rating }));
+      .map(b => ({ id: b.id, name: b.name, rating: b.yelpRating }));
 
     const dealsAvailable = businesses.filter(b => b.deal).length;
 
-    // Count total user reviews
     let totalUserReviews = 0;
     for (const reviews of localReviews.values()) {
       totalUserReviews += reviews.length;
     }
 
-    // Count businesses with 4+ star ratings
-    const topRatedCount = businesses.filter(b => b.rating >= 4).length;
-
     res.json({
       totalBusinesses,
       avgRating: Math.round(avgRating * 10) / 10,
-      totalByCategory,
+      totalByCategory: byCategory,
       byCategory,
       topRated,
       dealsAvailable,
       totalUserReviews,
-      topRatedCount
+      topRatedCount: businesses.filter(b => (b.yelpRating || 0) >= 4).length
     });
   } catch (error) {
     console.error('Error fetching analytics:', error);
-    res.status(500).json({ error: error.message || "Failed to fetch analytics" });
+    res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
 
-// Export app for Vercel serverless functions
+// Export for Vercel
 export default app;
 
-// Only start listening if running directly (not imported as a module)
-// Check if this file is being run directly vs imported
-const isMainModule = import.meta.url.endsWith(process.argv[1]) || 
+// Local server
+const isMainModule = import.meta.url.endsWith(process.argv[1]) ||
                      process.argv[1]?.includes('server/index.js');
 
 if (isMainModule && !process.env.VERCEL) {
   const PORT = 3001;
   app.listen(PORT, () => {
     console.log(`🚀 LocalLink API running on http://localhost:${PORT}`);
-    console.log(`🗺️  Data Source: OpenStreetMap (FREE!)`);
+    console.log(`📍 Data Source: Yelp API`);
     console.log(`📍 Location: Cumming, Georgia`);
-    console.log(`📏 Search radius: 10 miles (${SEARCH_RADIUS_METERS} meters)`);
-    console.log(`🧭 Yelp enrichment: ${YELP_API_KEY ? "enabled" : "disabled"}`);
-    console.log(`🖼️  Google image search: ${GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_ENGINE_ID ? "enabled" : "disabled"}`);
-    console.log(`🔐 reCAPTCHA: ${RECAPTCHA_ENABLED ? "enabled" : "disabled (using math challenge)"}`);
+    console.log(`📏 Search radius: 10 miles`);
+    console.log(`🔐 reCAPTCHA: ${RECAPTCHA_ENABLED ? "enabled" : "disabled"}`);
   });
 }
