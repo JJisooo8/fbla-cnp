@@ -38,7 +38,13 @@ function App() {
     comment: "",
     verificationId: "",
     verificationAnswer: "",
-    recaptchaToken: ""
+    recaptchaToken: "",
+    // Category ratings
+    foodQuality: 3,
+    service: 3,
+    cleanliness: 3,
+    atmosphere: 3,
+    isAnonymous: false
   });
   const [verificationChallenge, setVerificationChallenge] = useState(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -318,7 +324,19 @@ function App() {
 
       alert("Review submitted successfully!");
       setShowReviewForm(false);
-      setReviewForm({ author: "", rating: 5, comment: "", verificationId: "", verificationAnswer: "", recaptchaToken: "" });
+      setReviewForm({
+        author: "",
+        rating: 5,
+        comment: "",
+        verificationId: "",
+        verificationAnswer: "",
+        recaptchaToken: "",
+        foodQuality: 3,
+        service: 3,
+        cleanliness: 3,
+        atmosphere: 3,
+        isAnonymous: false
+      });
 
       // Refresh business data
       const updatedBiz = await fetch(`${API_URL}/businesses/${selectedBusiness.id}`).then(r => r.json());
@@ -932,8 +950,6 @@ function App() {
                       {biz.deal && <span className={styles.dealBadge}>Deal</span>}
                     </div>
 
-                    <p className={styles.description}>{biz.description}</p>
-
                     {biz.deal && (
                       <div className={styles.deal}>
                         🎁 {biz.deal}
@@ -1166,19 +1182,31 @@ function App() {
                         </p>
                       )}
 
-                      <input
-                        type="text"
-                        placeholder="Your name"
-                        value={reviewForm.author}
-                        onChange={e => setReviewForm(prev => ({ ...prev, author: e.target.value }))}
-                        className={styles.input}
-                        aria-label="Your name"
-                        required
-                      />
+                      {/* Anonymous checkbox */}
+                      <label className={styles.anonymousCheckbox}>
+                        <input
+                          type="checkbox"
+                          checked={reviewForm.isAnonymous}
+                          onChange={e => setReviewForm(prev => ({ ...prev, isAnonymous: e.target.checked }))}
+                        />
+                        <span>Post anonymously</span>
+                      </label>
+
+                      {!reviewForm.isAnonymous && (
+                        <input
+                          type="text"
+                          placeholder="Your name"
+                          value={reviewForm.author}
+                          onChange={e => setReviewForm(prev => ({ ...prev, author: e.target.value }))}
+                          className={styles.input}
+                          aria-label="Your name"
+                          required
+                        />
+                      )}
 
                       <div className={styles.formGroup}>
                         <label className={styles.label} htmlFor="rating-slider">
-                          Rating: {reviewForm.rating} ⭐
+                          Overall Rating: {reviewForm.rating} ⭐
                         </label>
                         <input
                           id="rating-slider"
@@ -1190,6 +1218,65 @@ function App() {
                           className={styles.slider}
                           aria-label={`Rating: ${reviewForm.rating} out of 5 stars`}
                         />
+                      </div>
+
+                      {/* Category Ratings Section */}
+                      <div className={styles.categoryRatingsForm}>
+                        <h5 className={styles.categoryRatingsTitle}>Rate by Category (Optional)</h5>
+                        <div className={styles.categoryRatingsGrid}>
+                          <div className={styles.categoryRatingItem}>
+                            <label className={styles.categoryLabel}>
+                              Food Quality: {reviewForm.foodQuality}/5
+                            </label>
+                            <input
+                              type="range"
+                              min="1"
+                              max="5"
+                              value={reviewForm.foodQuality}
+                              onChange={e => setReviewForm(prev => ({ ...prev, foodQuality: parseInt(e.target.value) }))}
+                              className={styles.categorySlider}
+                            />
+                          </div>
+                          <div className={styles.categoryRatingItem}>
+                            <label className={styles.categoryLabel}>
+                              Service: {reviewForm.service}/5
+                            </label>
+                            <input
+                              type="range"
+                              min="1"
+                              max="5"
+                              value={reviewForm.service}
+                              onChange={e => setReviewForm(prev => ({ ...prev, service: parseInt(e.target.value) }))}
+                              className={styles.categorySlider}
+                            />
+                          </div>
+                          <div className={styles.categoryRatingItem}>
+                            <label className={styles.categoryLabel}>
+                              Cleanliness: {reviewForm.cleanliness}/5
+                            </label>
+                            <input
+                              type="range"
+                              min="1"
+                              max="5"
+                              value={reviewForm.cleanliness}
+                              onChange={e => setReviewForm(prev => ({ ...prev, cleanliness: parseInt(e.target.value) }))}
+                              className={styles.categorySlider}
+                            />
+                          </div>
+                          <div className={styles.categoryRatingItem}>
+                            <label className={styles.categoryLabel}>
+                              Atmosphere: {reviewForm.atmosphere}/5
+                            </label>
+                            <input
+                              type="range"
+                              min="1"
+                              max="5"
+                              value={reviewForm.atmosphere}
+                              onChange={e => setReviewForm(prev => ({ ...prev, atmosphere: parseInt(e.target.value) }))}
+                              className={styles.categorySlider}
+                            />
+                          </div>
+                        </div>
                       </div>
 
                       <textarea
@@ -1252,6 +1339,66 @@ function App() {
                     </form>
                   )}
 
+                  {/* Aggregate Category Ratings - shown if 10+ reviews with ratings */}
+                  {selectedBusiness.categoryRatings && (
+                    <div className={styles.aggregateCategoryRatings}>
+                      <h4 className={styles.aggregateTitle}>Rating Breakdown</h4>
+                      <div className={styles.aggregateGrid}>
+                        {selectedBusiness.categoryRatings.foodQuality && (
+                          <div className={styles.aggregateItem}>
+                            <span className={styles.aggregateLabel}>Food Quality</span>
+                            <div className={styles.aggregateBar}>
+                              <div
+                                className={styles.aggregateBarFill}
+                                style={{ width: `${(selectedBusiness.categoryRatings.foodQuality / 5) * 100}%` }}
+                              ></div>
+                            </div>
+                            <span className={styles.aggregateValue}>{selectedBusiness.categoryRatings.foodQuality}</span>
+                          </div>
+                        )}
+                        {selectedBusiness.categoryRatings.service && (
+                          <div className={styles.aggregateItem}>
+                            <span className={styles.aggregateLabel}>Service</span>
+                            <div className={styles.aggregateBar}>
+                              <div
+                                className={styles.aggregateBarFill}
+                                style={{ width: `${(selectedBusiness.categoryRatings.service / 5) * 100}%` }}
+                              ></div>
+                            </div>
+                            <span className={styles.aggregateValue}>{selectedBusiness.categoryRatings.service}</span>
+                          </div>
+                        )}
+                        {selectedBusiness.categoryRatings.cleanliness && (
+                          <div className={styles.aggregateItem}>
+                            <span className={styles.aggregateLabel}>Cleanliness</span>
+                            <div className={styles.aggregateBar}>
+                              <div
+                                className={styles.aggregateBarFill}
+                                style={{ width: `${(selectedBusiness.categoryRatings.cleanliness / 5) * 100}%` }}
+                              ></div>
+                            </div>
+                            <span className={styles.aggregateValue}>{selectedBusiness.categoryRatings.cleanliness}</span>
+                          </div>
+                        )}
+                        {selectedBusiness.categoryRatings.atmosphere && (
+                          <div className={styles.aggregateItem}>
+                            <span className={styles.aggregateLabel}>Atmosphere</span>
+                            <div className={styles.aggregateBar}>
+                              <div
+                                className={styles.aggregateBarFill}
+                                style={{ width: `${(selectedBusiness.categoryRatings.atmosphere / 5) * 100}%` }}
+                              ></div>
+                            </div>
+                            <span className={styles.aggregateValue}>{selectedBusiness.categoryRatings.atmosphere}</span>
+                          </div>
+                        )}
+                      </div>
+                      <p className={styles.aggregateNote}>
+                        Based on {selectedBusiness.categoryRatings.reviewsWithRatings} reviews with category ratings
+                      </p>
+                    </div>
+                  )}
+
                   {selectedBusiness.reviews.length === 0 ? (
                     <div className={styles.emptyStateContainer}>
                       <div className={styles.emptyStateIcon}>💬</div>
@@ -1270,11 +1417,40 @@ function App() {
                       {getSortedReviews(selectedBusiness.reviews).map(review => (
                         <div key={review.id} className={styles.reviewItem}>
                           <div className={styles.reviewHeader}>
-                            <strong className={styles.reviewAuthor}>{review.author}</strong>
+                            <strong className={styles.reviewAuthor}>
+                              {review.isAnonymous ? "Anonymous" : review.author}
+                            </strong>
                             <div className={styles.reviewRating}>
                               {"⭐".repeat(review.rating)}
                             </div>
                           </div>
+
+                          {/* Individual Category Ratings */}
+                          {(review.foodQuality || review.service || review.cleanliness || review.atmosphere) && (
+                            <div className={styles.reviewCategoryRatings}>
+                              {review.foodQuality && (
+                                <span className={styles.reviewCategoryBadge}>
+                                  Food: {review.foodQuality}/5
+                                </span>
+                              )}
+                              {review.service && (
+                                <span className={styles.reviewCategoryBadge}>
+                                  Service: {review.service}/5
+                                </span>
+                              )}
+                              {review.cleanliness && (
+                                <span className={styles.reviewCategoryBadge}>
+                                  Clean: {review.cleanliness}/5
+                                </span>
+                              )}
+                              {review.atmosphere && (
+                                <span className={styles.reviewCategoryBadge}>
+                                  Atmosphere: {review.atmosphere}/5
+                                </span>
+                              )}
+                            </div>
+                          )}
+
                           <p className={styles.reviewComment}>{review.comment}</p>
                           <div className={styles.reviewFooter}>
                             <div className={styles.reviewDate}>
@@ -1464,68 +1640,81 @@ function App() {
               </button>
             </div>
           ) : (
-            <section className={styles.businessGrid} aria-label="Favorite businesses">
-              {businesses
-                .filter(b => favorites.includes(b.id))
-                .map(biz => (
-                  <article
-                    key={biz.id}
-                    className={styles.businessCard}
-                    onClick={() => viewBusiness(biz)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
-                  >
-                    <img
-                      src={biz.image}
-                      alt={`${biz.name} storefront`}
-                      className={styles.businessImage}
-                    />
-                    <div className={styles.businessContent}>
-                      <div className={styles.businessHeader}>
-                        <h3
-                          className={styles.businessName}
-                        >
-                          {biz.name}
-                        </h3>
+            <>
+              <section className={styles.businessGrid} aria-label="Favorite businesses">
+                {businesses
+                  .filter(b => favorites.includes(b.id))
+                  .map(biz => (
+                    <article
+                      key={biz.id}
+                      className={styles.businessCard}
+                      onClick={() => viewBusiness(biz)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
+                    >
+                      <img
+                        src={biz.image}
+                        alt={`${biz.name} storefront`}
+                        className={styles.businessImage}
+                      />
+                      <div className={styles.businessContent}>
+                        <div className={styles.businessHeader}>
+                          <h3
+                            className={styles.businessName}
+                          >
+                            {biz.name}
+                          </h3>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleFavorite(biz.id);
+                            }}
+                            className={styles.favoriteBtn}
+                            aria-label={`Remove ${biz.name} from favorites`}
+                            aria-pressed="true"
+                          >
+                            ❤️
+                          </button>
+                        </div>
+
+                        <div className={styles.businessMeta}>
+                          <span className={styles.category}>{biz.category}</span>
+                        {biz.rating > 0 ? (
+                          <span className={styles.rating}>⭐ {biz.rating.toFixed(1)}</span>
+                        ) : (
+                          <span className={styles.noRating}>No ratings yet</span>
+                        )}
+                        </div>
+
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            toggleFavorite(biz.id);
+                            viewBusiness(biz);
                           }}
-                          className={styles.favoriteBtn}
-                          aria-label={`Remove ${biz.name} from favorites`}
-                          aria-pressed="true"
+                          className={styles.viewButton}
+                          aria-label={`View details for ${biz.name}`}
                         >
-                          ❤️
+                          View Details →
                         </button>
                       </div>
-                      
-                      <div className={styles.businessMeta}>
-                        <span className={styles.category}>{biz.category}</span>
-                      {biz.rating > 0 ? (
-                        <span className={styles.rating}>⭐ {biz.rating.toFixed(1)}</span>
-                      ) : (
-                        <span className={styles.noRating}>No ratings yet</span>
-                      )}
-                      </div>
-
-                      <p className={styles.description}>{biz.description}</p>
-
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          viewBusiness(biz);
-                        }}
-                        className={styles.viewButton}
-                        aria-label={`View details for ${biz.name}`}
-                      >
-                        View Details →
-                      </button>
-                    </div>
-                  </article>
-                ))}
-            </section>
+                    </article>
+                  ))}
+              </section>
+              <div className={styles.clearFavoritesContainer}>
+                <button
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to clear all favorites?')) {
+                      setFavorites([]);
+                    }
+                  }}
+                  className={styles.clearFavoritesBtn}
+                  aria-label="Clear all favorites"
+                >
+                  Clear All Favorites
+                </button>
+              </div>
+            </>
           )}
         </main>
       )}
