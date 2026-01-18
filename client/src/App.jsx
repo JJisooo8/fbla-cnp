@@ -120,24 +120,23 @@ function App() {
     loadData();
   }, []);
 
-  // Load reCAPTCHA script when config is available
+  // Load reCAPTCHA script is now handled in index.html
+  // Just track if grecaptcha is ready
   useEffect(() => {
-    if (recaptchaConfig.recaptchaEnabled && recaptchaConfig.recaptchaSiteKey && !recaptchaLoaded) {
-      console.log("Loading reCAPTCHA script with site key:", recaptchaConfig.recaptchaSiteKey);
-      const script = document.createElement('script');
-      script.src = `https://www.google.com/recaptcha/api.js?render=explicit`;
-      script.async = true;
-      script.defer = true;
-      script.onload = () => {
-        console.log("reCAPTCHA script loaded successfully");
+    // Check if grecaptcha is loaded (from index.html script)
+    const checkRecaptcha = setInterval(() => {
+      if (window.grecaptcha && window.grecaptcha.render) {
+        console.log("reCAPTCHA API is ready");
         setRecaptchaLoaded(true);
-      };
-      script.onerror = (err) => {
-        console.error("Failed to load reCAPTCHA script:", err);
-      };
-      document.head.appendChild(script);
-    }
-  }, [recaptchaConfig, recaptchaLoaded]);
+        clearInterval(checkRecaptcha);
+      }
+    }, 500);
+
+    // Cleanup after 10 seconds
+    setTimeout(() => clearInterval(checkRecaptcha), 10000);
+
+    return () => clearInterval(checkRecaptcha);
+  }, []);
 
   // Apply filters and search
   useEffect(() => {
@@ -227,60 +226,17 @@ function App() {
 
   const startReview = async () => {
     try {
-      // If reCAPTCHA is enabled, we don't need the math challenge
-      if (recaptchaConfig.recaptchaEnabled && recaptchaConfig.recaptchaSiteKey) {
+      // Check if reCAPTCHA is available (loaded from index.html)
+      const recaptchaAvailable = window.grecaptcha && recaptchaConfig.recaptchaSiteKey;
+
+      if (recaptchaAvailable) {
+        // Use reCAPTCHA - just show the form, widget will render automatically
         setVerificationChallenge(null);
         setShowReviewForm(true);
-
-        // Wait for reCAPTCHA script to be ready
-        const waitForRecaptcha = () => {
-          return new Promise((resolve, reject) => {
-            // If already loaded, resolve immediately
-            if (window.grecaptcha && window.grecaptcha.render) {
-              resolve();
-              return;
-            }
-
-            // Otherwise wait up to 5 seconds
-            let attempts = 0;
-            const maxAttempts = 50;
-            const interval = setInterval(() => {
-              attempts++;
-              if (window.grecaptcha && window.grecaptcha.render) {
-                clearInterval(interval);
-                resolve();
-              } else if (attempts >= maxAttempts) {
-                clearInterval(interval);
-                reject(new Error("reCAPTCHA script failed to load"));
-              }
-            }, 100);
-          });
-        };
-
-        // Render reCAPTCHA widget after form is shown and script is ready
-        setTimeout(async () => {
-          try {
-            await waitForRecaptcha();
-            const container = document.getElementById('recaptcha-container');
-            if (container && !container.hasChildNodes()) {
-              window.grecaptcha.render('recaptcha-container', {
-                sitekey: recaptchaConfig.recaptchaSiteKey,
-                callback: (token) => {
-                  setReviewForm(prev => ({ ...prev, recaptchaToken: token }));
-                },
-                'expired-callback': () => {
-                  setReviewForm(prev => ({ ...prev, recaptchaToken: '' }));
-                }
-              });
-            }
-          } catch (err) {
-            console.error("reCAPTCHA render error:", err);
-            // Fall back to showing a message
-            alert("reCAPTCHA failed to load. Please refresh the page and try again.");
-          }
-        }, 100);
+        console.log("Starting review with reCAPTCHA, site key:", recaptchaConfig.recaptchaSiteKey);
       } else {
         // Fall back to math challenge
+        console.log("reCAPTCHA not available, using math challenge");
         const res = await fetch(`${API_URL}/verification/challenge`);
         if (!res.ok) {
           throw new Error(`Server error: ${res.status}`);
@@ -299,23 +255,44 @@ function App() {
   const submitReview = async (e) => {
     e.preventDefault();
 
-    // Validate reCAPTCHA if enabled
-    if (recaptchaConfig.recaptchaEnabled && !reviewForm.recaptchaToken) {
-      alert("Please complete the reCAPTCHA verification.");
-      return;
+    // Get reCAPTCHA token if available
+    let recaptchaToken = "";
+    const recaptchaAvailable = window.grecaptcha && recaptchaConfig.recaptchaSiteKey;
+
+    if (recaptchaAvailable) {
+      try {
+        recaptchaToken = window.grecaptcha.getResponse();
+        if (!recaptchaToken) {
+          alert("Please complete the reCAPTCHA verification (check the 'I'm not a robot' box).");
+          return;
+        }
+      } catch (err) {
+        console.error("Error getting reCAPTCHA response:", err);
+        alert("reCAPTCHA error. Please refresh and try again.");
+        return;
+      }
     }
 
     try {
+      const submitData = {
+        ...reviewForm,
+        recaptchaToken: recaptchaToken
+      };
+
       const res = await fetch(`${API_URL}/businesses/${selectedBusiness.id}/reviews`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(reviewForm)
+        body: JSON.stringify(submitData)
       });
 
       const data = await res.json();
 
       if (!res.ok) {
         alert(data.error || "Failed to submit review");
+        // Reset reCAPTCHA on error
+        if (window.grecaptcha) {
+          window.grecaptcha.reset();
+        }
         return;
       }
 
@@ -328,6 +305,10 @@ function App() {
       setSelectedBusiness(updatedBiz);
     } catch (err) {
       alert("Failed to submit review. Please try again.");
+      // Reset reCAPTCHA on error
+      if (window.grecaptcha) {
+        window.grecaptcha.reset();
+      }
     }
   };
 
@@ -1123,7 +1104,7 @@ function App() {
                     </div>
                   </div>
 
-                  {showReviewForm && (verificationChallenge || recaptchaConfig.recaptchaEnabled) && (
+                  {showReviewForm && (verificationChallenge || recaptchaConfig.recaptchaSiteKey) && (
                     <form onSubmit={submitReview} className={styles.reviewForm} aria-labelledby="review-form-title">
                       <h4 id="review-form-title" className={styles.formTitle}>Write Your Review</h4>
 
@@ -1165,17 +1146,17 @@ function App() {
 
                       {/* Verification: reCAPTCHA or Math Challenge */}
                       <div className={styles.verification}>
-                        {recaptchaConfig.recaptchaEnabled ? (
+                        {recaptchaConfig.recaptchaSiteKey ? (
                           <>
                             <label className={styles.label}>
                               Please verify you're human:
                             </label>
-                            <div id="recaptcha-container" style={{ marginTop: 'var(--space-2)' }}></div>
-                            {reviewForm.recaptchaToken && (
-                              <p style={{ fontSize: 'var(--text-label)', color: 'var(--color-success)', marginTop: 'var(--space-1)' }}>
-                                Verified successfully
-                              </p>
-                            )}
+                            {/* Standard Google reCAPTCHA v2 widget */}
+                            <div
+                              className="g-recaptcha"
+                              data-sitekey={recaptchaConfig.recaptchaSiteKey}
+                              style={{ marginTop: '8px' }}
+                            ></div>
                           </>
                         ) : verificationChallenge && (
                           <>
