@@ -12,7 +12,10 @@ function App() {
   const [businesses, setBusinesses] = useState([]);
   const [filteredBusinesses, setFilteredBusinesses] = useState([]);
   const [selectedBusiness, setSelectedBusiness] = useState(null);
-  const [favorites, setFavorites] = useState([]);
+  const [favorites, setFavorites] = useState(() => {
+    const saved = localStorage.getItem("locallink_favorites");
+    return saved ? JSON.parse(saved) : [];
+  });
   const [recommendations, setRecommendations] = useState([]);
   const [trending, setTrending] = useState([]);
   const [analytics, setAnalytics] = useState(null);
@@ -62,15 +65,7 @@ function App() {
   // Copy button state management
   const [copiedField, setCopiedField] = useState(null);
 
-  // Load favorites from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem("locallink_favorites");
-    if (saved) {
-      setFavorites(JSON.parse(saved));
-    }
-  }, []);
-
-  // Save favorites to localStorage
+  // Save favorites to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem("locallink_favorites", JSON.stringify(favorites));
   }, [favorites]);
@@ -587,26 +582,26 @@ function App() {
     <div className={styles.container}>
       {/* Demo Mode Banner */}
       {demoStatus?.offlineMode && demoStatus?.metadata && (
-        <div className={styles.demoBanner} role="banner" aria-label="Demo mode indicator">
-          <span className={styles.demoBannerIcon}>📴</span>
-          <div className={styles.demoBannerContent}>
+        <div className={styles.demoBannerWrapper}>
+          <div className={styles.demoBanner} role="banner" aria-label="Demo mode indicator">
             <span className={styles.demoBannerTitle}>Demo Mode - Offline Data</span>
-            <div className={styles.demoBannerDetails}>
-              <span className={styles.demoBannerDetail}>
-                <span className={styles.demoBannerPill}>{demoStatus.businessCount} businesses</span>
-              </span>
-              <span className={styles.demoBannerDetail}>
-                Synced: {new Date(demoStatus.metadata.seedDate).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                  hour: 'numeric',
-                  minute: '2-digit'
-                })}
-              </span>
-              {demoStatus.productionUrl && (
+            <span className={styles.demoBannerSeparator}>|</span>
+            <span className={styles.demoBannerPill}>{demoStatus.businessCount} businesses</span>
+            <span className={styles.demoBannerSeparator}>|</span>
+            <span className={styles.demoBannerDetail}>
+              Synced: {new Date(demoStatus.metadata.seedDate).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+              })}
+            </span>
+            {demoStatus.productionUrl && (
+              <>
+                <span className={styles.demoBannerSeparator}>|</span>
                 <span className={styles.demoBannerDetail}>
-                  Live site:{' '}
+                  Live:{' '}
                   <a
                     href={demoStatus.productionUrl}
                     target="_blank"
@@ -616,8 +611,8 @@ function App() {
                     {demoStatus.productionUrl.replace('https://', '')}
                   </a>
                 </span>
-              )}
-            </div>
+              </>
+            )}
           </div>
         </div>
       )}

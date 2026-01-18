@@ -530,11 +530,15 @@ async function fetchBusinesses() {
   // In offline mode or if we have offline data and no API key, use local data
   if (OFFLINE_MODE || (offlineBusinesses.length > 0 && !YELP_API_KEY)) {
     console.log('[FETCH] Using offline data');
-    // Apply local reviews to offline data
+    // Apply local reviews to offline data and convert local images to URLs
     return offlineBusinesses.map(biz => {
       const localReviewSummary = getLocalReviewSummary(biz.id);
       return {
         ...biz,
+        // Use local image URL if available
+        image: biz.localImage
+          ? `/api/images/${biz.localImage}`
+          : (biz.image || getCategoryImage(biz.category)),
         rating: localReviewSummary.rating,
         reviewCount: localReviewSummary.reviewCount,
         reviews: localReviewSummary.reviews
