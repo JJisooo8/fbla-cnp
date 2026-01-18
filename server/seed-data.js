@@ -476,12 +476,30 @@ async function seedData() {
   console.log(""); // New line after progress
   console.log("");
 
+  // Filter out businesses missing required fields (photo, hours, phone)
+  // Website is optional
+  const beforeFilterCount = transformedBusinesses.length;
+  const completeBusinesses = transformedBusinesses.filter(biz => {
+    const hasImage = biz.localImage || biz.image;
+    const hasHours = biz.hours && biz.hours !== "Hours not available" && biz.hours !== "Hours available on business page";
+    const hasPhone = biz.phone && biz.phone !== "Phone not available";
+
+    if (!hasImage || !hasHours || !hasPhone) {
+      return false;
+    }
+    return true;
+  });
+
+  const filteredOut = beforeFilterCount - completeBusinesses.length;
+  console.log(`[INFO] Filtered out ${filteredOut} businesses with incomplete data`);
+  console.log(`[INFO] Remaining businesses: ${completeBusinesses.length}`);
+
   // Sort by relevancy
-  transformedBusinesses.sort((a, b) => b.relevancyScore - a.relevancyScore);
+  completeBusinesses.sort((a, b) => b.relevancyScore - a.relevancyScore);
 
   // Save businesses data
   console.log("[INFO] Saving business data...");
-  fs.writeFileSync(BUSINESSES_FILE, JSON.stringify(transformedBusinesses, null, 2));
+  fs.writeFileSync(BUSINESSES_FILE, JSON.stringify(completeBusinesses, null, 2));
 
   // Save metadata
   const metadata = {
@@ -495,13 +513,14 @@ async function seedData() {
       minute: '2-digit',
       timeZoneName: 'short'
     }),
-    totalBusinesses: transformedBusinesses.length,
-    businessesWithImages: imageCount,
+    totalBusinesses: completeBusinesses.length,
+    businessesWithImages: completeBusinesses.filter(b => b.localImage).length,
     businessesWithDetails: detailsCount,
+    filteredOut: filteredOut,
     byCategory: {
-      Food: transformedBusinesses.filter(b => b.category === "Food").length,
-      Retail: transformedBusinesses.filter(b => b.category === "Retail").length,
-      Services: transformedBusinesses.filter(b => b.category === "Services").length
+      Food: completeBusinesses.filter(b => b.category === "Food").length,
+      Retail: completeBusinesses.filter(b => b.category === "Retail").length,
+      Services: completeBusinesses.filter(b => b.category === "Services").length
     },
     location: {
       city: "Cumming",
@@ -520,13 +539,13 @@ async function seedData() {
   console.log("  Seeding Complete!");
   console.log("========================================");
   console.log("");
-  console.log(`  Total Businesses: ${transformedBusinesses.length}`);
+  console.log(`  Total Businesses: ${completeBusinesses.length}`);
   console.log(`  - Food:     ${metadata.byCategory.Food}`);
   console.log(`  - Retail:   ${metadata.byCategory.Retail}`);
   console.log(`  - Services: ${metadata.byCategory.Services}`);
   console.log("");
-  console.log(`  Images Downloaded: ${imageCount}`);
-  console.log(`  Details Fetched:   ${detailsCount}`);
+  console.log(`  Filtered out: ${filteredOut} (missing photo/hours/phone)`);
+  console.log(`  Images Downloaded: ${metadata.businessesWithImages}`);
   console.log("");
   console.log(`  Data saved to: ${DATA_DIR}`);
   console.log(`  Seed timestamp: ${metadata.seedDateFormatted}`);
