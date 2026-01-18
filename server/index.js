@@ -464,12 +464,14 @@ function buildGenericDescription({
 
 function getLocalReviewSummary(id) {
   const localReviewsList = localReviews.get(id) || [];
-  const reviewCount = localReviewsList.length;
+  // Filter out hidden reviews (those with 3+ reports)
+  const visibleReviews = localReviewsList.filter(r => !r.hidden);
+  const reviewCount = visibleReviews.length;
   const rating = reviewCount > 0
-    ? localReviewsList.reduce((sum, review) => sum + review.rating, 0) / reviewCount
+    ? visibleReviews.reduce((sum, review) => sum + review.rating, 0) / reviewCount
     : 0;
 
-  return { reviewCount, rating, reviews: [...localReviewsList] };
+  return { reviewCount, rating, reviews: [...visibleReviews] };
 }
 
 // Detect if a business is a major chain/franchise
@@ -1305,6 +1307,82 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
   } catch (error) {
     console.error('Error submitting review:', error);
     res.status(500).json({ error: "Failed to submit review" });
+  }
+});
+
+// Upvote a review (increment helpful count)
+app.post("/api/businesses/:businessId/reviews/:reviewId/upvote", (req, res) => {
+  try {
+    const { businessId, reviewId } = req.params;
+
+    const reviews = localReviews.get(businessId);
+    if (!reviews) {
+      return res.status(404).json({ error: "Business not found" });
+    }
+
+    const review = reviews.find(r => r.id === reviewId);
+    if (!review) {
+      return res.status(404).json({ error: "Review not found" });
+    }
+
+    // Increment helpful count
+    review.helpful = (review.helpful || 0) + 1;
+
+    // Save to persistent storage
+    saveReviews();
+
+    res.json({
+      message: "Upvote recorded",
+      helpful: review.helpful
+    });
+  } catch (error) {
+    console.error('Error upvoting review:', error);
+    res.status(500).json({ error: "Failed to upvote review" });
+  }
+});
+
+// Report a review
+app.post("/api/businesses/:businessId/reviews/:reviewId/report", (req, res) => {
+  try {
+    const { businessId, reviewId } = req.params;
+    const { reason } = req.body;
+
+    const reviews = localReviews.get(businessId);
+    if (!reviews) {
+      return res.status(404).json({ error: "Business not found" });
+    }
+
+    const review = reviews.find(r => r.id === reviewId);
+    if (!review) {
+      return res.status(404).json({ error: "Review not found" });
+    }
+
+    // Initialize reports array if it doesn't exist
+    if (!review.reports) {
+      review.reports = [];
+    }
+
+    // Add report with timestamp
+    review.reports.push({
+      reason: reason || "Inappropriate content",
+      date: new Date().toISOString()
+    });
+
+    // Auto-hide reviews with 3+ reports (can be manually reviewed later)
+    if (review.reports.length >= 3) {
+      review.hidden = true;
+    }
+
+    // Save to persistent storage
+    saveReviews();
+
+    res.json({
+      message: "Report submitted. Thank you for helping keep our community safe.",
+      reportCount: review.reports.length
+    });
+  } catch (error) {
+    console.error('Error reporting review:', error);
+    res.status(500).json({ error: "Failed to report review" });
   }
 });
 
