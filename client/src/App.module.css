@@ -2502,3 +2502,82 @@
     align-self: flex-start;
   }
 }
+
+/* ========================================
+   DEMO MODE BANNER
+   ======================================== */
+
+.demoBanner {
+  background: linear-gradient(135deg, var(--color-primary-800), var(--color-primary-700));
+  color: var(--color-white);
+  padding: var(--space-3) var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+  position: sticky;
+  top: 0;
+  z-index: 1001;
+  box-shadow: var(--shadow-md);
+}
+
+.demoBannerIcon {
+  font-size: var(--text-lg);
+}
+
+.demoBannerContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.demoBannerTitle {
+  font-weight: var(--font-semibold);
+  font-size: var(--text-sm);
+}
+
+.demoBannerDetails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-xs);
+  opacity: 0.9;
+}
+
+.demoBannerDetail {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.demoBannerPill {
+  background: rgba(255, 255, 255, 0.2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--font-medium);
+}
+
+.demoBannerLink {
+  color: var(--color-white);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.demoBannerLink:hover {
+  opacity: 0.8;
+}
+
+@media (max-width: 640px) {
+  .demoBanner {
+    flex-direction: column;
+    text-align: center;
+    padding: var(--space-3) var(--space-4);
+    gap: var(--space-2);
+  }
+
+  .demoBannerDetails {
+    justify-content: center;
+  }
+}

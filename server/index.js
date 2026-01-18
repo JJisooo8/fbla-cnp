@@ -28,6 +28,41 @@ if (!envLoaded && !process.env.VERCEL) {
   console.log('[ENV] No .env file found, using system environment variables');
 }
 
+// ============================================
+// OFFLINE MODE CONFIGURATION
+// ============================================
+const OFFLINE_MODE = process.env.OFFLINE_MODE === 'true';
+const DATA_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'data');
+const OFFLINE_BUSINESSES_FILE = path.join(DATA_DIR, 'businesses.json');
+const OFFLINE_METADATA_FILE = path.join(DATA_DIR, 'metadata.json');
+const OFFLINE_IMAGES_DIR = path.join(DATA_DIR, 'images');
+
+// Load offline data if available
+let offlineBusinesses = [];
+let offlineMetadata = null;
+
+function loadOfflineData() {
+  try {
+    if (fs.existsSync(OFFLINE_BUSINESSES_FILE)) {
+      const data = fs.readFileSync(OFFLINE_BUSINESSES_FILE, 'utf8');
+      offlineBusinesses = JSON.parse(data);
+      console.log(`[OFFLINE] Loaded ${offlineBusinesses.length} businesses from local data`);
+    }
+    if (fs.existsSync(OFFLINE_METADATA_FILE)) {
+      const data = fs.readFileSync(OFFLINE_METADATA_FILE, 'utf8');
+      offlineMetadata = JSON.parse(data);
+      console.log(`[OFFLINE] Data synced: ${offlineMetadata.seedDateFormatted}`);
+    }
+  } catch (error) {
+    console.error('[OFFLINE] Error loading offline data:', error.message);
+  }
+}
+
+// Load offline data on startup
+if (OFFLINE_MODE || fs.existsSync(OFFLINE_BUSINESSES_FILE)) {
+  loadOfflineData();
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -38,6 +73,13 @@ console.log('========================================');
 console.log('[STARTUP] LocalLink API Initializing...');
 console.log(`[STARTUP] Environment: ${process.env.VERCEL ? 'Vercel' : 'Local'}`);
 console.log(`[STARTUP] Node Version: ${process.version}`);
+console.log(`[STARTUP] Offline Mode: ${OFFLINE_MODE ? 'ENABLED' : 'disabled'}`);
+if (offlineBusinesses.length > 0) {
+  console.log(`[STARTUP] Offline Data: ${offlineBusinesses.length} businesses available`);
+  if (offlineMetadata) {
+    console.log(`[STARTUP] Data Synced: ${offlineMetadata.seedDateFormatted}`);
+  }
+}
 console.log('----------------------------------------');
 console.log('[CONFIG] Environment Variables Status:');
 console.log(`  - YELP_API_KEY: ${process.env.YELP_API_KEY ? 'SET (' + process.env.YELP_API_KEY.substring(0, 10) + '...)' : 'NOT SET'}`);
@@ -45,6 +87,7 @@ console.log(`  - GOOGLE_SEARCH_API_KEY: ${process.env.GOOGLE_SEARCH_API_KEY ? 'S
 console.log(`  - GOOGLE_SEARCH_ENGINE_ID: ${process.env.GOOGLE_SEARCH_ENGINE_ID ? 'SET' : 'NOT SET'}`);
 console.log(`  - RECAPTCHA_SECRET_KEY: ${process.env.RECAPTCHA_SECRET_KEY ? 'SET' : 'NOT SET'}`);
 console.log(`  - RECAPTCHA_SITE_KEY: ${process.env.RECAPTCHA_SITE_KEY ? 'SET' : 'NOT SET'}`);
+console.log(`  - OFFLINE_MODE: ${OFFLINE_MODE ? 'true' : 'false'}`);
 console.log('========================================');
 
 // Cache for API responses (TTL: 1 hour)
@@ -482,9 +525,39 @@ function formatYelpHours(hours = []) {
     .join(", ");
 }
 
-// Main function to fetch businesses (Yelp only)
+// Main function to fetch businesses (offline-first, then Yelp)
 async function fetchBusinesses() {
+  // In offline mode or if we have offline data and no API key, use local data
+  if (OFFLINE_MODE || (offlineBusinesses.length > 0 && !YELP_API_KEY)) {
+    console.log('[FETCH] Using offline data');
+    // Apply local reviews to offline data
+    return offlineBusinesses.map(biz => {
+      const localReviewSummary = getLocalReviewSummary(biz.id);
+      return {
+        ...biz,
+        rating: localReviewSummary.rating,
+        reviewCount: localReviewSummary.reviewCount,
+        reviews: localReviewSummary.reviews
+      };
+    });
+  }
+
+  // Otherwise fetch from Yelp
   return await fetchYelpBusinesses();
+}
+
+// Function to get offline businesses by ID (for detail view)
+function getOfflineBusinessById(id) {
+  const business = offlineBusinesses.find(b => b.id === id);
+  if (!business) return null;
+
+  const localReviewSummary = getLocalReviewSummary(id);
+  return {
+    ...business,
+    rating: localReviewSummary.rating,
+    reviewCount: localReviewSummary.reviewCount,
+    reviews: localReviewSummary.reviews
+  };
 }
 
 // Enrich businesses without images using Google
@@ -530,14 +603,30 @@ function generateChallenge() {
 // API ENDPOINTS
 // ====================
 
+// Serve offline images
+app.use('/api/images', express.static(OFFLINE_IMAGES_DIR));
+
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     message: "Server is healthy",
-    dataSource: "Yelp API",
+    dataSource: OFFLINE_MODE ? "Local (Offline)" : "Yelp API",
+    offlineMode: OFFLINE_MODE,
+    offlineDataAvailable: offlineBusinesses.length > 0,
     location: "Cumming, Georgia",
     radius: "10 miles"
+  });
+});
+
+// Demo mode / offline status endpoint
+app.get("/api/demo-status", (req, res) => {
+  res.json({
+    offlineMode: OFFLINE_MODE,
+    offlineDataAvailable: offlineBusinesses.length > 0,
+    metadata: offlineMetadata,
+    productionUrl: process.env.PRODUCTION_URL || null,
+    businessCount: OFFLINE_MODE ? offlineBusinesses.length : null
   });
 });
 
@@ -639,6 +728,28 @@ app.get("/api/businesses", async (req, res) => {
 app.get("/api/businesses/:id", async (req, res) => {
   try {
     const businessId = req.params.id;
+
+    // In offline mode, use local data directly
+    if (OFFLINE_MODE) {
+      const business = getOfflineBusinessById(businessId);
+      if (!business) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+
+      // Use local image if available
+      if (business.localImage) {
+        business.image = `/api/images/${business.localImage}`;
+      }
+
+      // Fallback to category image if no image
+      if (!business.image) {
+        business.image = getCategoryImage(business.category);
+      }
+
+      return res.json(business);
+    }
+
+    // Online mode - fetch from Yelp
     const businesses = await fetchBusinesses();
     const business = businesses.find(b => b.id === businessId);
 
@@ -952,7 +1063,15 @@ if (isMainModule && !process.env.VERCEL) {
   const PORT = 3001;
   app.listen(PORT, () => {
     console.log(`🚀 LocalLink API running on http://localhost:${PORT}`);
-    console.log(`📍 Data Source: Yelp API`);
+    if (OFFLINE_MODE) {
+      console.log(`📴 Mode: OFFLINE (Demo Mode)`);
+      console.log(`📦 Data: ${offlineBusinesses.length} businesses loaded`);
+      if (offlineMetadata) {
+        console.log(`📅 Synced: ${offlineMetadata.seedDateFormatted}`);
+      }
+    } else {
+      console.log(`📍 Data Source: Yelp API`);
+    }
     console.log(`📍 Location: Cumming, Georgia`);
     console.log(`📏 Search radius: 10 miles`);
     console.log(`🔐 reCAPTCHA: ${RECAPTCHA_ENABLED ? "enabled" : "disabled"}`);

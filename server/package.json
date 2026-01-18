@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "node index.js"
+    "start": "node index.js",
+    "start:offline": "OFFLINE_MODE=true node index.js",
+    "seed": "node seed-data.js"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"
