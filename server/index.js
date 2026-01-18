@@ -885,6 +885,27 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/upvote", (req, res) => {
   }
 });
 
+// Remove upvote from review
+app.post("/api/businesses/:businessId/reviews/:reviewId/remove-upvote", (req, res) => {
+  try {
+    const { businessId, reviewId } = req.params;
+    const reviews = localReviews.get(businessId);
+
+    if (!reviews) return res.status(404).json({ error: "Business not found" });
+
+    const review = reviews.find(r => r.id === reviewId);
+    if (!review) return res.status(404).json({ error: "Review not found" });
+
+    review.helpful = Math.max(0, (review.helpful || 0) - 1);
+    saveReviews();
+
+    res.json({ message: "Upvote removed", helpful: review.helpful });
+  } catch (error) {
+    console.error('Error removing upvote:', error);
+    res.status(500).json({ error: "Failed to remove upvote" });
+  }
+});
+
 // Report review
 app.post("/api/businesses/:businessId/reviews/:reviewId/report", (req, res) => {
   try {
