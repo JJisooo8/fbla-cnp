@@ -1141,6 +1141,30 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// Get verification configuration (whether reCAPTCHA is enabled)
+// IMPORTANT: This route must be defined BEFORE /api/businesses/:id to avoid route conflicts
+app.get("/api/verification/config", (req, res) => {
+  const config = {
+    recaptchaEnabled: RECAPTCHA_ENABLED,
+    recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || null
+  };
+  console.log('[API] /api/verification/config called');
+  console.log(`[API] Returning: recaptchaEnabled=${config.recaptchaEnabled}, siteKey=${config.recaptchaSiteKey ? 'SET' : 'NULL'}`);
+  res.json(config);
+});
+
+// Get verification challenge (fallback when reCAPTCHA is not configured)
+// IMPORTANT: This route must be defined BEFORE /api/businesses/:id to avoid route conflicts
+app.get("/api/verification/challenge", (req, res) => {
+  console.log('[API] /api/verification/challenge called');
+  try {
+    const challenge = generateChallenge();
+    res.json(challenge);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to generate challenge" });
+  }
+});
+
 // Get all businesses with optional filters and search
 app.get("/api/businesses", async (req, res) => {
   try {
@@ -1264,28 +1288,6 @@ app.get("/api/businesses/:id", async (req, res) => {
   } catch (error) {
     console.error('Error in /api/businesses/:id:', error);
     res.status(500).json({ error: error.message || "Failed to fetch business" });
-  }
-});
-
-// Get verification configuration (whether reCAPTCHA is enabled)
-app.get("/api/verification/config", (req, res) => {
-  const config = {
-    recaptchaEnabled: RECAPTCHA_ENABLED,
-    recaptchaSiteKey: process.env.RECAPTCHA_SITE_KEY || null
-  };
-  console.log('[API] /api/verification/config called');
-  console.log(`[API] Returning: recaptchaEnabled=${config.recaptchaEnabled}, siteKey=${config.recaptchaSiteKey ? 'SET' : 'NULL'}`);
-  res.json(config);
-});
-
-// Get verification challenge (fallback when reCAPTCHA is not configured)
-app.get("/api/verification/challenge", (req, res) => {
-  console.log('[API] /api/verification/challenge called');
-  try {
-    const challenge = generateChallenge();
-    res.json(challenge);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to generate challenge" });
   }
 });
 
