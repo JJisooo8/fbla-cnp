@@ -1086,13 +1086,13 @@ app.get("/api/health", (req, res) => {
 // AUTHENTICATION ENDPOINTS
 // ====================
 
-// User signup
+// User signup - includes CAPTCHA verification to prevent bot registrations
 app.post("/api/auth/signup", async (req, res) => {
   console.log('[AUTH] Signup request received');
   console.log('[AUTH] Request body keys:', Object.keys(req.body || {}));
 
   try {
-    const { username, password, confirmPassword } = req.body;
+    const { username, password, confirmPassword, recaptchaToken, verificationId, verificationAnswer } = req.body;
     console.log('[AUTH] Parsed fields - username:', username ? `"${username}"` : 'undefined',
                 ', password:', password ? `[${password.length} chars]` : 'undefined',
                 ', confirmPassword:', confirmPassword ? `[${confirmPassword.length} chars]` : 'undefined');
@@ -1138,6 +1138,45 @@ app.post("/api/auth/signup", async (req, res) => {
     if (password !== confirmPassword) {
       console.log('[AUTH] Validation failed: Passwords do not match');
       return res.status(400).json({ error: 'Passwords do not match.' });
+    }
+
+    // CAPTCHA verification - required for signup to prevent bot registrations
+    console.log(`[AUTH] reCAPTCHA enabled: ${RECAPTCHA_ENABLED}, token provided: ${!!recaptchaToken}`);
+
+    if (RECAPTCHA_ENABLED && recaptchaToken) {
+      console.log('[AUTH] Verifying reCAPTCHA token...');
+      const recaptchaResult = await verifyRecaptcha(recaptchaToken);
+      console.log('[AUTH] reCAPTCHA result:', JSON.stringify(recaptchaResult));
+      if (!recaptchaResult.success) {
+        console.log('[AUTH] reCAPTCHA verification failed:', recaptchaResult['error-codes'] || recaptchaResult.error);
+        return res.status(400).json({ error: 'CAPTCHA verification failed. Please try again.' });
+      }
+      console.log('[AUTH] reCAPTCHA verification successful');
+    } else if (verificationId && verificationAnswer) {
+      // Fallback to math challenge
+      console.log('[AUTH] Verifying math challenge...');
+      const challenge = verificationChallenges.get(verificationId);
+      if (!challenge) {
+        console.log('[AUTH] Challenge expired or invalid');
+        return res.status(400).json({ error: 'Verification expired. Please refresh and try again.' });
+      }
+
+      if (challenge.answer !== parseInt(verificationAnswer)) {
+        console.log('[AUTH] Challenge answer incorrect');
+        return res.status(400).json({ error: 'Verification failed. Please try again.' });
+      }
+
+      verificationChallenges.delete(verificationId);
+      console.log('[AUTH] Math challenge verification successful');
+    } else {
+      // No verification provided - check if CAPTCHA is required
+      if (RECAPTCHA_ENABLED) {
+        console.log('[AUTH] No CAPTCHA token provided but reCAPTCHA is enabled');
+        return res.status(400).json({ error: 'CAPTCHA verification is required.' });
+      }
+      // If reCAPTCHA is not enabled and no math challenge, we still require some verification
+      console.log('[AUTH] No verification provided');
+      return res.status(400).json({ error: 'Verification is required.' });
     }
 
     console.log('[AUTH] All validations passed, refreshing users from blob...');
@@ -1528,17 +1567,14 @@ app.get("/api/businesses/:id", async (req, res) => {
   }
 });
 
-// Submit review - REQUIRES AUTHENTICATION
+// Submit review - REQUIRES AUTHENTICATION (no CAPTCHA - users verified at signup)
 app.post("/api/businesses/:id/reviews", requireAuth, async (req, res) => {
   try {
     const businessId = req.params.id;
     const {
       rating,
       comment,
-      verificationId,
-      verificationAnswer,
-      recaptchaToken,
-      // New category ratings
+      // Category ratings
       foodQuality,
       service,
       cleanliness,
@@ -1579,35 +1615,8 @@ app.post("/api/businesses/:id/reviews", requireAuth, async (req, res) => {
       return res.status(400).json({ error: categoryErrors[0] });
     }
 
-    // Verify anti-spam (still required even with auth to prevent spam)
+    // No CAPTCHA needed - users are verified at signup
     console.log(`[REVIEW] Submitting review for business ${businessId} by user ${req.user.username}`);
-    console.log(`[REVIEW] reCAPTCHA enabled: ${RECAPTCHA_ENABLED}, token provided: ${!!recaptchaToken}`);
-
-    if (RECAPTCHA_ENABLED && recaptchaToken) {
-      console.log('[REVIEW] Verifying reCAPTCHA token...');
-      const recaptchaResult = await verifyRecaptcha(recaptchaToken);
-      console.log('[REVIEW] reCAPTCHA result:', JSON.stringify(recaptchaResult));
-      if (!recaptchaResult.success) {
-        console.log('[REVIEW] reCAPTCHA verification failed:', recaptchaResult['error-codes'] || recaptchaResult.error);
-        return res.status(400).json({ error: "reCAPTCHA verification failed. Please try again." });
-      }
-      console.log('[REVIEW] reCAPTCHA verification successful');
-    } else {
-      if (!verificationId || !verificationAnswer) {
-        return res.status(400).json({ error: "Verification is required" });
-      }
-
-      const challenge = verificationChallenges.get(verificationId);
-      if (!challenge) {
-        return res.status(400).json({ error: "Verification expired or invalid" });
-      }
-
-      if (challenge.answer !== parseInt(verificationAnswer)) {
-        return res.status(400).json({ error: "Verification failed. Please try again." });
-      }
-
-      verificationChallenges.delete(verificationId);
-    }
 
     // Refresh reviews from blob before adding new review
     await refreshReviewsFromBlob();

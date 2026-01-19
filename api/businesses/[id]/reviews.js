@@ -1,5 +1,6 @@
 // Explicit Vercel serverless function for /api/businesses/:id/reviews
 // Handles POST requests for submitting reviews and GET requests for fetching reviews
+// Note: No CAPTCHA required - users are verified at signup
 
 import jwt from 'jsonwebtoken';
 import { put, list } from '@vercel/blob';
@@ -7,8 +8,6 @@ import crypto from 'crypto';
 
 const REVIEWS_BLOB_NAME = "reviews.json";
 const JWT_SECRET = process.env.JWT_SECRET || 'locallink-dev-secret-change-in-production';
-const RECAPTCHA_SECRET = process.env.RECAPTCHA_SECRET_KEY;
-const RECAPTCHA_ENABLED = process.env.RECAPTCHA_ENABLED === 'true';
 
 // Load reviews from Vercel Blob
 async function loadReviews() {
@@ -65,28 +64,6 @@ function verifyToken(authHeader) {
   }
 }
 
-// Verify reCAPTCHA token
-async function verifyRecaptcha(token) {
-  if (!RECAPTCHA_SECRET) {
-    return { success: false, error: 'reCAPTCHA not configured' };
-  }
-
-  try {
-    const response = await fetch('https://www.google.com/recaptcha/api/siteverify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `secret=${RECAPTCHA_SECRET}&response=${token}`
-    });
-    return await response.json();
-  } catch (error) {
-    console.error('[REVIEW] reCAPTCHA verification error:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// In-memory verification challenges (for fallback when reCAPTCHA is disabled)
-const verificationChallenges = new Map();
-
 export default async function handler(req, res) {
   // Handle CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -132,9 +109,6 @@ export default async function handler(req, res) {
       const {
         rating,
         comment,
-        verificationId,
-        verificationAnswer,
-        recaptchaToken,
         foodQuality,
         service,
         cleanliness,
@@ -176,34 +150,8 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: categoryErrors[0] });
       }
 
-      // Verify anti-spam
+      // No CAPTCHA needed - users are verified at signup
       console.log(`[REVIEW] Submitting review for business ${businessId} by user ${user.username}`);
-      console.log(`[REVIEW] reCAPTCHA enabled: ${RECAPTCHA_ENABLED}, token provided: ${!!recaptchaToken}`);
-
-      if (RECAPTCHA_ENABLED && recaptchaToken) {
-        console.log('[REVIEW] Verifying reCAPTCHA token...');
-        const recaptchaResult = await verifyRecaptcha(recaptchaToken);
-        console.log('[REVIEW] reCAPTCHA result:', JSON.stringify(recaptchaResult));
-        if (!recaptchaResult.success) {
-          console.log('[REVIEW] reCAPTCHA verification failed:', recaptchaResult['error-codes'] || recaptchaResult.error);
-          return res.status(400).json({ error: "reCAPTCHA verification failed. Please try again." });
-        }
-        console.log('[REVIEW] reCAPTCHA verification successful');
-      } else {
-        // Fallback verification (math challenge) - check if provided
-        if (verificationId && verificationAnswer) {
-          const challenge = verificationChallenges.get(verificationId);
-          if (!challenge) {
-            return res.status(400).json({ error: "Verification expired or invalid" });
-          }
-          if (challenge.answer !== parseInt(verificationAnswer)) {
-            return res.status(400).json({ error: "Verification failed. Please try again." });
-          }
-          verificationChallenges.delete(verificationId);
-        }
-        // If no verification provided and reCAPTCHA not enabled, allow submission
-        // (authenticated users are trusted)
-      }
 
       // Load current reviews
       const localReviews = await loadReviews();
