@@ -228,9 +228,30 @@ function loadReviewsSync() {
 // Initialize reviews - sync for startup, async load follows
 localReviews = loadReviewsSync();
 
+// Track blob loading state
+let blobLoadPromise = null;
+let blobLoaded = false;
+
 // Load from Blob asynchronously after startup
 if (USE_VERCEL_BLOB) {
-  loadReviewsAsync().catch(err => console.error('[BLOB] Async load failed:', err));
+  blobLoadPromise = loadReviewsAsync()
+    .then(() => {
+      blobLoaded = true;
+      console.log('[BLOB] Reviews loaded and ready');
+    })
+    .catch(err => {
+      console.error('[BLOB] Async load failed:', err);
+      blobLoaded = true; // Mark as loaded even on failure to not block forever
+    });
+}
+
+// Middleware to ensure reviews are loaded before serving requests
+async function ensureReviewsLoaded(req, res, next) {
+  if (USE_VERCEL_BLOB && !blobLoaded && blobLoadPromise) {
+    console.log('[BLOB] Waiting for reviews to load...');
+    await blobLoadPromise;
+  }
+  next();
 }
 
 // Store verification challenges in memory
@@ -289,6 +310,11 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+// Ensure reviews are loaded from Blob before handling business/review requests
+app.use('/api/businesses', ensureReviewsLoaded);
+app.use('/api/reviews', ensureReviewsLoaded);
+app.use('/api/recommendations', ensureReviewsLoaded);
 
 // ====================
 // HELPER FUNCTIONS
