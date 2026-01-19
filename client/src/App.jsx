@@ -110,9 +110,11 @@ function App() {
   const [savedScrollPosition, setSavedScrollPosition] = useState(0);
 
   // Pagination state
-  const [reviewPage, setReviewPage] = useState(1);
+  const [visibleReviewsCount, setVisibleReviewsCount] = useState(3);
+  const [reviewsExpanded, setReviewsExpanded] = useState(false);
   const [businessPage, setBusinessPage] = useState(1);
-  const REVIEWS_PER_PAGE = 3;
+  const INITIAL_REVIEWS_COUNT = 3;
+  const REVIEWS_LOAD_MORE = 20;
   const BUSINESSES_PER_PAGE = 12;
 
   // Copy button state management
@@ -578,7 +580,9 @@ function App() {
     setView("business");
     setShowReviewForm(false);
     setDetailLoading(true);
-    setReviewPage(1); // Reset review pagination when viewing new business
+    // Reset review visibility when viewing new business
+    setVisibleReviewsCount(INITIAL_REVIEWS_COUNT);
+    setReviewsExpanded(false);
 
     // Scroll to top when opening business panel
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -1309,11 +1313,16 @@ function App() {
                         <h4 className={styles.cardTitle}>{biz.name}</h4>
                         <span className={styles.localBadge}>Local Favorite</span>
                       </div>
-                      {biz.rating > 0 ? (
-                        <div className={styles.cardRating}>⭐ {biz.rating.toFixed(1)}</div>
-                      ) : (
-                        <div className={styles.noRating}>No ratings yet</div>
-                      )}
+                      <div className={styles.cardRatingRow}>
+                        {biz.rating > 0 ? (
+                          <span className={styles.cardRating}>⭐ {biz.rating.toFixed(1)}</span>
+                        ) : (
+                          <span className={styles.noRating}>No ratings</span>
+                        )}
+                        <span className={styles.cardReviewCount}>
+                          {biz.reviewCount > 0 ? `(${biz.reviewCount} ${biz.reviewCount === 1 ? 'review' : 'reviews'})` : ''}
+                        </span>
+                      </div>
                       <p className={styles.cardCategory}>{biz.category}</p>
                       {biz.deal && (
                         <div className={styles.dealPill}>🎁 {biz.deal}</div>
@@ -1358,7 +1367,14 @@ function App() {
               <div>
                 <h3 id="filters-title" className={styles.sectionTitle}>Browse All Businesses</h3>
                 <p className={styles.sectionSubtitle}>
-                  Showing {filteredBusinesses.length} of {totalBusinessesCount} local businesses
+                  {(() => {
+                    const dedupedCount = deduplicateChains(filteredBusinesses).length;
+                    const startNum = (businessPage - 1) * BUSINESSES_PER_PAGE + 1;
+                    const endNum = Math.min(businessPage * BUSINESSES_PER_PAGE, dedupedCount);
+                    return dedupedCount > BUSINESSES_PER_PAGE
+                      ? `Showing ${startNum}-${endNum} of ${dedupedCount} businesses`
+                      : `Showing ${dedupedCount} ${dedupedCount === 1 ? 'business' : 'businesses'}`;
+                  })()}
                 </p>
               </div>
             </div>
@@ -1513,11 +1529,7 @@ function App() {
           {filteredBusinesses.length > BUSINESSES_PER_PAGE && (
             <div className={styles.paginationControls} style={{ marginTop: 'var(--space-6)', marginBottom: 'var(--space-6)' }}>
               <button
-                onClick={() => {
-                  setBusinessPage(p => Math.max(1, p - 1));
-                  // Scroll to top of page instantly
-                  window.scrollTo({ top: 0, behavior: 'instant' });
-                }}
+                onClick={() => setBusinessPage(p => Math.max(1, p - 1))}
                 disabled={businessPage === 1}
                 className={styles.paginationBtn}
               >
@@ -1569,11 +1581,7 @@ function App() {
                     ) : (
                       <button
                         key={page}
-                        onClick={() => {
-                          setBusinessPage(page);
-                          // Scroll to top of page instantly
-                          window.scrollTo({ top: 0, behavior: 'instant' });
-                        }}
+                        onClick={() => setBusinessPage(page)}
                         className={businessPage === page ? styles.paginationBtnActive : styles.paginationBtn}
                       >
                         {page}
@@ -1583,11 +1591,7 @@ function App() {
                 })()}
               </div>
               <button
-                onClick={() => {
-                  setBusinessPage(p => Math.min(Math.ceil(deduplicateChains(filteredBusinesses).length / BUSINESSES_PER_PAGE), p + 1));
-                  // Scroll to top of page instantly
-                  window.scrollTo({ top: 0, behavior: 'instant' });
-                }}
+                onClick={() => setBusinessPage(p => Math.min(Math.ceil(deduplicateChains(filteredBusinesses).length / BUSINESSES_PER_PAGE), p + 1))}
                 disabled={businessPage >= Math.ceil(deduplicateChains(filteredBusinesses).length / BUSINESSES_PER_PAGE)}
                 className={styles.paginationBtn}
               >
@@ -1664,8 +1668,8 @@ function App() {
                       </span>
                       <span className={styles.ratingCount}>
                         {selectedBusiness.reviewCount > 0
-                          ? `(${selectedBusiness.reviewCount})`
-                          : '(No ratings)'}
+                          ? `(${selectedBusiness.reviewCount} ${selectedBusiness.reviewCount === 1 ? 'review' : 'reviews'})`
+                          : '(No reviews)'}
                       </span>
                     </div>
 
@@ -1780,7 +1784,7 @@ function App() {
                 {/* Reviews Section */}
                 <div className={styles.detailPanel}>
                   <div className={styles.sectionHeaderWithAction}>
-                    <h2 className={styles.sectionHeader}>Reviews</h2>
+                    <h2 className={styles.sectionHeader}>{selectedBusiness.reviewCount || selectedBusiness.reviews?.length || 0} {(selectedBusiness.reviewCount || selectedBusiness.reviews?.length || 0) === 1 ? 'Review' : 'Reviews'}</h2>
                     <div className={styles.reviewActions}>
                       {selectedBusiness.reviews.length > 1 && (
                         <select
@@ -2059,11 +2063,9 @@ function App() {
                     <div className={styles.reviewsList}>
                       {(() => {
                         const sortedReviews = getSortedReviews(selectedBusiness.reviews);
-                        const totalReviewPages = Math.ceil(sortedReviews.length / REVIEWS_PER_PAGE);
-                        const startIndex = (reviewPage - 1) * REVIEWS_PER_PAGE;
-                        const paginatedReviews = sortedReviews.slice(startIndex, startIndex + REVIEWS_PER_PAGE);
+                        const displayedReviews = sortedReviews.slice(0, visibleReviewsCount);
 
-                        return paginatedReviews.map(review => (
+                        return displayedReviews.map(review => (
                         <div key={review.id} className={styles.reviewItem}>
                           {/* Edit form for this review */}
                           {editingReview && editingReview.id === review.id ? (
@@ -2257,60 +2259,31 @@ function App() {
                       ));
                       })()}
 
-                      {/* Review Pagination Controls */}
-                      {selectedBusiness.reviews.length > REVIEWS_PER_PAGE && (
-                        <div className={styles.paginationControls}>
-                          <button
-                            onClick={() => setReviewPage(p => Math.max(1, p - 1))}
-                            disabled={reviewPage === 1}
-                            className={styles.paginationBtn}
-                          >
-                            Previous
-                          </button>
-                          <div className={styles.paginationNumbers}>
-                            {(() => {
-                              const totalPages = Math.ceil(selectedBusiness.reviews.length / REVIEWS_PER_PAGE);
-                              const pages = [];
-
-                              // Always show first page
-                              if (totalPages > 0) pages.push(1);
-
-                              // Show ellipsis if needed
-                              if (reviewPage > 3) pages.push('...');
-
-                              // Show pages around current page
-                              for (let i = Math.max(2, reviewPage - 1); i <= Math.min(totalPages - 1, reviewPage + 1); i++) {
-                                if (!pages.includes(i)) pages.push(i);
-                              }
-
-                              // Show ellipsis if needed
-                              if (reviewPage < totalPages - 2) pages.push('...');
-
-                              // Always show last page
-                              if (totalPages > 1 && !pages.includes(totalPages)) pages.push(totalPages);
-
-                              return pages.map((page, idx) => (
-                                page === '...' ? (
-                                  <span key={`ellipsis-${idx}`} className={styles.paginationEllipsis}>...</span>
-                                ) : (
-                                  <button
-                                    key={page}
-                                    onClick={() => setReviewPage(page)}
-                                    className={reviewPage === page ? styles.paginationBtnActive : styles.paginationBtn}
-                                  >
-                                    {page}
-                                  </button>
-                                )
-                              ));
-                            })()}
-                          </div>
-                          <button
-                            onClick={() => setReviewPage(p => Math.min(Math.ceil(selectedBusiness.reviews.length / REVIEWS_PER_PAGE), p + 1))}
-                            disabled={reviewPage >= Math.ceil(selectedBusiness.reviews.length / REVIEWS_PER_PAGE)}
-                            className={styles.paginationBtn}
-                          >
-                            Next
-                          </button>
+                      {/* See More / Hide Reviews Controls */}
+                      {selectedBusiness.reviews.length > INITIAL_REVIEWS_COUNT && (
+                        <div className={styles.reviewsLoadMore}>
+                          {visibleReviewsCount < selectedBusiness.reviews.length && (
+                            <button
+                              onClick={() => {
+                                setVisibleReviewsCount(prev => Math.min(prev + REVIEWS_LOAD_MORE, selectedBusiness.reviews.length));
+                                setReviewsExpanded(true);
+                              }}
+                              className={styles.seeMoreBtn}
+                            >
+                              See more reviews ({selectedBusiness.reviews.length - visibleReviewsCount} remaining)
+                            </button>
+                          )}
+                          {reviewsExpanded && (
+                            <button
+                              onClick={() => {
+                                setVisibleReviewsCount(INITIAL_REVIEWS_COUNT);
+                                setReviewsExpanded(false);
+                              }}
+                              className={styles.hideReviewsBtn}
+                            >
+                              Hide reviews
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
