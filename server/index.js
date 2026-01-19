@@ -158,12 +158,16 @@ async function loadUsersAsync() {
 async function saveUsersAsync() {
   const jsonData = JSON.stringify(usersData);
   console.log(`[SAVE] Saving ${usersData.length} users (${jsonData.length} chars)`);
+  console.log(`[SAVE] USE_VERCEL_BLOB: ${USE_VERCEL_BLOB}, BLOB_READ_WRITE_TOKEN set: ${!!process.env.BLOB_READ_WRITE_TOKEN}`);
 
   if (USE_VERCEL_BLOB) {
     try {
       // Upload new blob - addRandomSuffix: false ensures consistent filename
       // No need to delete first - put with addRandomSuffix: false will overwrite
       console.log('[BLOB] Uploading users blob...');
+      console.log('[BLOB] Blob name:', USERS_BLOB_NAME);
+      console.log('[BLOB] Data length:', jsonData.length, 'bytes');
+
       const blob = await put(USERS_BLOB_NAME, jsonData, {
         access: 'public',
         contentType: 'application/json',
@@ -174,6 +178,14 @@ async function saveUsersAsync() {
       return true;
     } catch (error) {
       console.error('[BLOB] Error saving users to Vercel Blob:', error.message);
+      console.error('[BLOB] Error details:', error.stack);
+      console.error('[BLOB] Error name:', error.name);
+      if (error.response) {
+        console.error('[BLOB] Response status:', error.response.status);
+        console.error('[BLOB] Response data:', JSON.stringify(error.response.data));
+      }
+      // Don't return here - fall through to file-based storage
+      console.log('[BLOB] Falling through to file-based storage...');
     }
   }
 
@@ -181,12 +193,15 @@ async function saveUsersAsync() {
   const usersFile = process.env.VERCEL
     ? path.join("/tmp", "users.json")
     : path.join(__dirname, "users.json");
+  console.log(`[FILE] Attempting to save users to: ${usersFile}`);
+
   try {
     fs.writeFileSync(usersFile, jsonData, "utf8");
-    console.log(`[FILE] Saved ${usersData.length} users to file`);
+    console.log(`[FILE] Saved ${usersData.length} users to file: ${usersFile}`);
     return true;
   } catch (error) {
-    console.error("[FILE] Error saving users:", error);
+    console.error("[FILE] Error saving users:", error.message);
+    console.error("[FILE] Error details:", error.stack);
     return false;
   }
 }
@@ -1045,57 +1060,90 @@ app.get("/api/health", (req, res) => {
 
 // User signup
 app.post("/api/auth/signup", async (req, res) => {
+  console.log('[AUTH] Signup request received');
+  console.log('[AUTH] Request body keys:', Object.keys(req.body || {}));
+
   try {
     const { username, password, confirmPassword } = req.body;
+    console.log('[AUTH] Parsed fields - username:', username ? `"${username}"` : 'undefined',
+                ', password:', password ? `[${password.length} chars]` : 'undefined',
+                ', confirmPassword:', confirmPassword ? `[${confirmPassword.length} chars]` : 'undefined');
 
     // Input validation
     if (!username || typeof username !== 'string') {
+      console.log('[AUTH] Validation failed: Username is required');
       return res.status(400).json({ error: 'Username is required.' });
     }
 
     const trimmedUsername = username.trim();
+    console.log('[AUTH] Trimmed username:', `"${trimmedUsername}"`);
 
     // Username validation
     if (trimmedUsername.length < 3) {
+      console.log('[AUTH] Validation failed: Username too short');
       return res.status(400).json({ error: 'Username must be at least 3 characters long.' });
     }
     if (trimmedUsername.length > 20) {
+      console.log('[AUTH] Validation failed: Username too long');
       return res.status(400).json({ error: 'Username must be 20 characters or less.' });
     }
     if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) {
+      console.log('[AUTH] Validation failed: Username contains invalid characters');
       return res.status(400).json({ error: 'Username can only contain letters, numbers, and underscores.' });
     }
 
     // Password validation
     if (!password || typeof password !== 'string') {
+      console.log('[AUTH] Validation failed: Password is required');
       return res.status(400).json({ error: 'Password is required.' });
     }
     if (password.length < 6) {
+      console.log('[AUTH] Validation failed: Password too short');
       return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
     }
     if (password.length > 100) {
+      console.log('[AUTH] Validation failed: Password too long');
       return res.status(400).json({ error: 'Password must be 100 characters or less.' });
     }
 
     // Confirm password validation
     if (password !== confirmPassword) {
+      console.log('[AUTH] Validation failed: Passwords do not match');
       return res.status(400).json({ error: 'Passwords do not match.' });
     }
 
+    console.log('[AUTH] All validations passed, refreshing users from blob...');
+
     // Refresh users from blob to get latest data
-    await refreshUsersFromBlob();
+    try {
+      await refreshUsersFromBlob();
+      console.log('[AUTH] Users refreshed, current count:', usersData.length);
+    } catch (refreshError) {
+      console.error('[AUTH] Error refreshing users from blob:', refreshError.message);
+      // Continue anyway - use in-memory data
+    }
 
     // Check if username already exists (case-insensitive)
     const existingUser = usersData.find(u =>
       u.username.toLowerCase() === trimmedUsername.toLowerCase()
     );
     if (existingUser) {
+      console.log('[AUTH] Username already exists:', trimmedUsername);
       return res.status(409).json({ error: 'Username already exists. Please choose a different username.' });
     }
 
+    console.log('[AUTH] Username available, hashing password...');
+
     // Hash password
     const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password, saltRounds);
+    let passwordHash;
+    try {
+      passwordHash = await bcrypt.hash(password, saltRounds);
+      console.log('[AUTH] Password hashed successfully');
+    } catch (hashError) {
+      console.error('[AUTH] Password hashing failed:', hashError.message, hashError.stack);
+      return res.status(500).json({ error: 'Unable to create account. Password processing failed.' });
+    }
 
     // Create new user
     const newUser = {
@@ -1104,21 +1152,36 @@ app.post("/api/auth/signup", async (req, res) => {
       passwordHash,
       createdAt: new Date().toISOString()
     };
+    console.log('[AUTH] Created new user object with id:', newUser.id);
 
     usersData.push(newUser);
+    console.log('[AUTH] User added to memory, total users:', usersData.length);
 
     // Save to storage
-    const saved = await saveUsersAsync();
-    if (!saved) {
+    console.log('[AUTH] Saving users to storage...');
+    let saved;
+    try {
+      saved = await saveUsersAsync();
+      console.log('[AUTH] Save result:', saved);
+    } catch (saveError) {
+      console.error('[AUTH] Save threw an exception:', saveError.message, saveError.stack);
       // Remove user from memory if save failed
       usersData = usersData.filter(u => u.id !== newUser.id);
-      return res.status(500).json({ error: 'Failed to create account. Please try again.' });
+      return res.status(500).json({ error: 'Unable to create account. Storage error: ' + saveError.message });
+    }
+
+    if (!saved) {
+      console.log('[AUTH] Save returned false, removing user from memory');
+      // Remove user from memory if save failed
+      usersData = usersData.filter(u => u.id !== newUser.id);
+      return res.status(500).json({ error: 'Unable to create account. Please try again.' });
     }
 
     // Generate token
+    console.log('[AUTH] Generating JWT token...');
     const token = generateToken(newUser);
 
-    console.log(`[AUTH] New user registered: ${trimmedUsername}`);
+    console.log(`[AUTH] New user registered successfully: ${trimmedUsername}`);
 
     res.status(201).json({
       message: 'Account created successfully',
@@ -1129,43 +1192,72 @@ app.post("/api/auth/signup", async (req, res) => {
       token
     });
   } catch (error) {
-    console.error('[AUTH] Signup error:', error);
-    res.status(500).json({ error: 'Failed to create account. Please try again.' });
+    console.error('[AUTH] Signup error (unexpected):', error.message);
+    console.error('[AUTH] Signup error stack:', error.stack);
+    res.status(500).json({ error: 'Unable to create account. Server error: ' + error.message });
   }
 });
 
 // User login
 app.post("/api/auth/login", async (req, res) => {
+  console.log('[AUTH] Login request received');
+
   try {
     const { username, password } = req.body;
 
     // Input validation
-    if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required.' });
+    if (!username || typeof username !== 'string' || !username.trim()) {
+      console.log('[AUTH] Login validation failed: Username is required');
+      return res.status(400).json({ error: 'Username is required.' });
+    }
+    if (!password || typeof password !== 'string') {
+      console.log('[AUTH] Login validation failed: Password is required');
+      return res.status(400).json({ error: 'Password is required.' });
     }
 
+    const trimmedUsername = username.trim();
+    console.log('[AUTH] Login attempt for username:', `"${trimmedUsername}"`);
+
     // Refresh users from blob to get latest data
-    await refreshUsersFromBlob();
+    try {
+      await refreshUsersFromBlob();
+      console.log('[AUTH] Users refreshed for login, current count:', usersData.length);
+    } catch (refreshError) {
+      console.error('[AUTH] Error refreshing users during login:', refreshError.message);
+      // Continue anyway - use in-memory data
+    }
 
     // Find user (case-insensitive username)
     const user = usersData.find(u =>
-      u.username.toLowerCase() === username.trim().toLowerCase()
+      u.username.toLowerCase() === trimmedUsername.toLowerCase()
     );
 
     if (!user) {
-      return res.status(401).json({ error: 'Invalid username or password.' });
+      console.log('[AUTH] Login failed: Username not found:', trimmedUsername);
+      return res.status(401).json({ error: 'Username does not exist.' });
     }
 
+    console.log('[AUTH] User found, verifying password...');
+
     // Verify password
-    const passwordValid = await bcrypt.compare(password, user.passwordHash);
+    let passwordValid;
+    try {
+      passwordValid = await bcrypt.compare(password, user.passwordHash);
+    } catch (compareError) {
+      console.error('[AUTH] Password comparison error:', compareError.message);
+      return res.status(500).json({ error: 'Login failed. Please try again.' });
+    }
+
     if (!passwordValid) {
-      return res.status(401).json({ error: 'Invalid username or password.' });
+      console.log('[AUTH] Login failed: Incorrect password for user:', user.username);
+      return res.status(401).json({ error: 'Password does not match username.' });
     }
 
     // Generate token
+    console.log('[AUTH] Password verified, generating token...');
     const token = generateToken(user);
 
-    console.log(`[AUTH] User logged in: ${user.username}`);
+    console.log(`[AUTH] User logged in successfully: ${user.username}`);
 
     res.json({
       message: 'Login successful',
@@ -1176,8 +1268,9 @@ app.post("/api/auth/login", async (req, res) => {
       token
     });
   } catch (error) {
-    console.error('[AUTH] Login error:', error);
-    res.status(500).json({ error: 'Login failed. Please try again.' });
+    console.error('[AUTH] Login error (unexpected):', error.message);
+    console.error('[AUTH] Login error stack:', error.stack);
+    res.status(500).json({ error: 'Login failed. Server error: ' + error.message });
   }
 });
 
@@ -1193,6 +1286,28 @@ app.get("/api/auth/me", (req, res) => {
       username: req.user.username
     }
   });
+});
+
+// Debug endpoint - View auth system status (developer use only)
+app.get("/api/auth/debug", async (req, res) => {
+  try {
+    // Refresh to get latest data
+    await refreshUsersFromBlob();
+
+    res.json({
+      storageType: USE_VERCEL_BLOB ? 'Vercel Blob' : 'File System',
+      blobTokenSet: !!process.env.BLOB_READ_WRITE_TOKEN,
+      usersBlobUrl: usersBlobUrl,
+      usersLoaded: usersLoaded,
+      totalUsersInMemory: usersData.length,
+      usernames: usersData.map(u => u.username),
+      jwtSecretSet: !!JWT_SECRET,
+      environment: process.env.VERCEL ? 'Vercel' : 'Local'
+    });
+  } catch (error) {
+    console.error('[AUTH] Debug endpoint error:', error);
+    res.status(500).json({ error: error.message, stack: error.stack });
+  }
 });
 
 // Demo mode / offline status endpoint
