@@ -2813,12 +2813,12 @@
   transition: all 0.2s ease;
   cursor: pointer;
   border: none;
-  background: var(--color-primary);
-  color: white;
+  background-color: #1F4E8C;
+  color: #ffffff !important;
 }
 
 .authButtonSignup:hover {
-  background: var(--color-primary-dark, #1e40af);
+  background-color: #0f2a52;
   transform: translateY(-1px);
 }
 
@@ -2875,8 +2875,8 @@
 .authSubmitBtn {
   width: 100%;
   padding: var(--space-3) var(--space-4);
-  background: var(--color-primary);
-  color: white;
+  background-color: #1F4E8C;
+  color: #ffffff !important;
   border: none;
   border-radius: var(--radius-md);
   font-size: var(--text-base);
@@ -2887,7 +2887,7 @@
 }
 
 .authSubmitBtn:hover {
-  background: var(--color-primary-dark, #1e40af);
+  background-color: #0f2a52;
   transform: translateY(-1px);
 }
 
@@ -3060,4 +3060,97 @@
   .formButtons {
     flex-direction: column;
   }
+}
+
+/* ========================================
+   FAVORITE BUTTON REDESIGN (SVG Heart)
+   ======================================== */
+
+/* Small favorite button (business cards) */
+.favoriteBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: var(--color-gray-100);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--color-gray-400);
+  flex-shrink: 0;
+}
+
+.favoriteBtn:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+  transform: scale(1.05);
+}
+
+.favoriteBtnActive {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #dc2626;
+  flex-shrink: 0;
+}
+
+.favoriteBtnActive:hover {
+  background: #fee2e2;
+  border-color: #f87171;
+  transform: scale(1.05);
+}
+
+/* Large favorite button (business detail view) */
+.favoriteBtnLarge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-white);
+  border: 2px solid var(--color-gray-300);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--color-gray-600);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.favoriteBtnLarge:hover {
+  background: #fef2f2;
+  border-color: #dc2626;
+  color: #dc2626;
+  transform: translateY(-1px);
+}
+
+.favoriteBtnLargeActive {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: #fef2f2;
+  border: 2px solid #dc2626;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #dc2626;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.favoriteBtnLargeActive:hover {
+  background: #fee2e2;
+  transform: translateY(-1px);
 }
