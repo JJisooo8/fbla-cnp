@@ -496,14 +496,15 @@ function App() {
     fetch(`${API_URL}/businesses?${params}`)
       .then(r => r.json())
       .then(data => {
-        // Client-side filtering for selected tags (supports multiple)
+        // Client-side filtering for selected tags (cascading - must match ALL selected tags)
         if (selectedTags.length > 0) {
+          const selectedTagsLower = selectedTags.map(t => t.toLowerCase());
           const filtered = data.filter(biz => {
-            const bizTags = biz.tags || [];
-            const bizCategory = biz.category || "";
-            // Match if business has any of the selected tags OR matches category
-            return selectedTags.some(tag =>
-              bizTags.includes(tag) || bizCategory === tag
+            const bizTagsLower = (biz.tags || []).map(t => t.toLowerCase());
+            const bizCategoryLower = (biz.category || "").toLowerCase();
+            // Must match ALL selected tags (cascading filter)
+            return selectedTagsLower.every(tag =>
+              bizTagsLower.includes(tag) || bizCategoryLower === tag
             );
           });
           setFilteredBusinesses(filtered);
@@ -1330,7 +1331,6 @@ function App() {
             </button>
             {user ? (
               <div className={styles.userMenu}>
-                <span className={styles.username}>Hi, {user.username}</span>
                 <button
                   className={view === "myReviews" ? styles.navButtonActive : styles.navButton}
                   onClick={goToMyReviews}
@@ -1510,7 +1510,7 @@ function App() {
             <div className={styles.filters} role="search">
               <input
                 type="text"
-                placeholder="Search businesses..."
+                placeholder="Search businesses by name..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className={styles.searchInput}
@@ -1539,7 +1539,7 @@ function App() {
               </label>
             </div>
 
-            {/* Label/Tag Chip Filter */}
+            {/* Dynamic Cascading Label Filter */}
             <div className={styles.labelFilterSection}>
               <div className={styles.labelFilterHeader}>
                 <input
@@ -1554,9 +1554,9 @@ function App() {
                   <button
                     onClick={() => setSelectedTags([])}
                     className={styles.clearFiltersBtn}
-                    aria-label="Clear all selected labels"
+                    aria-label="Clear all label filters"
                   >
-                    Clear All
+                    Reset Filters
                   </button>
                 )}
               </div>
@@ -1580,37 +1580,89 @@ function App() {
                 </div>
               )}
 
-              {/* Available Tags (filtered by search) */}
+              {/* Available Tags - Dynamically filtered based on current results */}
               <div className={styles.availableTagsRow}>
                 {(() => {
-                  const searchLower = labelSearchTerm.toLowerCase().trim();
-                  const filteredTags = availableTags
-                    .filter(({ tag }) =>
-                      !selectedTags.includes(tag) &&
-                      (searchLower === '' || tag.toLowerCase().includes(searchLower))
-                    )
-                    .slice(0, searchLower ? 20 : 12); // Show more when searching
+                  // Compute available tags from currently filtered businesses (cascading)
+                  const tagCounts = {};
+                  const selectedTagsLower = selectedTags.map(t => t.toLowerCase());
 
-                  if (filteredTags.length === 0 && labelSearchTerm) {
-                    return <span className={styles.noLabelsFound}>No labels match "{labelSearchTerm}"</span>;
+                  filteredBusinesses.forEach(biz => {
+                    const bizTags = biz.tags || [];
+                    const bizCategory = biz.category || "";
+
+                    // Count each tag on filtered businesses
+                    bizTags.forEach(tag => {
+                      const tagLower = tag.toLowerCase();
+                      // Skip if already selected
+                      if (!selectedTagsLower.includes(tagLower)) {
+                        const displayTag = tag.charAt(0).toUpperCase() + tag.slice(1).toLowerCase();
+                        tagCounts[displayTag] = (tagCounts[displayTag] || 0) + 1;
+                      }
+                    });
+
+                    // Also count category as a filterable tag
+                    if (bizCategory && !selectedTagsLower.includes(bizCategory.toLowerCase())) {
+                      tagCounts[bizCategory] = (tagCounts[bizCategory] || 0) + 1;
+                    }
+                  });
+
+                  // Convert to array and sort by count
+                  const cascadingTags = Object.entries(tagCounts)
+                    .map(([tag, count]) => ({ tag, count }))
+                    .sort((a, b) => b.count - a.count);
+
+                  // Filter by search term
+                  const searchLower = labelSearchTerm.toLowerCase().trim();
+                  const displayTags = cascadingTags
+                    .filter(({ tag }) =>
+                      searchLower === '' || tag.toLowerCase().includes(searchLower)
+                    )
+                    .slice(0, searchLower ? 20 : 12);
+
+                  if (displayTags.length === 0) {
+                    if (labelSearchTerm) {
+                      return <span className={styles.noLabelsFound}>No labels match "{labelSearchTerm}"</span>;
+                    }
+                    if (selectedTags.length > 0) {
+                      return <span className={styles.noLabelsFound}>No additional filters available</span>;
+                    }
+                    return null;
                   }
 
-                  return filteredTags.map(({ tag, count }) => (
+                  return displayTags.map(({ tag, count }) => (
                     <button
                       key={tag}
                       onClick={() => toggleTag(tag)}
                       className={styles.tagChip}
-                      aria-label={`Filter by ${tag}`}
+                      aria-label={`Filter by ${tag} (${count} businesses)`}
                     >
                       {tag} <span className={styles.tagCount}>({count})</span>
                     </button>
                   ));
                 })()}
-                {!labelSearchTerm && availableTags.filter(t => !selectedTags.includes(t.tag)).length > 12 && (
-                  <span className={styles.moreLabelsHint}>
-                    Type to search {availableTags.length - 12} more labels...
-                  </span>
-                )}
+                {!labelSearchTerm && (() => {
+                  // Count remaining tags not shown
+                  const tagCounts = {};
+                  const selectedTagsLower = selectedTags.map(t => t.toLowerCase());
+                  filteredBusinesses.forEach(biz => {
+                    (biz.tags || []).forEach(tag => {
+                      if (!selectedTagsLower.includes(tag.toLowerCase())) {
+                        const displayTag = tag.charAt(0).toUpperCase() + tag.slice(1).toLowerCase();
+                        tagCounts[displayTag] = 1;
+                      }
+                    });
+                  });
+                  const totalTags = Object.keys(tagCounts).length;
+                  if (totalTags > 12) {
+                    return (
+                      <span className={styles.moreLabelsHint}>
+                        Type to search {totalTags - 12} more labels...
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             </div>
           </section>
