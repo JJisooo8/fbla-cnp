@@ -886,8 +886,11 @@ async function fetchYelpBusinesses() {
       .map(transformYelpToBusiness)
       .filter(biz => biz !== null);
 
-    // Sort by relevancy (local businesses first)
-    transformed.sort((a, b) => b.relevancyScore - a.relevancyScore);
+    // Sort by relevancy (local businesses first), with stable secondary sort by ID
+    transformed.sort((a, b) => {
+      const diff = b.relevancyScore - a.relevancyScore;
+      return diff !== 0 ? diff : a.id.localeCompare(b.id);
+    });
 
     cache.set(cacheKey, transformed);
     return transformed;
@@ -1386,15 +1389,28 @@ app.get("/api/businesses", async (req, res) => {
       );
     }
 
-    // Sorting
+    // Sorting - use stable secondary sort by ID to prevent random reordering
+    // This ensures businesses don't jump around between page loads
     if (sort === "rating") {
-      businesses.sort((a, b) => b.rating - a.rating);
+      businesses.sort((a, b) => {
+        const diff = b.rating - a.rating;
+        return diff !== 0 ? diff : a.id.localeCompare(b.id);
+      });
     } else if (sort === "reviews") {
-      businesses.sort((a, b) => b.reviewCount - a.reviewCount);
+      businesses.sort((a, b) => {
+        const diff = b.reviewCount - a.reviewCount;
+        return diff !== 0 ? diff : a.id.localeCompare(b.id);
+      });
     } else if (sort === "name") {
-      businesses.sort((a, b) => a.name.localeCompare(b.name));
+      businesses.sort((a, b) => {
+        const diff = a.name.localeCompare(b.name);
+        return diff !== 0 ? diff : a.id.localeCompare(b.id);
+      });
     } else if (sort === "local") {
-      businesses.sort((a, b) => b.relevancyScore - a.relevancyScore);
+      businesses.sort((a, b) => {
+        const diff = b.relevancyScore - a.relevancyScore;
+        return diff !== 0 ? diff : a.id.localeCompare(b.id);
+      });
     }
 
     // Limit results
@@ -2114,7 +2130,10 @@ app.get("/api/trending", async (req, res) => {
     if (trending.length < 3) {
       const fallback = businesses
         .filter(b => !b.isChain && !trending.some(t => t.id === b.id))
-        .sort((a, b) => b.relevancyScore - a.relevancyScore)
+        .sort((a, b) => {
+          const diff = b.relevancyScore - a.relevancyScore;
+          return diff !== 0 ? diff : a.id.localeCompare(b.id);
+        })
         .slice(0, 3 - trending.length);
       trending.push(...fallback);
     }
@@ -2123,6 +2142,47 @@ app.get("/api/trending", async (req, res) => {
   } catch (error) {
     console.error('Error fetching trending businesses:', error);
     res.status(500).json({ error: "Failed to fetch trending businesses" });
+  }
+});
+
+// Get user's reviews - REQUIRES AUTHENTICATION
+app.get("/api/my-reviews", authenticateToken, requireAuth, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Refresh reviews from blob to get latest data
+    await refreshReviewsFromBlob();
+
+    // Get all businesses to map review businessId to business info
+    const businesses = await fetchBusinesses();
+    const businessMap = new Map(businesses.map(b => [b.id, b]));
+
+    // Collect all reviews by this user
+    const userReviews = [];
+
+    for (const [businessId, reviews] of localReviews.entries()) {
+      for (const review of reviews) {
+        if (review.userId === userId && !review.hidden) {
+          const business = businessMap.get(businessId);
+          userReviews.push({
+            ...review,
+            upvotedBy: undefined, // Don't expose upvotedBy list
+            businessId,
+            businessName: business?.name || 'Unknown Business',
+            businessCategory: business?.category || 'Unknown',
+            businessImage: business?.image || null
+          });
+        }
+      }
+    }
+
+    // Sort by date (newest first)
+    userReviews.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    res.json({ reviews: userReviews, count: userReviews.length });
+  } catch (error) {
+    console.error('Error fetching user reviews:', error);
+    res.status(500).json({ error: "Failed to fetch your reviews" });
   }
 });
 
