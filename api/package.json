@@ -1,10 +1,13 @@
 {
   "type": "module",
   "dependencies": {
+    "@vercel/blob": "^0.27.1",
     "axios": "^1.13.2",
+    "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.2",
     "node-cache": "^5.1.2"
   }
 }
