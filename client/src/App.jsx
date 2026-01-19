@@ -8,7 +8,7 @@ const API_URL = import.meta.env.DEV
   : "/api";
 
 function App() {
-  const [view, setView] = useState("home"); // home, business, favorites, login, signup, myReviews
+  const [view, setView] = useState("home"); // home, business, favorites, login, signup
   const [businesses, setBusinesses] = useState([]);
   const [filteredBusinesses, setFilteredBusinesses] = useState([]);
   const [selectedBusiness, setSelectedBusiness] = useState(null);
@@ -16,8 +16,6 @@ function App() {
   const [favorites, setFavorites] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [analytics, setAnalytics] = useState(null);
-  const [myReviews, setMyReviews] = useState([]);
-  const [myReviewsLoading, setMyReviewsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -528,36 +526,6 @@ function App() {
         .catch(err => console.error(err));
     }
   }, [favorites]);
-
-  // Fetch my reviews when viewing the my reviews page
-  const fetchMyReviews = async () => {
-    if (!user) return;
-    setMyReviewsLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/my-reviews`, {
-        headers: getAuthHeaders()
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setMyReviews(data.reviews || []);
-      } else {
-        console.error("Failed to fetch my reviews");
-        setMyReviews([]);
-      }
-    } catch (err) {
-      console.error("Error fetching my reviews:", err);
-      setMyReviews([]);
-    } finally {
-      setMyReviewsLoading(false);
-    }
-  };
-
-  // Navigate to My Reviews page
-  const goToMyReviews = () => {
-    setView("myReviews");
-    fetchMyReviews();
-    window.scrollTo({ top: 0, behavior: 'instant' });
-  };
 
   const toggleFavorite = (id) => {
     // Require login to favorite businesses
@@ -1331,13 +1299,6 @@ function App() {
             </button>
             {user ? (
               <div className={styles.userMenu}>
-                <button
-                  className={view === "myReviews" ? styles.navButtonActive : styles.navButton}
-                  onClick={goToMyReviews}
-                  aria-current={view === "myReviews" ? "page" : undefined}
-                >
-                  My Reviews
-                </button>
                 <button
                   className={styles.navButton}
                   onClick={handleLogout}
@@ -2823,189 +2784,6 @@ function App() {
                 </button>
               </div>
             </>
-          )}
-        </main>
-      )}
-
-      {/* My Reviews View */}
-      {view === "myReviews" && (
-        <main className={styles.content} id="main-content" role="main">
-          <h2 className={styles.pageTitle}>My Reviews</h2>
-
-          {myReviewsLoading ? (
-            <div className={styles.emptyState}>
-              <p className={styles.emptyText}>Loading your reviews...</p>
-            </div>
-          ) : myReviews.length === 0 ? (
-            <div className={styles.emptyState}>
-              <div className={styles.emptyStateIcon}>📝</div>
-              <h3 className={styles.emptyStateTitle}>No reviews yet</h3>
-              <p className={styles.emptyStateMessage}>
-                You haven't written any reviews yet. Explore businesses and share your experiences!
-              </p>
-              <button onClick={() => setView("home")} className={styles.btnPrimary}>
-                Browse Businesses
-              </button>
-            </div>
-          ) : (
-            <div className={styles.myReviewsList}>
-              {myReviews.map(review => (
-                <article key={review.id} className={styles.myReviewCard}>
-                  <div className={styles.myReviewHeader}>
-                    <div className={styles.myReviewBusiness}>
-                      {review.businessImage && (
-                        <img
-                          src={review.businessImage}
-                          alt={review.businessName}
-                          className={styles.myReviewBusinessImage}
-                        />
-                      )}
-                      <div className={styles.myReviewBusinessInfo}>
-                        <h3 className={styles.myReviewBusinessName}>{review.businessName}</h3>
-                        <span className={styles.myReviewBusinessCategory}>{review.businessCategory}</span>
-                      </div>
-                    </div>
-                    <button
-                      className={styles.myReviewViewBtn}
-                      onClick={() => {
-                        const business = businesses.find(b => b.id === review.businessId);
-                        if (business) {
-                          viewBusiness(business);
-                        } else {
-                          // Fetch and navigate to business
-                          fetch(`${API_URL}/businesses/${review.businessId}`, {
-                            headers: getAuthHeaders()
-                          })
-                            .then(r => r.json())
-                            .then(data => {
-                              setSelectedBusiness(data);
-                              setView("business");
-                              window.scrollTo({ top: 0, behavior: 'instant' });
-                            })
-                            .catch(err => console.error(err));
-                        }
-                      }}
-                    >
-                      View Business →
-                    </button>
-                  </div>
-
-                  <div className={styles.myReviewContent}>
-                    <div className={styles.myReviewRating}>
-                      <span className={styles.myReviewStars}>
-                        {"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}
-                      </span>
-                      <span className={styles.myReviewDate}>
-                        {new Date(review.date).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        })}
-                        {review.editedAt && " (edited)"}
-                      </span>
-                    </div>
-
-                    {review.comment && (
-                      <p className={styles.myReviewComment}>{review.comment}</p>
-                    )}
-
-                    <div className={styles.myReviewCategories}>
-                      {review.foodQuality && (
-                        <span className={styles.myReviewCategoryRating}>
-                          Food: {review.foodQuality}/5
-                        </span>
-                      )}
-                      {review.service && (
-                        <span className={styles.myReviewCategoryRating}>
-                          Service: {review.service}/5
-                        </span>
-                      )}
-                      {review.cleanliness && (
-                        <span className={styles.myReviewCategoryRating}>
-                          Clean: {review.cleanliness}/5
-                        </span>
-                      )}
-                      {review.atmosphere && (
-                        <span className={styles.myReviewCategoryRating}>
-                          Vibe: {review.atmosphere}/5
-                        </span>
-                      )}
-                    </div>
-
-                    <div className={styles.myReviewActions}>
-                      <span className={styles.myReviewHelpful}>
-                        👍 {review.helpful || 0} found helpful
-                      </span>
-                      <div className={styles.myReviewButtons}>
-                        <button
-                          className={styles.myReviewEditBtn}
-                          onClick={() => {
-                            // Navigate to business and open edit mode
-                            const business = businesses.find(b => b.id === review.businessId);
-                            if (business) {
-                              setSelectedBusiness(business);
-                              setView("business");
-                              // Fetch full details and then open edit
-                              fetch(`${API_URL}/businesses/${review.businessId}`, {
-                                headers: getAuthHeaders()
-                              })
-                                .then(r => r.json())
-                                .then(data => {
-                                  setSelectedBusiness(data);
-                                  // Find the review in the loaded data and start edit
-                                  const reviewToEdit = data.reviews?.find(r => r.id === review.id);
-                                  if (reviewToEdit) {
-                                    setEditingReview(reviewToEdit);
-                                    setEditForm({
-                                      rating: reviewToEdit.rating,
-                                      comment: reviewToEdit.comment || "",
-                                      foodQuality: reviewToEdit.foodQuality || 3,
-                                      service: reviewToEdit.service || 3,
-                                      cleanliness: reviewToEdit.cleanliness || 3,
-                                      atmosphere: reviewToEdit.atmosphere || 3,
-                                      isAnonymous: reviewToEdit.isAnonymous || false
-                                    });
-                                  }
-                                  window.scrollTo({ top: 0, behavior: 'instant' });
-                                })
-                                .catch(err => console.error(err));
-                            }
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className={styles.myReviewDeleteBtn}
-                          onClick={async () => {
-                            if (!window.confirm("Are you sure you want to delete this review? This action cannot be undone.")) {
-                              return;
-                            }
-                            try {
-                              const res = await fetch(`${API_URL}/businesses/${review.businessId}/reviews/${review.id}`, {
-                                method: "DELETE",
-                                headers: getAuthHeaders()
-                              });
-                              if (res.ok) {
-                                setMyReviews(prev => prev.filter(r => r.id !== review.id));
-                                alert("Review deleted successfully!");
-                              } else {
-                                const data = await res.json();
-                                alert(data.error || "Failed to delete review");
-                              }
-                            } catch (err) {
-                              console.error("Failed to delete review:", err);
-                              alert("Failed to delete review. Please try again.");
-                            }
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
           )}
         </main>
       )}
