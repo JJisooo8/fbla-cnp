@@ -117,26 +117,40 @@ let reviewsBlobUrl = null; // Cache the blob URL for deletion
 async function loadReviewsAsync() {
   if (USE_VERCEL_BLOB) {
     try {
+      console.log('[BLOB] Loading reviews from Vercel Blob...');
       // List blobs to find our reviews file
       const { blobs } = await list({ prefix: REVIEWS_BLOB_NAME });
-      const reviewsBlob = blobs.find(b => b.pathname === REVIEWS_BLOB_NAME);
+      console.log(`[BLOB] Found ${blobs.length} blobs with prefix "${REVIEWS_BLOB_NAME}":`, blobs.map(b => ({ pathname: b.pathname, url: b.url })));
+
+      // Find blob - try exact match first, then includes
+      let reviewsBlob = blobs.find(b => b.pathname === REVIEWS_BLOB_NAME);
+      if (!reviewsBlob && blobs.length > 0) {
+        reviewsBlob = blobs.find(b => b.pathname.includes(REVIEWS_BLOB_NAME));
+      }
 
       if (reviewsBlob) {
         reviewsBlobUrl = reviewsBlob.url;
+        console.log(`[BLOB] Found reviews blob at ${reviewsBlob.url}`);
         // Fetch the blob content
         const response = await fetch(reviewsBlob.url);
         if (response.ok) {
-          const data = await response.json();
-          if (Array.isArray(data)) {
-            localReviews = new Map(data);
-            console.log(`[BLOB] Loaded ${localReviews.size} business review sets from Vercel Blob`);
-            return;
+          const text = await response.text();
+          console.log(`[BLOB] Fetched content (${text.length} chars)`);
+          if (text.trim()) {
+            const data = JSON.parse(text);
+            if (Array.isArray(data)) {
+              localReviews = new Map(data);
+              console.log(`[BLOB] Loaded ${localReviews.size} business review sets from Vercel Blob`);
+              return;
+            }
           }
+        } else {
+          console.error(`[BLOB] Failed to fetch blob: ${response.status} ${response.statusText}`);
         }
       }
       console.log('[BLOB] No reviews found in Vercel Blob, starting fresh');
     } catch (error) {
-      console.error('[BLOB] Error loading reviews from Vercel Blob:', error.message);
+      console.error('[BLOB] Error loading reviews from Vercel Blob:', error.message, error.stack);
     }
   }
 
@@ -156,6 +170,7 @@ async function loadReviewsAsync() {
 async function saveReviewsAsync() {
   const data = Array.from(localReviews.entries());
   const jsonData = JSON.stringify(data);
+  console.log(`[SAVE] Preparing to save ${localReviews.size} business review sets (${jsonData.length} chars)`);
 
   if (USE_VERCEL_BLOB) {
     try {
@@ -163,21 +178,25 @@ async function saveReviewsAsync() {
       if (reviewsBlobUrl) {
         try {
           await del(reviewsBlobUrl);
+          console.log('[BLOB] Deleted old blob at', reviewsBlobUrl);
         } catch (e) {
-          // Ignore delete errors
+          console.log('[BLOB] No old blob to delete or delete failed:', e.message);
         }
       }
 
-      // Upload new blob
+      // Upload new blob - use addRandomSuffix: false to keep consistent filename
+      console.log('[BLOB] Uploading new blob...');
       const blob = await put(REVIEWS_BLOB_NAME, jsonData, {
         access: 'public',
-        contentType: 'application/json'
+        contentType: 'application/json',
+        addRandomSuffix: false
       });
       reviewsBlobUrl = blob.url;
-      console.log(`[BLOB] Saved ${localReviews.size} business review sets to Vercel Blob`);
-      return;
+      console.log(`[BLOB] Saved ${localReviews.size} business review sets to Vercel Blob at ${blob.url}`);
+      console.log(`[BLOB] Data saved: ${jsonData.substring(0, 200)}${jsonData.length > 200 ? '...' : ''}`);
+      return true;
     } catch (error) {
-      console.error('[BLOB] Error saving reviews to Vercel Blob:', error.message);
+      console.error('[BLOB] Error saving reviews to Vercel Blob:', error.message, error.stack);
       // Fall through to file backup
     }
   }
@@ -185,8 +204,11 @@ async function saveReviewsAsync() {
   // Fallback to file-based storage
   try {
     fs.writeFileSync(REVIEWS_FILE, jsonData, "utf8");
+    console.log(`[FILE] Saved ${localReviews.size} business review sets to file`);
+    return true;
   } catch (error) {
     console.error("[FILE] Error saving reviews:", error);
+    return false;
   }
 }
 
@@ -987,9 +1009,8 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
       return res.status(400).json({ error: "Rating must be between 1 and 5" });
     }
 
-    if (!comment || typeof comment !== "string" || comment.trim().length < 10) {
-      return res.status(400).json({ error: "Comment must be at least 10 characters" });
-    }
+    // Comment is optional - validate only if provided
+    const reviewComment = (comment && typeof comment === "string") ? comment.trim() : "";
 
     // Validate category ratings (required, must be 1-5)
     const validateCategoryRating = (val, name) => {
@@ -1049,21 +1070,27 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
       author: authorName,
       isAnonymous: !!isAnonymous,
       rating,
-      comment: comment.trim(),
+      comment: reviewComment,
       date: new Date().toISOString(),
       helpful: 0,
       source: 'local',
-      // Category ratings (optional)
-      ...(foodQuality && { foodQuality }),
-      ...(service && { service }),
-      ...(cleanliness && { cleanliness }),
-      ...(atmosphere && { atmosphere })
+      // Category ratings
+      foodQuality,
+      service,
+      cleanliness,
+      atmosphere
     };
 
     const reviews = localReviews.get(businessId) || [];
     reviews.push(review);
     localReviews.set(businessId, reviews);
-    saveReviewsAsync();
+
+    // Save and wait for completion
+    const saved = await saveReviewsAsync();
+    if (!saved) {
+      console.error('[REVIEW] Warning: Review may not have persisted to storage');
+    }
+
     cache.flushAll();
 
     res.status(201).json({ message: "Review submitted successfully", review });
@@ -1137,6 +1164,30 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/report", (req, res) => {
   } catch (error) {
     console.error('Error reporting review:', error);
     res.status(500).json({ error: "Failed to report review" });
+  }
+});
+
+// Debug endpoint - View reviews storage status (developer use only)
+app.get("/api/reviews/debug", async (req, res) => {
+  try {
+    const reviewData = Array.from(localReviews.entries());
+    const totalReviews = reviewData.reduce((sum, [, reviews]) => sum + reviews.length, 0);
+
+    res.json({
+      storageType: USE_VERCEL_BLOB ? 'Vercel Blob' : 'File System',
+      blobTokenSet: !!process.env.BLOB_READ_WRITE_TOKEN,
+      currentBlobUrl: reviewsBlobUrl,
+      businessesWithReviews: reviewData.length,
+      totalReviewsInMemory: totalReviews,
+      sampleData: reviewData.slice(0, 3).map(([id, reviews]) => ({
+        businessId: id,
+        reviewCount: reviews.length,
+        latestReview: reviews.length > 0 ? reviews[reviews.length - 1] : null
+      }))
+    });
+  } catch (error) {
+    console.error('Error in reviews debug:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
