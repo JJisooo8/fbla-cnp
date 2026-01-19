@@ -117,7 +117,15 @@ function App() {
 
     // Only push state if path actually changed
     if (window.location.pathname !== newPath) {
-      window.history.pushState({ view, businessId: selectedBusiness?.id }, '', newPath);
+      // Before pushing new state, save current scroll position in current state
+      const currentState = {
+        ...window.history.state,
+        scrollY: window.scrollY
+      };
+      window.history.replaceState(currentState, '', window.location.pathname);
+
+      // Now push the new state
+      window.history.pushState({ view, businessId: selectedBusiness?.id, scrollY: 0 }, '', newPath);
     }
   }, [view, selectedBusiness, urlInitialized]);
 
@@ -125,6 +133,7 @@ function App() {
   useEffect(() => {
     const handlePopState = (event) => {
       const path = window.location.pathname;
+      const state = event.state || {};
 
       if (path.startsWith('/business/')) {
         const businessId = path.split('/business/')[1];
@@ -133,6 +142,7 @@ function App() {
           if (business) {
             setSelectedBusiness(business);
             setView('business');
+            window.scrollTo({ top: 0, behavior: 'instant' });
             // Fetch full details
             fetch(`${API_URL}/businesses/${businessId}`)
               .then(r => r.json())
@@ -148,14 +158,20 @@ function App() {
         setView('favorites');
         setSelectedBusiness(null);
       } else {
+        // Going back to home - restore scroll position
         setView('home');
         setSelectedBusiness(null);
+        // Restore scroll position from state or savedScrollPosition
+        const scrollY = state.scrollY || savedScrollPosition || 0;
+        setTimeout(() => {
+          window.scrollTo({ top: scrollY, behavior: 'instant' });
+        }, 50);
       }
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [businesses]);
+  }, [businesses, savedScrollPosition]);
 
   // Save favorites to localStorage whenever they change
   useEffect(() => {
@@ -448,11 +464,8 @@ function App() {
         isAnonymous: false
       });
 
-      // Also fetch from server to ensure consistency (but UI already updated)
-      fetch(`${API_URL}/businesses/${selectedBusiness.id}`)
-        .then(r => r.json())
-        .then(updatedBiz => setSelectedBusiness(updatedBiz))
-        .catch(err => console.error("Failed to refresh business data:", err));
+      // Don't fetch from server - it may return stale data due to Vercel's serverless architecture
+      // The optimistic update is sufficient; fresh data loads on next navigation
     } catch (err) {
       console.error("Review submission error:", err);
       alert(`Failed to submit review: ${err.message || "Unknown error"}. Please try again.`);
@@ -476,6 +489,25 @@ function App() {
   const upvoteReview = async (reviewId) => {
     const alreadyUpvoted = upvotedReviews.includes(reviewId);
 
+    // Optimistically update the UI first
+    if (alreadyUpvoted) {
+      setUpvotedReviews(prev => prev.filter(id => id !== reviewId));
+      setSelectedBusiness(prev => ({
+        ...prev,
+        reviews: (prev.reviews || []).map(r =>
+          r.id === reviewId ? { ...r, helpful: Math.max(0, (r.helpful || 0) - 1) } : r
+        )
+      }));
+    } else {
+      setUpvotedReviews(prev => [...prev, reviewId]);
+      setSelectedBusiness(prev => ({
+        ...prev,
+        reviews: (prev.reviews || []).map(r =>
+          r.id === reviewId ? { ...r, helpful: (r.helpful || 0) + 1 } : r
+        )
+      }));
+    }
+
     try {
       const endpoint = alreadyUpvoted
         ? `${API_URL}/businesses/${selectedBusiness.id}/reviews/${reviewId}/remove-upvote`
@@ -486,18 +518,24 @@ function App() {
         headers: { "Content-Type": "application/json" }
       });
 
-      if (res.ok) {
+      if (!res.ok) {
+        // Revert optimistic update on failure
+        console.error("Failed to toggle upvote, reverting");
         if (alreadyUpvoted) {
-          setUpvotedReviews(prev => prev.filter(id => id !== reviewId));
-        } else {
           setUpvotedReviews(prev => [...prev, reviewId]);
+        } else {
+          setUpvotedReviews(prev => prev.filter(id => id !== reviewId));
         }
-        // Refresh business data to get updated helpful count
-        const updatedBiz = await fetch(`${API_URL}/businesses/${selectedBusiness.id}`).then(r => r.json());
-        setSelectedBusiness(updatedBiz);
       }
+      // Don't fetch - trust the optimistic update
     } catch (err) {
       console.error("Failed to toggle upvote:", err);
+      // Revert optimistic update on error
+      if (alreadyUpvoted) {
+        setUpvotedReviews(prev => [...prev, reviewId]);
+      } else {
+        setUpvotedReviews(prev => prev.filter(id => id !== reviewId));
+      }
     }
   };
 
@@ -520,9 +558,7 @@ function App() {
       if (res.ok) {
         setReportedReviews(prev => [...prev, reviewId]);
         alert(data.message);
-        // Refresh business data
-        const updatedBiz = await fetch(`${API_URL}/businesses/${selectedBusiness.id}`).then(r => r.json());
-        setSelectedBusiness(updatedBiz);
+        // Don't fetch - trust the local state; hiding happens automatically if 3+ reports
       } else {
         alert(data.error || "Failed to report review");
       }

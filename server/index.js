@@ -343,6 +343,7 @@ app.use((req, res, next) => {
 app.use('/api/businesses', ensureReviewsLoaded);
 app.use('/api/reviews', ensureReviewsLoaded);
 app.use('/api/recommendations', ensureReviewsLoaded);
+app.use('/api/analytics', ensureReviewsLoaded);
 
 // ====================
 // HELPER FUNCTIONS
@@ -1020,10 +1021,7 @@ app.get("/api/businesses/:id", async (req, res) => {
       business.image = getCategoryImage(business.category);
     }
 
-    // Refresh reviews from Blob to ensure latest data
-    await refreshReviewsFromBlob();
-
-    // Get fresh reviews
+    // Get reviews (already loaded by middleware on cold start)
     const localReviewSummary = getLocalReviewSummary(businessId);
     business.reviews = localReviewSummary.reviews;
     business.rating = localReviewSummary.rating;
@@ -1158,18 +1156,24 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
 });
 
 // Upvote review
-app.post("/api/businesses/:businessId/reviews/:reviewId/upvote", (req, res) => {
+app.post("/api/businesses/:businessId/reviews/:reviewId/upvote", async (req, res) => {
   try {
     const { businessId, reviewId } = req.params;
     const reviews = localReviews.get(businessId);
 
-    if (!reviews) return res.status(404).json({ error: "Business not found" });
+    if (!reviews) {
+      console.log(`[UPVOTE] Business not found: ${businessId}, localReviews has ${localReviews.size} entries`);
+      return res.status(404).json({ error: "Business not found" });
+    }
 
     const review = reviews.find(r => r.id === reviewId);
-    if (!review) return res.status(404).json({ error: "Review not found" });
+    if (!review) {
+      console.log(`[UPVOTE] Review not found: ${reviewId} in business ${businessId}`);
+      return res.status(404).json({ error: "Review not found" });
+    }
 
     review.helpful = (review.helpful || 0) + 1;
-    saveReviewsAsync();
+    await saveReviewsAsync();
 
     res.json({ message: "Upvote recorded", helpful: review.helpful });
   } catch (error) {
@@ -1179,7 +1183,7 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/upvote", (req, res) => {
 });
 
 // Remove upvote from review
-app.post("/api/businesses/:businessId/reviews/:reviewId/remove-upvote", (req, res) => {
+app.post("/api/businesses/:businessId/reviews/:reviewId/remove-upvote", async (req, res) => {
   try {
     const { businessId, reviewId } = req.params;
     const reviews = localReviews.get(businessId);
@@ -1190,7 +1194,7 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/remove-upvote", (req, re
     if (!review) return res.status(404).json({ error: "Review not found" });
 
     review.helpful = Math.max(0, (review.helpful || 0) - 1);
-    saveReviewsAsync();
+    await saveReviewsAsync();
 
     res.json({ message: "Upvote removed", helpful: review.helpful });
   } catch (error) {
@@ -1200,7 +1204,7 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/remove-upvote", (req, re
 });
 
 // Report review
-app.post("/api/businesses/:businessId/reviews/:reviewId/report", (req, res) => {
+app.post("/api/businesses/:businessId/reviews/:reviewId/report", async (req, res) => {
   try {
     const { businessId, reviewId } = req.params;
     const { reason } = req.body;
@@ -1216,7 +1220,7 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/report", (req, res) => {
 
     if (review.reports.length >= 3) review.hidden = true;
 
-    saveReviewsAsync();
+    await saveReviewsAsync();
     res.json({ message: "Report submitted. Thank you for helping keep our community safe.", reportCount: review.reports.length });
   } catch (error) {
     console.error('Error reporting review:', error);
