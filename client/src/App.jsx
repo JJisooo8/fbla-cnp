@@ -191,7 +191,7 @@ function App() {
       }
     } catch (error) {
       console.error("Login error:", error);
-      setAuthError("Login failed. Please try again.");
+      setAuthError("Unable to connect to server. Please check your connection and try again.");
     }
   };
 
@@ -245,7 +245,7 @@ function App() {
       }
     } catch (error) {
       console.error("Signup error:", error);
-      setAuthError("Signup failed. Please try again.");
+      setAuthError("Unable to connect to server. Please check your connection and try again.");
     }
   };
 
