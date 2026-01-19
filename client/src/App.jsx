@@ -427,8 +427,8 @@ function App() {
       case "relevant":
         // Relevance: combination of upvotes + comment length + recency
         sorted.sort((a, b) => {
-          const scoreA = (a.helpful || 0) * 10 + Math.min(a.comment.length / 20, 10) + (new Date(a.date).getTime() / 1e12);
-          const scoreB = (b.helpful || 0) * 10 + Math.min(b.comment.length / 20, 10) + (new Date(b.date).getTime() / 1e12);
+          const scoreA = (a.helpful || 0) * 10 + Math.min((a.comment || '').length / 20, 10) + (new Date(a.date).getTime() / 1e12);
+          const scoreB = (b.helpful || 0) * 10 + Math.min((b.comment || '').length / 20, 10) + (new Date(b.date).getTime() / 1e12);
           return scoreB - scoreA;
         });
         break;
@@ -1245,13 +1245,12 @@ function App() {
                       </div>
 
                       <textarea
-                        placeholder="Share your experience (min 10 characters)..."
+                        placeholder="Share your experience (optional)..."
                         value={reviewForm.comment}
                         onChange={e => setReviewForm(prev => ({ ...prev, comment: e.target.value }))}
                         className={styles.textarea}
                         rows={4}
-                        aria-label="Your review"
-                        required
+                        aria-label="Your review (optional)"
                       />
 
                       {/* Verification: reCAPTCHA or Math Challenge */}
@@ -1416,7 +1415,7 @@ function App() {
                             </div>
                           )}
 
-                          <p className={styles.reviewComment}>{review.comment}</p>
+                          {review.comment && <p className={styles.reviewComment}>{review.comment}</p>}
                           <div className={styles.reviewFooter}>
                             <div className={styles.reviewDate}>
                               {new Date(review.date).toLocaleDateString()}
