@@ -1021,7 +1021,11 @@ app.get("/api/businesses/:id", async (req, res) => {
       business.image = getCategoryImage(business.category);
     }
 
-    // Get reviews (already loaded by middleware on cold start)
+    // Always load fresh reviews from Blob for single business requests
+    // This ensures users always see the latest reviews
+    await refreshReviewsFromBlob();
+
+    // Get reviews
     const localReviewSummary = getLocalReviewSummary(businessId);
     business.reviews = localReviewSummary.reviews;
     business.rating = localReviewSummary.rating;
@@ -1481,6 +1485,9 @@ app.get("/api/tags", async (req, res) => {
 // Analytics
 app.get("/api/analytics", async (req, res) => {
   try {
+    // Load fresh reviews from Blob for accurate counts
+    await refreshReviewsFromBlob();
+
     const businesses = await fetchBusinesses();
     const totalBusinesses = businesses.length;
     const avgRating = totalBusinesses > 0
