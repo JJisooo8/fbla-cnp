@@ -555,7 +555,6 @@ app.use((req, res, next) => {
 // Ensure reviews are loaded from Blob before handling business/review requests
 app.use('/api/businesses', ensureReviewsLoaded);
 app.use('/api/reviews', ensureReviewsLoaded);
-app.use('/api/my-reviews', ensureReviewsLoaded);
 app.use('/api/recommendations', ensureReviewsLoaded);
 app.use('/api/analytics', ensureReviewsLoaded);
 app.use('/api/auth', ensureUsersLoaded);
@@ -2168,65 +2167,6 @@ app.get("/api/trending", async (req, res) => {
   } catch (error) {
     console.error('Error fetching trending businesses:', error);
     res.status(500).json({ error: "Failed to fetch trending businesses" });
-  }
-});
-
-// Get user's reviews - REQUIRES AUTHENTICATION
-app.get("/api/my-reviews", authenticateToken, requireAuth, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    console.log(`[MY-REVIEWS] Fetching reviews for user: ${userId}`);
-
-    // Ensure reviews are loaded - critical for serverless environments
-    if (USE_VERCEL_BLOB) {
-      // Wait for initial blob load if still in progress
-      if (!blobLoaded && blobLoadPromise) {
-        console.log('[MY-REVIEWS] Waiting for initial blob load...');
-        await blobLoadPromise;
-      }
-      // Always refresh from blob to get latest data
-      await refreshReviewsFromBlob();
-    }
-
-    console.log(`[MY-REVIEWS] localReviews has ${localReviews.size} business entries`);
-
-    // Get all businesses to map review businessId to business info
-    const businesses = await fetchBusinesses();
-    const businessMap = new Map(businesses.map(b => [b.id, b]));
-
-    // Collect all reviews by this user (by userId, regardless of anonymous status)
-    const userReviews = [];
-
-    for (const [businessId, reviews] of localReviews.entries()) {
-      if (!Array.isArray(reviews)) {
-        console.log(`[MY-REVIEWS] Warning: reviews for ${businessId} is not an array`);
-        continue;
-      }
-      for (const review of reviews) {
-        // Match by userId - user should see all their reviews including anonymous ones
-        if (review.userId === userId && !review.hidden) {
-          const business = businessMap.get(businessId);
-          userReviews.push({
-            ...review,
-            upvotedBy: undefined, // Don't expose upvotedBy list
-            businessId,
-            businessName: business?.name || 'Unknown Business',
-            businessCategory: business?.category || 'Unknown',
-            businessImage: business?.image || null
-          });
-        }
-      }
-    }
-
-    console.log(`[MY-REVIEWS] Found ${userReviews.length} reviews for user ${userId}`);
-
-    // Sort by date (newest first)
-    userReviews.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    res.json({ reviews: userReviews, count: userReviews.length });
-  } catch (error) {
-    console.error('Error fetching user reviews:', error);
-    res.status(500).json({ error: "Failed to fetch your reviews" });
   }
 });
 
