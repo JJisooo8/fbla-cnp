@@ -12,10 +12,8 @@ function App() {
   const [businesses, setBusinesses] = useState([]);
   const [filteredBusinesses, setFilteredBusinesses] = useState([]);
   const [selectedBusiness, setSelectedBusiness] = useState(null);
-  const [favorites, setFavorites] = useState(() => {
-    const saved = localStorage.getItem("locallink_favorites");
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Favorites are now user-specific - start empty and load when user is authenticated
+  const [favorites, setFavorites] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -363,10 +361,34 @@ function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [businesses, savedScrollPosition]);
 
-  // Save favorites to localStorage whenever they change
+  // Load favorites from user-specific localStorage when user changes
   useEffect(() => {
-    localStorage.setItem("locallink_favorites", JSON.stringify(favorites));
-  }, [favorites]);
+    if (user) {
+      // Load favorites for this specific user
+      const userFavoritesKey = `locallink_favorites_${user.id}`;
+      const saved = localStorage.getItem(userFavoritesKey);
+      if (saved) {
+        try {
+          setFavorites(JSON.parse(saved));
+        } catch {
+          setFavorites([]);
+        }
+      } else {
+        setFavorites([]);
+      }
+    } else {
+      // Clear favorites when logged out
+      setFavorites([]);
+    }
+  }, [user]);
+
+  // Save favorites to user-specific localStorage whenever they change (only if logged in)
+  useEffect(() => {
+    if (user) {
+      const userFavoritesKey = `locallink_favorites_${user.id}`;
+      localStorage.setItem(userFavoritesKey, JSON.stringify(favorites));
+    }
+  }, [favorites, user]);
 
   // Fetch with retry for cold start delays
   const fetchWithRetry = async (url, retries = 3, delay = 2000) => {
@@ -1493,7 +1515,8 @@ function App() {
               <button
                 onClick={() => {
                   setBusinessPage(p => Math.max(1, p - 1));
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  // Scroll to top of page instantly
+                  window.scrollTo({ top: 0, behavior: 'instant' });
                 }}
                 disabled={businessPage === 1}
                 className={styles.paginationBtn}
@@ -1504,23 +1527,41 @@ function App() {
                 {(() => {
                   const totalPages = Math.ceil(deduplicateChains(filteredBusinesses).length / BUSINESSES_PER_PAGE);
                   const pages = [];
+                  const maxVisiblePages = 8;
 
-                  // Always show first page
-                  if (totalPages > 0) pages.push(1);
+                  if (totalPages <= maxVisiblePages) {
+                    // Show all pages if total is 8 or less
+                    for (let i = 1; i <= totalPages; i++) {
+                      pages.push(i);
+                    }
+                  } else {
+                    // Calculate the range of pages to show (8 pages centered around current)
+                    let startPage = Math.max(1, businessPage - Math.floor(maxVisiblePages / 2));
+                    let endPage = startPage + maxVisiblePages - 1;
 
-                  // Show ellipsis if needed
-                  if (businessPage > 3) pages.push('...');
+                    // Adjust if we're near the end
+                    if (endPage > totalPages) {
+                      endPage = totalPages;
+                      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                    }
 
-                  // Show pages around current page
-                  for (let i = Math.max(2, businessPage - 1); i <= Math.min(totalPages - 1, businessPage + 1); i++) {
-                    if (!pages.includes(i)) pages.push(i);
+                    // Always show first page with ellipsis if needed
+                    if (startPage > 1) {
+                      pages.push(1);
+                      if (startPage > 2) pages.push('...');
+                    }
+
+                    // Add the range of pages
+                    for (let i = startPage; i <= endPage; i++) {
+                      if (!pages.includes(i)) pages.push(i);
+                    }
+
+                    // Always show last page with ellipsis if needed
+                    if (endPage < totalPages) {
+                      if (endPage < totalPages - 1) pages.push('...');
+                      if (!pages.includes(totalPages)) pages.push(totalPages);
+                    }
                   }
-
-                  // Show ellipsis if needed
-                  if (businessPage < totalPages - 2) pages.push('...');
-
-                  // Always show last page
-                  if (totalPages > 1 && !pages.includes(totalPages)) pages.push(totalPages);
 
                   return pages.map((page, idx) => (
                     page === '...' ? (
@@ -1530,7 +1571,8 @@ function App() {
                         key={page}
                         onClick={() => {
                           setBusinessPage(page);
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                          // Scroll to top of page instantly
+                          window.scrollTo({ top: 0, behavior: 'instant' });
                         }}
                         className={businessPage === page ? styles.paginationBtnActive : styles.paginationBtn}
                       >
@@ -1543,7 +1585,8 @@ function App() {
               <button
                 onClick={() => {
                   setBusinessPage(p => Math.min(Math.ceil(deduplicateChains(filteredBusinesses).length / BUSINESSES_PER_PAGE), p + 1));
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  // Scroll to top of page instantly
+                  window.scrollTo({ top: 0, behavior: 'instant' });
                 }}
                 disabled={businessPage >= Math.ceil(deduplicateChains(filteredBusinesses).length / BUSINESSES_PER_PAGE)}
                 className={styles.paginationBtn}
@@ -2418,8 +2461,25 @@ function App() {
       {view === "favorites" && (
         <main className={styles.content} id="main-content" role="main">
           <h2 className={styles.pageTitle}>Your Favorite Businesses</h2>
-          
-          {favorites.length === 0 ? (
+
+          {/* Show login prompt if not authenticated */}
+          {!user ? (
+            <div className={styles.emptyState}>
+              <div className={styles.emptyStateIcon}>❤️</div>
+              <h3 className={styles.emptyStateTitle}>Log in to save favorites</h3>
+              <p className={styles.emptyStateMessage}>
+                Create an account or log in to save your favorite businesses and receive personalized recommendations.
+              </p>
+              <div style={{ display: 'flex', gap: 'var(--space-3)', justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button onClick={() => navigateToAuth("login")} className={styles.btnPrimary}>
+                  Log In
+                </button>
+                <button onClick={() => navigateToAuth("signup")} className={styles.btnSecondary}>
+                  Create Account
+                </button>
+              </div>
+            </div>
+          ) : favorites.length === 0 ? (
             <div className={styles.emptyState}>
               <p className={styles.emptyText}>You haven't saved any favorites yet.</p>
               <button onClick={() => setView("home")} className={styles.browseBtn}>
