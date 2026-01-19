@@ -7,6 +7,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import { kv } from "@vercel/kv";
 
 // Load environment variables
 const envPaths = [
@@ -88,19 +89,82 @@ console.log(`  - GOOGLE_SEARCH_ENGINE_ID: ${process.env.GOOGLE_SEARCH_ENGINE_ID 
 console.log(`  - RECAPTCHA_SECRET_KEY: ${process.env.RECAPTCHA_SECRET_KEY ? 'SET' : 'NOT SET'}`);
 console.log(`  - RECAPTCHA_SITE_KEY: ${process.env.RECAPTCHA_SITE_KEY ? 'SET' : 'NOT SET'}`);
 console.log(`  - OFFLINE_MODE: ${OFFLINE_MODE ? 'true' : 'false'}`);
+console.log(`  - KV_REST_API_URL: ${process.env.KV_REST_API_URL ? 'SET (Vercel KV enabled)' : 'NOT SET (using file storage)'}`);
 console.log('========================================');
+
+// Determine if we should use Vercel KV
+const USE_VERCEL_KV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
 
 // Cache for API responses (TTL: 1 hour)
 const cache = new NodeCache({ stdTTL: 3600 });
 const imageCache = new NodeCache({ stdTTL: 86400 });
 
-// Path to persistent review storage
+// Path to persistent review storage (fallback for local development)
 const REVIEWS_FILE = process.env.VERCEL
   ? path.join("/tmp", "reviews.json")
   : path.join(__dirname, "reviews.json");
 
-// Load reviews from file
-function loadReviews() {
+// In-memory cache for reviews (synced with KV or file)
+let localReviews = new Map();
+
+// ============================================
+// VERCEL KV REVIEW STORAGE
+// ============================================
+const REVIEWS_KV_KEY = "locallink:reviews";
+
+// Load reviews from Vercel KV or file
+async function loadReviewsAsync() {
+  if (USE_VERCEL_KV) {
+    try {
+      const data = await kv.get(REVIEWS_KV_KEY);
+      if (data && Array.isArray(data)) {
+        localReviews = new Map(data);
+        console.log(`[KV] Loaded ${localReviews.size} business review sets from Vercel KV`);
+        return;
+      }
+      console.log('[KV] No reviews found in Vercel KV, starting fresh');
+    } catch (error) {
+      console.error('[KV] Error loading reviews from Vercel KV:', error.message);
+    }
+  }
+
+  // Fallback to file-based storage
+  try {
+    if (fs.existsSync(REVIEWS_FILE)) {
+      const data = fs.readFileSync(REVIEWS_FILE, "utf8");
+      localReviews = new Map(JSON.parse(data));
+      console.log(`[FILE] Loaded ${localReviews.size} business review sets from file`);
+    }
+  } catch (error) {
+    console.error("[FILE] Error loading reviews:", error);
+  }
+}
+
+// Save reviews to Vercel KV or file
+async function saveReviewsAsync() {
+  const data = Array.from(localReviews.entries());
+
+  if (USE_VERCEL_KV) {
+    try {
+      await kv.set(REVIEWS_KV_KEY, data);
+      console.log(`[KV] Saved ${localReviews.size} business review sets to Vercel KV`);
+      return;
+    } catch (error) {
+      console.error('[KV] Error saving reviews to Vercel KV:', error.message);
+      // Fall through to file backup
+    }
+  }
+
+  // Fallback to file-based storage
+  try {
+    fs.writeFileSync(REVIEWS_FILE, JSON.stringify(data), "utf8");
+  } catch (error) {
+    console.error("[FILE] Error saving reviews:", error);
+  }
+}
+
+// Synchronous fallback for initial load (file only)
+function loadReviewsSync() {
   try {
     if (fs.existsSync(REVIEWS_FILE)) {
       const data = fs.readFileSync(REVIEWS_FILE, "utf8");
@@ -112,18 +176,13 @@ function loadReviews() {
   return new Map();
 }
 
-// Save reviews to file
-function saveReviews() {
-  try {
-    const data = JSON.stringify(Array.from(localReviews.entries()));
-    fs.writeFileSync(REVIEWS_FILE, data, "utf8");
-  } catch (error) {
-    console.error("Error saving reviews:", error);
-  }
-}
+// Initialize reviews - sync for startup, async load follows
+localReviews = loadReviewsSync();
 
-// Store local reviews for businesses
-const localReviews = loadReviews();
+// Load from KV asynchronously after startup
+if (USE_VERCEL_KV) {
+  loadReviewsAsync().catch(err => console.error('[KV] Async load failed:', err));
+}
 
 // Store verification challenges in memory
 const verificationChallenges = new Map();
@@ -905,12 +964,13 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
       return res.status(400).json({ error: "Comment must be at least 10 characters" });
     }
 
-    // Validate category ratings (optional, but if provided must be 1-5)
+    // Validate category ratings (required, must be 1-5)
     const validateCategoryRating = (val, name) => {
-      if (val !== undefined && val !== null) {
-        if (typeof val !== "number" || val < 1 || val > 5) {
-          return `${name} rating must be between 1 and 5`;
-        }
+      if (val === undefined || val === null) {
+        return `${name} rating is required`;
+      }
+      if (typeof val !== "number" || val < 1 || val > 5) {
+        return `${name} rating must be between 1 and 5`;
       }
       return null;
     };
@@ -976,7 +1036,7 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
     const reviews = localReviews.get(businessId) || [];
     reviews.push(review);
     localReviews.set(businessId, reviews);
-    saveReviews();
+    saveReviewsAsync();
     cache.flushAll();
 
     res.status(201).json({ message: "Review submitted successfully", review });
@@ -998,7 +1058,7 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/upvote", (req, res) => {
     if (!review) return res.status(404).json({ error: "Review not found" });
 
     review.helpful = (review.helpful || 0) + 1;
-    saveReviews();
+    saveReviewsAsync();
 
     res.json({ message: "Upvote recorded", helpful: review.helpful });
   } catch (error) {
@@ -1019,7 +1079,7 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/remove-upvote", (req, re
     if (!review) return res.status(404).json({ error: "Review not found" });
 
     review.helpful = Math.max(0, (review.helpful || 0) - 1);
-    saveReviews();
+    saveReviewsAsync();
 
     res.json({ message: "Upvote removed", helpful: review.helpful });
   } catch (error) {
@@ -1045,7 +1105,7 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/report", (req, res) => {
 
     if (review.reports.length >= 3) review.hidden = true;
 
-    saveReviews();
+    saveReviewsAsync();
     res.json({ message: "Report submitted. Thank you for helping keep our community safe.", reportCount: review.reports.length });
   } catch (error) {
     console.error('Error reporting review:', error);
@@ -1053,12 +1113,19 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/report", (req, res) => {
   }
 });
 
-// Recommendations
+// Recommendations - Scoring Algorithm:
+// - Category match: +10 points per favorite in that category
+// - High Yelp rating (4.5+): +15 points
+// - Good Yelp rating (4.0+): +10 points
+// - Has deal: +5 points
+// - Local business bonus: +3 points (breaks ties)
+// - Higher review count: +0.01 per review (secondary tiebreaker)
 app.post("/api/recommendations", async (req, res) => {
   try {
-    const { favoriteIds = [], preferredCategories = [] } = req.body;
+    const { favoriteIds = [], preferredCategories = [], debug = false } = req.body;
     const businesses = await fetchBusinesses();
 
+    // Build category scores from user's favorites
     let categoryScores = {};
     favoriteIds.forEach(id => {
       const business = businesses.find(b => b.id === id);
@@ -1071,23 +1138,142 @@ app.post("/api/recommendations", async (req, res) => {
       categoryScores[cat] = (categoryScores[cat] || 0) + 2;
     });
 
+    // Score all businesses
     const scored = businesses
       .filter(b => !favoriteIds.includes(b.id))
       .map(b => {
         let score = 0;
-        score += (categoryScores[b.category] || 0) * 10;
-        if (b.yelpRating >= 4.5) score += 15;
-        else if (b.yelpRating >= 4.0) score += 10;
-        if (b.deal) score += 5;
-        return { ...b, recommendationScore: score };
+        let scoreBreakdown = {};
+
+        // Category matching (primary factor)
+        const categoryBonus = (categoryScores[b.category] || 0) * 10;
+        score += categoryBonus;
+        if (categoryBonus > 0) scoreBreakdown.category = categoryBonus;
+
+        // Yelp rating bonus
+        if (b.yelpRating >= 4.5) {
+          score += 15;
+          scoreBreakdown.rating = 15;
+        } else if (b.yelpRating >= 4.0) {
+          score += 10;
+          scoreBreakdown.rating = 10;
+        }
+
+        // Deal bonus
+        if (b.deal) {
+          score += 5;
+          scoreBreakdown.deal = 5;
+        }
+
+        // Local business bonus (tiebreaker)
+        if (!b.isChain) {
+          score += 3;
+          scoreBreakdown.local = 3;
+        }
+
+        // Review count micro-bonus (secondary tiebreaker)
+        const reviewBonus = Math.min((b.yelpReviewCount || 0) * 0.01, 2);
+        score += reviewBonus;
+        if (reviewBonus > 0) scoreBreakdown.reviews = Math.round(reviewBonus * 100) / 100;
+
+        return {
+          ...b,
+          recommendationScore: Math.round(score * 100) / 100,
+          ...(debug && { scoreBreakdown })
+        };
       })
       .sort((a, b) => b.recommendationScore - a.recommendationScore)
-      .slice(0, 4);
+      .slice(0, debug ? 20 : 4); // Return more results in debug mode
 
-    res.json(scored);
+    // In debug mode, include the category scores used
+    if (debug) {
+      res.json({
+        categoryScores,
+        favoriteCount: favoriteIds.length,
+        recommendations: scored
+      });
+    } else {
+      res.json(scored);
+    }
   } catch (error) {
     console.error('Error generating recommendations:', error);
     res.status(500).json({ error: "Failed to generate recommendations" });
+  }
+});
+
+// Debug endpoint - View all recommendation scores (developer use only)
+app.get("/api/recommendations/debug", async (req, res) => {
+  try {
+    const businesses = await fetchBusinesses();
+
+    // Score all businesses with no favorites (shows base scores)
+    const scored = businesses.map(b => {
+      let score = 0;
+      let breakdown = {};
+
+      if (b.yelpRating >= 4.5) {
+        score += 15;
+        breakdown.rating = 15;
+      } else if (b.yelpRating >= 4.0) {
+        score += 10;
+        breakdown.rating = 10;
+      }
+
+      if (b.deal) {
+        score += 5;
+        breakdown.deal = 5;
+      }
+
+      if (!b.isChain) {
+        score += 3;
+        breakdown.local = 3;
+      }
+
+      const reviewBonus = Math.min((b.yelpReviewCount || 0) * 0.01, 2);
+      score += reviewBonus;
+      if (reviewBonus > 0) breakdown.reviews = Math.round(reviewBonus * 100) / 100;
+
+      return {
+        name: b.name,
+        category: b.category,
+        yelpRating: b.yelpRating,
+        yelpReviewCount: b.yelpReviewCount,
+        isChain: b.isChain,
+        hasDeal: !!b.deal,
+        baseScore: Math.round(score * 100) / 100,
+        breakdown
+      };
+    }).sort((a, b) => b.baseScore - a.baseScore);
+
+    // Group by score to show ties
+    const scoreGroups = {};
+    scored.forEach(b => {
+      const key = b.baseScore.toString();
+      if (!scoreGroups[key]) scoreGroups[key] = [];
+      scoreGroups[key].push(b.name);
+    });
+
+    const tiedScores = Object.entries(scoreGroups)
+      .filter(([_, names]) => names.length > 1)
+      .map(([score, names]) => ({ score: parseFloat(score), count: names.length, businesses: names }))
+      .sort((a, b) => b.score - a.score);
+
+    res.json({
+      totalBusinesses: scored.length,
+      tiedScores,
+      topBusinesses: scored.slice(0, 30),
+      scoringAlgorithm: {
+        categoryMatch: "+10 per favorite in category",
+        rating45Plus: "+15",
+        rating40Plus: "+10",
+        hasDeal: "+5",
+        isLocal: "+3",
+        reviewCount: "+0.01 per review (max +2)"
+      }
+    });
+  } catch (error) {
+    console.error('Error in recommendations debug:', error);
+    res.status(500).json({ error: "Failed to generate debug data" });
   }
 });
 
