@@ -8,6 +8,8 @@ import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import { put, list, del } from "@vercel/blob";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 // Load environment variables
 const envPaths = [
@@ -95,6 +97,187 @@ console.log('========================================');
 // Determine if we should use Vercel Blob
 const USE_VERCEL_BLOB = !!process.env.BLOB_READ_WRITE_TOKEN;
 
+// JWT Configuration
+const JWT_SECRET = process.env.JWT_SECRET || 'locallink-dev-secret-change-in-production-' + crypto.randomBytes(16).toString('hex');
+const JWT_EXPIRES_IN = '7d'; // Token expires in 7 days
+
+// ============================================
+// USER AUTHENTICATION STORAGE
+// ============================================
+const USERS_BLOB_NAME = "users.json";
+let usersData = []; // Array of user objects: { id, username, passwordHash, createdAt }
+let usersBlobUrl = null;
+
+// Load users from Vercel Blob or file
+async function loadUsersAsync() {
+  if (USE_VERCEL_BLOB) {
+    try {
+      console.log('[BLOB] Loading users from Vercel Blob...');
+      const { blobs } = await list({ prefix: USERS_BLOB_NAME });
+
+      let usersBlob = blobs.find(b => b.pathname === USERS_BLOB_NAME);
+      if (!usersBlob && blobs.length > 0) {
+        usersBlob = blobs.find(b => b.pathname.includes(USERS_BLOB_NAME));
+      }
+
+      if (usersBlob) {
+        usersBlobUrl = usersBlob.url;
+        console.log(`[BLOB] Found users blob at ${usersBlob.url}`);
+        const response = await fetch(usersBlob.url);
+        if (response.ok) {
+          const text = await response.text();
+          if (text.trim()) {
+            usersData = JSON.parse(text);
+            console.log(`[BLOB] Loaded ${usersData.length} users from Vercel Blob`);
+            return;
+          }
+        }
+      }
+      console.log('[BLOB] No users found in Vercel Blob, starting fresh');
+    } catch (error) {
+      console.error('[BLOB] Error loading users from Vercel Blob:', error.message);
+    }
+  }
+
+  // Fallback to file-based storage for local development
+  const usersFile = process.env.VERCEL
+    ? path.join("/tmp", "users.json")
+    : path.join(__dirname, "users.json");
+  try {
+    if (fs.existsSync(usersFile)) {
+      const data = fs.readFileSync(usersFile, "utf8");
+      usersData = JSON.parse(data);
+      console.log(`[FILE] Loaded ${usersData.length} users from file`);
+    }
+  } catch (error) {
+    console.error("[FILE] Error loading users:", error);
+  }
+}
+
+// Save users to Vercel Blob or file
+async function saveUsersAsync() {
+  const jsonData = JSON.stringify(usersData);
+  console.log(`[SAVE] Saving ${usersData.length} users (${jsonData.length} chars)`);
+
+  if (USE_VERCEL_BLOB) {
+    try {
+      // Upload new blob - addRandomSuffix: false ensures consistent filename
+      // No need to delete first - put with addRandomSuffix: false will overwrite
+      console.log('[BLOB] Uploading users blob...');
+      const blob = await put(USERS_BLOB_NAME, jsonData, {
+        access: 'public',
+        contentType: 'application/json',
+        addRandomSuffix: false
+      });
+      usersBlobUrl = blob.url;
+      console.log(`[BLOB] Saved ${usersData.length} users to Vercel Blob at ${blob.url}`);
+      return true;
+    } catch (error) {
+      console.error('[BLOB] Error saving users to Vercel Blob:', error.message);
+    }
+  }
+
+  // Fallback to file-based storage
+  const usersFile = process.env.VERCEL
+    ? path.join("/tmp", "users.json")
+    : path.join(__dirname, "users.json");
+  try {
+    fs.writeFileSync(usersFile, jsonData, "utf8");
+    console.log(`[FILE] Saved ${usersData.length} users to file`);
+    return true;
+  } catch (error) {
+    console.error("[FILE] Error saving users:", error);
+    return false;
+  }
+}
+
+// Refresh users from Blob
+async function refreshUsersFromBlob() {
+  if (!USE_VERCEL_BLOB) return;
+
+  try {
+    const { blobs } = await list({ prefix: USERS_BLOB_NAME });
+    const usersBlob = blobs.find(b => b.pathname === USERS_BLOB_NAME) ||
+                      blobs.find(b => b.pathname.includes(USERS_BLOB_NAME));
+
+    if (usersBlob) {
+      const response = await fetch(usersBlob.url);
+      if (response.ok) {
+        const text = await response.text();
+        if (text.trim()) {
+          usersData = JSON.parse(text);
+          usersBlobUrl = usersBlob.url;
+          console.log(`[BLOB] Refreshed ${usersData.length} users`);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[BLOB] Error refreshing users:', error.message);
+  }
+}
+
+// Initialize users loading
+let usersLoadPromise = null;
+let usersLoaded = false;
+
+if (USE_VERCEL_BLOB) {
+  usersLoadPromise = loadUsersAsync()
+    .then(() => {
+      usersLoaded = true;
+      console.log('[BLOB] Users loaded and ready');
+    })
+    .catch(err => {
+      console.error('[BLOB] Users async load failed:', err);
+      usersLoaded = true;
+    });
+}
+
+// Middleware to ensure users are loaded
+async function ensureUsersLoaded(req, res, next) {
+  if (USE_VERCEL_BLOB && !usersLoaded && usersLoadPromise) {
+    await usersLoadPromise;
+  }
+  next();
+}
+
+// JWT Token Generation
+function generateToken(user) {
+  return jwt.sign(
+    { id: user.id, username: user.username },
+    JWT_SECRET,
+    { expiresIn: JWT_EXPIRES_IN }
+  );
+}
+
+// JWT Token Verification Middleware
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+
+  if (!token) {
+    req.user = null;
+    return next(); // Allow unauthenticated access, but req.user will be null
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (error) {
+    console.log('[AUTH] Invalid token:', error.message);
+    req.user = null;
+    next();
+  }
+}
+
+// Require authentication middleware (for protected routes)
+function requireAuth(req, res, next) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required. Please log in.' });
+  }
+  next();
+}
+
 // Cache for API responses (TTL: 1 hour)
 const cache = new NodeCache({ stdTTL: 3600 });
 const imageCache = new NodeCache({ stdTTL: 86400 });
@@ -174,18 +357,9 @@ async function saveReviewsAsync() {
 
   if (USE_VERCEL_BLOB) {
     try {
-      // Delete old blob if exists (Blob doesn't overwrite by default)
-      if (reviewsBlobUrl) {
-        try {
-          await del(reviewsBlobUrl);
-          console.log('[BLOB] Deleted old blob at', reviewsBlobUrl);
-        } catch (e) {
-          console.log('[BLOB] No old blob to delete or delete failed:', e.message);
-        }
-      }
-
-      // Upload new blob - use addRandomSuffix: false to keep consistent filename
-      console.log('[BLOB] Uploading new blob...');
+      // Upload new blob - addRandomSuffix: false will overwrite existing file
+      // DO NOT delete before put - this causes race conditions in serverless environment
+      console.log('[BLOB] Uploading new blob (will overwrite existing)...');
       const blob = await put(REVIEWS_BLOB_NAME, jsonData, {
         access: 'public',
         contentType: 'application/json',
@@ -344,6 +518,10 @@ app.use('/api/businesses', ensureReviewsLoaded);
 app.use('/api/reviews', ensureReviewsLoaded);
 app.use('/api/recommendations', ensureReviewsLoaded);
 app.use('/api/analytics', ensureReviewsLoaded);
+app.use('/api/auth', ensureUsersLoaded);
+
+// Apply authentication middleware globally (but don't require it)
+app.use(authenticateToken);
 
 // ====================
 // HELPER FUNCTIONS
@@ -862,6 +1040,162 @@ app.get("/api/health", (req, res) => {
   });
 });
 
+// ====================
+// AUTHENTICATION ENDPOINTS
+// ====================
+
+// User signup
+app.post("/api/auth/signup", async (req, res) => {
+  try {
+    const { username, password, confirmPassword } = req.body;
+
+    // Input validation
+    if (!username || typeof username !== 'string') {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    const trimmedUsername = username.trim();
+
+    // Username validation
+    if (trimmedUsername.length < 3) {
+      return res.status(400).json({ error: 'Username must be at least 3 characters long' });
+    }
+    if (trimmedUsername.length > 20) {
+      return res.status(400).json({ error: 'Username must be 20 characters or less' });
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) {
+      return res.status(400).json({ error: 'Username can only contain letters, numbers, and underscores' });
+    }
+
+    // Password validation
+    if (!password || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Password is required' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+    }
+    if (password.length > 100) {
+      return res.status(400).json({ error: 'Password must be 100 characters or less' });
+    }
+
+    // Confirm password validation
+    if (password !== confirmPassword) {
+      return res.status(400).json({ error: 'Passwords do not match' });
+    }
+
+    // Refresh users from blob to get latest data
+    await refreshUsersFromBlob();
+
+    // Check if username already exists (case-insensitive)
+    const existingUser = usersData.find(u =>
+      u.username.toLowerCase() === trimmedUsername.toLowerCase()
+    );
+    if (existingUser) {
+      return res.status(409).json({ error: 'Username already exists. Please choose a different username.' });
+    }
+
+    // Hash password
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    // Create new user
+    const newUser = {
+      id: crypto.randomUUID(),
+      username: trimmedUsername,
+      passwordHash,
+      createdAt: new Date().toISOString()
+    };
+
+    usersData.push(newUser);
+
+    // Save to storage
+    const saved = await saveUsersAsync();
+    if (!saved) {
+      // Remove user from memory if save failed
+      usersData = usersData.filter(u => u.id !== newUser.id);
+      return res.status(500).json({ error: 'Failed to create account. Please try again.' });
+    }
+
+    // Generate token
+    const token = generateToken(newUser);
+
+    console.log(`[AUTH] New user registered: ${trimmedUsername}`);
+
+    res.status(201).json({
+      message: 'Account created successfully',
+      user: {
+        id: newUser.id,
+        username: newUser.username
+      },
+      token
+    });
+  } catch (error) {
+    console.error('[AUTH] Signup error:', error);
+    res.status(500).json({ error: 'Failed to create account. Please try again.' });
+  }
+});
+
+// User login
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    // Input validation
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password are required' });
+    }
+
+    // Refresh users from blob to get latest data
+    await refreshUsersFromBlob();
+
+    // Find user (case-insensitive username)
+    const user = usersData.find(u =>
+      u.username.toLowerCase() === username.trim().toLowerCase()
+    );
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    // Verify password
+    const passwordValid = await bcrypt.compare(password, user.passwordHash);
+    if (!passwordValid) {
+      return res.status(401).json({ error: 'Invalid username or password' });
+    }
+
+    // Generate token
+    const token = generateToken(user);
+
+    console.log(`[AUTH] User logged in: ${user.username}`);
+
+    res.json({
+      message: 'Login successful',
+      user: {
+        id: user.id,
+        username: user.username
+      },
+      token
+    });
+  } catch (error) {
+    console.error('[AUTH] Login error:', error);
+    res.status(500).json({ error: 'Login failed. Please try again.' });
+  }
+});
+
+// Get current user (verify token and return user info)
+app.get("/api/auth/me", (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Not authenticated' });
+  }
+
+  res.json({
+    user: {
+      id: req.user.id,
+      username: req.user.username
+    }
+  });
+});
+
 // Demo mode / offline status endpoint
 app.get("/api/demo-status", (req, res) => {
   res.json({
@@ -1039,12 +1373,11 @@ app.get("/api/businesses/:id", async (req, res) => {
   }
 });
 
-// Submit review
-app.post("/api/businesses/:id/reviews", async (req, res) => {
+// Submit review - REQUIRES AUTHENTICATION
+app.post("/api/businesses/:id/reviews", requireAuth, async (req, res) => {
   try {
     const businessId = req.params.id;
     const {
-      author,
       rating,
       comment,
       verificationId,
@@ -1058,11 +1391,9 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
       isAnonymous
     } = req.body;
 
-    // Validation - for anonymous reviews, we still need some identifier internally
-    const authorName = isAnonymous ? "Anonymous" : (author || "").trim();
-    if (!isAnonymous && (!author || typeof author !== "string" || author.trim().length < 2)) {
-      return res.status(400).json({ error: "Valid author name is required (min 2 characters)" });
-    }
+    // Get user info from auth token
+    const userId = req.user.id;
+    const authorName = isAnonymous ? "Anonymous" : req.user.username;
 
     if (!rating || typeof rating !== "number" || rating < 1 || rating > 5) {
       return res.status(400).json({ error: "Rating must be between 1 and 5" });
@@ -1093,8 +1424,8 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
       return res.status(400).json({ error: categoryErrors[0] });
     }
 
-    // Verify anti-spam
-    console.log(`[REVIEW] Submitting review for business ${businessId}`);
+    // Verify anti-spam (still required even with auth to prevent spam)
+    console.log(`[REVIEW] Submitting review for business ${businessId} by user ${req.user.username}`);
     console.log(`[REVIEW] reCAPTCHA enabled: ${RECAPTCHA_ENABLED}, token provided: ${!!recaptchaToken}`);
 
     if (RECAPTCHA_ENABLED && recaptchaToken) {
@@ -1123,15 +1454,20 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
       verificationChallenges.delete(verificationId);
     }
 
-    // Create review with new fields
+    // Refresh reviews from blob before adding new review
+    await refreshReviewsFromBlob();
+
+    // Create review with user association
     const review = {
       id: crypto.randomUUID(),
+      userId,  // Associate review with user
       author: authorName,
       isAnonymous: !!isAnonymous,
       rating,
       comment: reviewComment,
       date: new Date().toISOString(),
       helpful: 0,
+      upvotedBy: [], // Track which users have upvoted
       source: 'local',
       // Category ratings
       foodQuality,
@@ -1152,17 +1488,28 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
 
     cache.flushAll();
 
-    res.status(201).json({ message: "Review submitted successfully", review });
+    // Return review without internal fields
+    const publicReview = {
+      ...review,
+      upvotedBy: undefined // Don't expose upvotedBy list
+    };
+
+    res.status(201).json({ message: "Review submitted successfully", review: publicReview });
   } catch (error) {
     console.error('Error submitting review:', error);
     res.status(500).json({ error: "Failed to submit review" });
   }
 });
 
-// Upvote review
-app.post("/api/businesses/:businessId/reviews/:reviewId/upvote", async (req, res) => {
+// Upvote review - REQUIRES AUTHENTICATION
+app.post("/api/businesses/:businessId/reviews/:reviewId/upvote", requireAuth, async (req, res) => {
   try {
     const { businessId, reviewId } = req.params;
+    const userId = req.user.id;
+
+    // Refresh reviews from blob to get latest data
+    await refreshReviewsFromBlob();
+
     const reviews = localReviews.get(businessId);
 
     if (!reviews) {
@@ -1176,9 +1523,29 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/upvote", async (req, res
       return res.status(404).json({ error: "Review not found" });
     }
 
-    review.helpful = (review.helpful || 0) + 1;
-    await saveReviewsAsync();
+    // Initialize upvotedBy array if it doesn't exist (for legacy reviews)
+    if (!review.upvotedBy) {
+      review.upvotedBy = [];
+    }
 
+    // Check if user already upvoted
+    if (review.upvotedBy.includes(userId)) {
+      return res.status(400).json({ error: "You have already upvoted this review", helpful: review.helpful });
+    }
+
+    // Add user to upvotedBy and increment helpful count
+    review.upvotedBy.push(userId);
+    review.helpful = review.upvotedBy.length;
+
+    const saved = await saveReviewsAsync();
+    if (!saved) {
+      // Revert changes if save failed
+      review.upvotedBy = review.upvotedBy.filter(id => id !== userId);
+      review.helpful = review.upvotedBy.length;
+      return res.status(500).json({ error: "Failed to save upvote" });
+    }
+
+    console.log(`[UPVOTE] User ${req.user.username} upvoted review ${reviewId}`);
     res.json({ message: "Upvote recorded", helpful: review.helpful });
   } catch (error) {
     console.error('Error upvoting review:', error);
@@ -1186,10 +1553,15 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/upvote", async (req, res
   }
 });
 
-// Remove upvote from review
-app.post("/api/businesses/:businessId/reviews/:reviewId/remove-upvote", async (req, res) => {
+// Remove upvote from review - REQUIRES AUTHENTICATION
+app.post("/api/businesses/:businessId/reviews/:reviewId/remove-upvote", requireAuth, async (req, res) => {
   try {
     const { businessId, reviewId } = req.params;
+    const userId = req.user.id;
+
+    // Refresh reviews from blob to get latest data
+    await refreshReviewsFromBlob();
+
     const reviews = localReviews.get(businessId);
 
     if (!reviews) return res.status(404).json({ error: "Business not found" });
@@ -1197,9 +1569,29 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/remove-upvote", async (r
     const review = reviews.find(r => r.id === reviewId);
     if (!review) return res.status(404).json({ error: "Review not found" });
 
-    review.helpful = Math.max(0, (review.helpful || 0) - 1);
-    await saveReviewsAsync();
+    // Initialize upvotedBy array if it doesn't exist
+    if (!review.upvotedBy) {
+      review.upvotedBy = [];
+    }
 
+    // Check if user has actually upvoted
+    if (!review.upvotedBy.includes(userId)) {
+      return res.status(400).json({ error: "You have not upvoted this review", helpful: review.helpful });
+    }
+
+    // Remove user from upvotedBy and update helpful count
+    review.upvotedBy = review.upvotedBy.filter(id => id !== userId);
+    review.helpful = review.upvotedBy.length;
+
+    const saved = await saveReviewsAsync();
+    if (!saved) {
+      // Revert changes if save failed
+      review.upvotedBy.push(userId);
+      review.helpful = review.upvotedBy.length;
+      return res.status(500).json({ error: "Failed to remove upvote" });
+    }
+
+    console.log(`[UPVOTE] User ${req.user.username} removed upvote from review ${reviewId}`);
     res.json({ message: "Upvote removed", helpful: review.helpful });
   } catch (error) {
     console.error('Error removing upvote:', error);
@@ -1212,6 +1604,10 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/report", async (req, res
   try {
     const { businessId, reviewId } = req.params;
     const { reason } = req.body;
+
+    // Refresh reviews from blob to get latest data
+    await refreshReviewsFromBlob();
+
     const reviews = localReviews.get(businessId);
 
     if (!reviews) return res.status(404).json({ error: "Business not found" });
@@ -1229,6 +1625,170 @@ app.post("/api/businesses/:businessId/reviews/:reviewId/report", async (req, res
   } catch (error) {
     console.error('Error reporting review:', error);
     res.status(500).json({ error: "Failed to report review" });
+  }
+});
+
+// Edit review - REQUIRES AUTHENTICATION and OWNERSHIP
+app.put("/api/businesses/:businessId/reviews/:reviewId", requireAuth, async (req, res) => {
+  try {
+    const { businessId, reviewId } = req.params;
+    const userId = req.user.id;
+    const {
+      rating,
+      comment,
+      foodQuality,
+      service,
+      cleanliness,
+      atmosphere,
+      isAnonymous
+    } = req.body;
+
+    // Refresh reviews from blob to get latest data
+    await refreshReviewsFromBlob();
+
+    const reviews = localReviews.get(businessId);
+
+    if (!reviews) {
+      return res.status(404).json({ error: "Business not found" });
+    }
+
+    const reviewIndex = reviews.findIndex(r => r.id === reviewId);
+    if (reviewIndex === -1) {
+      return res.status(404).json({ error: "Review not found" });
+    }
+
+    const review = reviews[reviewIndex];
+
+    // Check ownership - user must be the author of the review
+    if (review.userId !== userId) {
+      return res.status(403).json({ error: "You can only edit your own reviews" });
+    }
+
+    // Validate rating if provided
+    if (rating !== undefined) {
+      if (typeof rating !== "number" || rating < 1 || rating > 5) {
+        return res.status(400).json({ error: "Rating must be between 1 and 5" });
+      }
+      review.rating = rating;
+    }
+
+    // Update comment if provided
+    if (comment !== undefined) {
+      review.comment = (typeof comment === "string") ? comment.trim() : "";
+    }
+
+    // Validate and update category ratings if provided
+    const validateCategoryRating = (val) => {
+      return val !== undefined && (typeof val !== "number" || val < 1 || val > 5);
+    };
+
+    if (foodQuality !== undefined) {
+      if (validateCategoryRating(foodQuality)) {
+        return res.status(400).json({ error: "Food quality rating must be between 1 and 5" });
+      }
+      review.foodQuality = foodQuality;
+    }
+
+    if (service !== undefined) {
+      if (validateCategoryRating(service)) {
+        return res.status(400).json({ error: "Service rating must be between 1 and 5" });
+      }
+      review.service = service;
+    }
+
+    if (cleanliness !== undefined) {
+      if (validateCategoryRating(cleanliness)) {
+        return res.status(400).json({ error: "Cleanliness rating must be between 1 and 5" });
+      }
+      review.cleanliness = cleanliness;
+    }
+
+    if (atmosphere !== undefined) {
+      if (validateCategoryRating(atmosphere)) {
+        return res.status(400).json({ error: "Atmosphere rating must be between 1 and 5" });
+      }
+      review.atmosphere = atmosphere;
+    }
+
+    // Update anonymous status if provided
+    if (isAnonymous !== undefined) {
+      review.isAnonymous = !!isAnonymous;
+      review.author = review.isAnonymous ? "Anonymous" : req.user.username;
+    }
+
+    // Mark as edited
+    review.editedAt = new Date().toISOString();
+
+    // Save changes
+    const saved = await saveReviewsAsync();
+    if (!saved) {
+      return res.status(500).json({ error: "Failed to save changes" });
+    }
+
+    console.log(`[REVIEW] User ${req.user.username} edited review ${reviewId}`);
+
+    // Return updated review without internal fields
+    const publicReview = {
+      ...review,
+      upvotedBy: undefined
+    };
+
+    res.json({ message: "Review updated successfully", review: publicReview });
+  } catch (error) {
+    console.error('Error editing review:', error);
+    res.status(500).json({ error: "Failed to edit review" });
+  }
+});
+
+// Delete review - REQUIRES AUTHENTICATION and OWNERSHIP
+app.delete("/api/businesses/:businessId/reviews/:reviewId", requireAuth, async (req, res) => {
+  try {
+    const { businessId, reviewId } = req.params;
+    const userId = req.user.id;
+
+    // Refresh reviews from blob to get latest data
+    await refreshReviewsFromBlob();
+
+    const reviews = localReviews.get(businessId);
+
+    if (!reviews) {
+      return res.status(404).json({ error: "Business not found" });
+    }
+
+    const reviewIndex = reviews.findIndex(r => r.id === reviewId);
+    if (reviewIndex === -1) {
+      return res.status(404).json({ error: "Review not found" });
+    }
+
+    const review = reviews[reviewIndex];
+
+    // Check ownership - user must be the author of the review
+    if (review.userId !== userId) {
+      return res.status(403).json({ error: "You can only delete your own reviews" });
+    }
+
+    // Remove the review
+    reviews.splice(reviewIndex, 1);
+    localReviews.set(businessId, reviews);
+
+    // Save changes
+    const saved = await saveReviewsAsync();
+    if (!saved) {
+      // Restore the review if save failed
+      reviews.splice(reviewIndex, 0, review);
+      localReviews.set(businessId, reviews);
+      return res.status(500).json({ error: "Failed to delete review" });
+    }
+
+    // Clear cache
+    cache.flushAll();
+
+    console.log(`[REVIEW] User ${req.user.username} deleted review ${reviewId}`);
+
+    res.json({ message: "Review deleted successfully" });
+  } catch (error) {
+    console.error('Error deleting review:', error);
+    res.status(500).json({ error: "Failed to delete review" });
   }
 });
 

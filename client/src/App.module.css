@@ -2781,3 +2781,283 @@
   margin-bottom: var(--space-4);
   border: 1px solid #fcd34d;
 }
+
+/* ========================================
+   AUTHENTICATION STYLES
+   ======================================== */
+
+/* User Menu in Header */
+.userMenu {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.username {
+  color: var(--color-gray-700);
+  font-weight: 500;
+  font-size: var(--text-sm);
+}
+
+.authButtons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.authButtonSignup {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  border: none;
+  background: var(--color-primary);
+  color: white;
+}
+
+.authButtonSignup:hover {
+  background: var(--color-primary-dark, #1e40af);
+  transform: translateY(-1px);
+}
+
+/* Auth Container */
+.authContainer {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: var(--space-8) var(--space-4);
+  min-height: 60vh;
+}
+
+.authCard {
+  background: var(--color-white);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-8);
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid var(--color-gray-200);
+}
+
+.authTitle {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--color-gray-900);
+  margin: 0 0 var(--space-2) 0;
+  text-align: center;
+}
+
+.authSubtitle {
+  font-size: var(--text-sm);
+  color: var(--color-gray-600);
+  text-align: center;
+  margin-bottom: var(--space-6);
+}
+
+.authError {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.authForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.authSubmitBtn {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: var(--space-2);
+}
+
+.authSubmitBtn:hover {
+  background: var(--color-primary-dark, #1e40af);
+  transform: translateY(-1px);
+}
+
+.authSwitch {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-gray-600);
+  margin-top: var(--space-6);
+}
+
+.authSwitchLink {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: var(--text-sm);
+}
+
+.authSwitchLink:hover {
+  color: var(--color-primary-dark, #1e40af);
+}
+
+.inputHint {
+  font-size: var(--text-xs);
+  color: var(--color-gray-500);
+  margin-top: var(--space-1);
+}
+
+/* Posting As Indicator in Review Form */
+.postingAs {
+  background: var(--color-gray-100);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--color-gray-700);
+  margin-bottom: var(--space-2);
+}
+
+.postingAs strong {
+  color: var(--color-primary);
+}
+
+/* Your Review Badge */
+.yourReviewBadge {
+  display: inline-block;
+  background: var(--color-primary);
+  color: white;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
+/* Review Edit/Delete Buttons */
+.editButton,
+.deleteButton {
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--text-xs);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.editButton {
+  background: var(--color-gray-100);
+  border: 1px solid var(--color-gray-300);
+  color: var(--color-gray-700);
+}
+
+.editButton:hover {
+  background: var(--color-gray-200);
+  border-color: var(--color-gray-400);
+}
+
+.deleteButton {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+}
+
+.deleteButton:hover {
+  background: #fee2e2;
+  border-color: #f87171;
+}
+
+/* Review Edited Indicator */
+.reviewEdited {
+  font-size: var(--text-xs);
+  color: var(--color-gray-500);
+  font-style: italic;
+  margin: var(--space-1) 0;
+}
+
+/* Edit Review Form */
+.editReviewForm {
+  padding: var(--space-4);
+  background: var(--color-gray-50);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-gray-200);
+}
+
+.editFormTitle {
+  font-size: var(--text-base);
+  font-weight: 600;
+  margin: 0 0 var(--space-4) 0;
+  color: var(--color-gray-800);
+}
+
+.formButtons {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.submitBtn {
+  flex: 1;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.submitBtn:hover {
+  background: var(--color-primary-dark, #1e40af);
+}
+
+.cancelBtn {
+  flex: 1;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-gray-100);
+  color: var(--color-gray-700);
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancelBtn:hover {
+  background: var(--color-gray-200);
+}
+
+/* Responsive Auth Styles */
+@media (max-width: 480px) {
+  .authCard {
+    padding: var(--space-6);
+  }
+
+  .userMenu {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .authButtons {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .formButtons {
+    flex-direction: column;
+  }
+}

@@ -3,12 +3,12 @@ import styles from "./App.module.css";
 
 // Use relative path in production (same domain), localhost in development
 // Always use relative path in production to avoid CORS and work on any domain (preview/production)
-const API_URL = import.meta.env.DEV 
+const API_URL = import.meta.env.DEV
   ? "http://localhost:3001/api"
   : "/api";
 
 function App() {
-  const [view, setView] = useState("home"); // home, business, favorites
+  const [view, setView] = useState("home"); // home, business, favorites, login, signup
   const [businesses, setBusinesses] = useState([]);
   const [filteredBusinesses, setFilteredBusinesses] = useState([]);
   const [selectedBusiness, setSelectedBusiness] = useState(null);
@@ -20,7 +20,19 @@ function App() {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
-  
+
+  // Authentication state
+  const [user, setUser] = useState(null);
+  const [authToken, setAuthToken] = useState(() => {
+    return localStorage.getItem("locallink_auth_token");
+  });
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState("");
+
+  // Auth forms
+  const [loginForm, setLoginForm] = useState({ username: "", password: "" });
+  const [signupForm, setSignupForm] = useState({ username: "", password: "", confirmPassword: "" });
+
   // Filters
   const [category, setCategory] = useState("All");
   const [selectedTag, setSelectedTag] = useState("All");
@@ -32,7 +44,6 @@ function App() {
 
   // Review form
   const [reviewForm, setReviewForm] = useState({
-    author: "",
     rating: 5,
     comment: "",
     verificationId: "",
@@ -49,6 +60,18 @@ function App() {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [recaptchaConfig, setRecaptchaConfig] = useState({ recaptchaEnabled: false, recaptchaSiteKey: null });
   const [recaptchaLoaded, setRecaptchaLoaded] = useState(false);
+
+  // Edit review state
+  const [editingReview, setEditingReview] = useState(null);
+  const [editForm, setEditForm] = useState({
+    rating: 5,
+    comment: "",
+    foodQuality: 3,
+    service: 3,
+    cleanliness: 3,
+    atmosphere: 3,
+    isAnonymous: false
+  });
 
   // Review sorting and interactions
   const [reviewSortBy, setReviewSortBy] = useState("relevant");
@@ -72,6 +95,130 @@ function App() {
 
   // Track if initial URL has been processed
   const [urlInitialized, setUrlInitialized] = useState(false);
+
+  // Helper to get auth headers
+  const getAuthHeaders = () => {
+    if (!authToken) return {};
+    return { Authorization: `Bearer ${authToken}` };
+  };
+
+  // Verify token on mount and fetch user info
+  useEffect(() => {
+    const verifyAuth = async () => {
+      if (!authToken) {
+        setAuthLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`${API_URL}/auth/me`, {
+          headers: getAuthHeaders()
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data.user);
+        } else {
+          // Token invalid, clear it
+          localStorage.removeItem("locallink_auth_token");
+          setAuthToken(null);
+          setUser(null);
+        }
+      } catch (error) {
+        console.error("Auth verification error:", error);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    verifyAuth();
+  }, [authToken]);
+
+  // Handle login
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setAuthError("");
+
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(loginForm)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAuthError(data.error || "Login failed");
+        return;
+      }
+
+      // Save token and user
+      localStorage.setItem("locallink_auth_token", data.token);
+      setAuthToken(data.token);
+      setUser(data.user);
+      setLoginForm({ username: "", password: "" });
+      setView("home");
+    } catch (error) {
+      console.error("Login error:", error);
+      setAuthError("Login failed. Please try again.");
+    }
+  };
+
+  // Handle signup
+  const handleSignup = async (e) => {
+    e.preventDefault();
+    setAuthError("");
+
+    // Client-side validation
+    if (signupForm.username.length < 3) {
+      setAuthError("Username must be at least 3 characters long");
+      return;
+    }
+    if (signupForm.password.length < 6) {
+      setAuthError("Password must be at least 6 characters long");
+      return;
+    }
+    if (signupForm.password !== signupForm.confirmPassword) {
+      setAuthError("Passwords do not match");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/auth/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(signupForm)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setAuthError(data.error || "Signup failed");
+        return;
+      }
+
+      // Save token and user
+      localStorage.setItem("locallink_auth_token", data.token);
+      setAuthToken(data.token);
+      setUser(data.user);
+      setSignupForm({ username: "", password: "", confirmPassword: "" });
+      setView("home");
+    } catch (error) {
+      console.error("Signup error:", error);
+      setAuthError("Signup failed. Please try again.");
+    }
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem("locallink_auth_token");
+    setAuthToken(null);
+    setUser(null);
+    // Clear user-specific upvotes from localStorage
+    localStorage.removeItem("locallink_upvoted_reviews");
+    setUpvotedReviews([]);
+  };
 
   // URL Routing: Parse URL on initial load
   useEffect(() => {
@@ -397,6 +544,13 @@ function App() {
   const submitReview = async (e) => {
     e.preventDefault();
 
+    // Check if user is logged in
+    if (!user) {
+      alert("Please log in to submit a review.");
+      setView("login");
+      return;
+    }
+
     // Get reCAPTCHA token if available
     let recaptchaToken = "";
     const recaptchaAvailable = window.grecaptcha && recaptchaConfig.recaptchaSiteKey;
@@ -423,13 +577,21 @@ function App() {
 
       const res = await fetch(`${API_URL}/businesses/${selectedBusiness.id}/reviews`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders()
+        },
         body: JSON.stringify(submitData)
       });
 
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 401) {
+          alert("Please log in to submit a review.");
+          setView("login");
+          return;
+        }
         alert(data.error || "Failed to submit review");
         // Reset reCAPTCHA on error
         if (window.grecaptcha) {
@@ -451,7 +613,6 @@ function App() {
       }
 
       setReviewForm({
-        author: "",
         rating: 5,
         comment: "",
         verificationId: "",
@@ -487,6 +648,13 @@ function App() {
 
   // Upvote or remove upvote from a review
   const upvoteReview = async (reviewId) => {
+    // Check if user is logged in
+    if (!user) {
+      alert("Please log in to upvote reviews.");
+      setView("login");
+      return;
+    }
+
     const alreadyUpvoted = upvotedReviews.includes(reviewId);
 
     // Optimistically update the UI first
@@ -515,19 +683,40 @@ function App() {
 
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" }
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders()
+        }
       });
+
+      const data = await res.json();
 
       if (!res.ok) {
         // Revert optimistic update on failure
-        console.error("Failed to toggle upvote, reverting");
+        console.error("Failed to toggle upvote:", data.error);
+        if (res.status === 401) {
+          alert("Please log in to upvote reviews.");
+          setView("login");
+        } else if (res.status === 400) {
+          // Already upvoted/not upvoted - sync state from server
+          console.log("Syncing upvote state from server:", data.helpful);
+        }
+        // Revert UI state
         if (alreadyUpvoted) {
           setUpvotedReviews(prev => [...prev, reviewId]);
         } else {
           setUpvotedReviews(prev => prev.filter(id => id !== reviewId));
         }
+        // Update with server's helpful count
+        if (data.helpful !== undefined) {
+          setSelectedBusiness(prev => ({
+            ...prev,
+            reviews: (prev.reviews || []).map(r =>
+              r.id === reviewId ? { ...r, helpful: data.helpful } : r
+            )
+          }));
+        }
       }
-      // Don't fetch - trust the optimistic update
     } catch (err) {
       console.error("Failed to toggle upvote:", err);
       // Revert optimistic update on error
@@ -536,6 +725,104 @@ function App() {
       } else {
         setUpvotedReviews(prev => prev.filter(id => id !== reviewId));
       }
+    }
+  };
+
+  // Edit a review
+  const startEditReview = (review) => {
+    setEditingReview(review);
+    setEditForm({
+      rating: review.rating,
+      comment: review.comment || "",
+      foodQuality: review.foodQuality || 3,
+      service: review.service || 3,
+      cleanliness: review.cleanliness || 3,
+      atmosphere: review.atmosphere || 3,
+      isAnonymous: review.isAnonymous || false
+    });
+  };
+
+  const cancelEditReview = () => {
+    setEditingReview(null);
+    setEditForm({
+      rating: 5,
+      comment: "",
+      foodQuality: 3,
+      service: 3,
+      cleanliness: 3,
+      atmosphere: 3,
+      isAnonymous: false
+    });
+  };
+
+  const submitEditReview = async (e) => {
+    e.preventDefault();
+
+    if (!editingReview) return;
+
+    try {
+      const res = await fetch(`${API_URL}/businesses/${selectedBusiness.id}/reviews/${editingReview.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify(editForm)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Failed to update review");
+        return;
+      }
+
+      // Update the review in the UI
+      setSelectedBusiness(prev => ({
+        ...prev,
+        reviews: (prev.reviews || []).map(r =>
+          r.id === editingReview.id ? data.review : r
+        )
+      }));
+
+      alert("Review updated successfully!");
+      cancelEditReview();
+    } catch (err) {
+      console.error("Failed to update review:", err);
+      alert("Failed to update review. Please try again.");
+    }
+  };
+
+  // Delete a review
+  const deleteReview = async (reviewId) => {
+    if (!window.confirm("Are you sure you want to delete this review? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/businesses/${selectedBusiness.id}/reviews/${reviewId}`, {
+        method: "DELETE",
+        headers: getAuthHeaders()
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Failed to delete review");
+        return;
+      }
+
+      // Remove the review from the UI
+      setSelectedBusiness(prev => ({
+        ...prev,
+        reviews: (prev.reviews || []).filter(r => r.id !== reviewId),
+        reviewCount: Math.max(0, (prev.reviewCount || 0) - 1)
+      }));
+
+      alert("Review deleted successfully!");
+    } catch (err) {
+      console.error("Failed to delete review:", err);
+      alert("Failed to delete review. Please try again.");
     }
   };
 
@@ -817,6 +1104,33 @@ function App() {
             >
               Favorites ({favorites.length})
             </button>
+            {user ? (
+              <div className={styles.userMenu}>
+                <span className={styles.username}>Hi, {user.username}</span>
+                <button
+                  className={styles.navButton}
+                  onClick={handleLogout}
+                  aria-label="Log out"
+                >
+                  Log Out
+                </button>
+              </div>
+            ) : (
+              <div className={styles.authButtons}>
+                <button
+                  className={view === "login" ? styles.navButtonActive : styles.navButton}
+                  onClick={() => { setView("login"); setAuthError(""); }}
+                >
+                  Log In
+                </button>
+                <button
+                  className={view === "signup" ? styles.authButtonSignup : styles.authButtonSignup}
+                  onClick={() => { setView("signup"); setAuthError(""); }}
+                >
+                  Sign Up
+                </button>
+              </div>
+            )}
           </nav>
         </div>
       </header>
@@ -1282,9 +1596,19 @@ function App() {
                         </select>
                       )}
                       {!showReviewForm && (
-                        <button onClick={startReview} className={styles.btnPrimary}>
-                          Write a Review
-                        </button>
+                        user ? (
+                          <button onClick={startReview} className={styles.btnPrimary}>
+                            Write a Review
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setView("login")}
+                            className={styles.btnPrimary}
+                            title="Log in to write a review"
+                          >
+                            Log in to Review
+                          </button>
+                        )
                       )}
                     </div>
                   </div>
@@ -1299,6 +1623,12 @@ function App() {
                         </p>
                       )}
 
+                      {/* Posting as info */}
+                      <div className={styles.postingAs}>
+                        <span>Posting as: </span>
+                        <strong>{reviewForm.isAnonymous ? "Anonymous" : user?.username}</strong>
+                      </div>
+
                       {/* Anonymous checkbox */}
                       <label className={styles.anonymousCheckbox}>
                         <input
@@ -1306,20 +1636,8 @@ function App() {
                           checked={reviewForm.isAnonymous}
                           onChange={e => setReviewForm(prev => ({ ...prev, isAnonymous: e.target.checked }))}
                         />
-                        <span>Post anonymously</span>
+                        <span>Post anonymously (hide your username)</span>
                       </label>
-
-                      {!reviewForm.isAnonymous && (
-                        <input
-                          type="text"
-                          placeholder="Your name"
-                          value={reviewForm.author}
-                          onChange={e => setReviewForm(prev => ({ ...prev, author: e.target.value }))}
-                          className={styles.input}
-                          aria-label="Your name"
-                          required
-                        />
-                      )}
 
                       <div className={styles.formGroup}>
                         <label className={styles.label} htmlFor="rating-slider">
@@ -1523,80 +1841,213 @@ function App() {
                         This is a new listing. Be the first to share your experience!
                       </p>
                       {!showReviewForm && (
-                        <button onClick={startReview} className={styles.btnAccent}>
-                          Write the First Review
-                        </button>
+                        user ? (
+                          <button onClick={startReview} className={styles.btnAccent}>
+                            Write the First Review
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => setView("login")}
+                            className={styles.btnAccent}
+                            title="Log in to write a review"
+                          >
+                            Log in to Write the First Review
+                          </button>
+                        )
                       )}
                     </div>
                   ) : (
                     <div className={styles.reviewsList}>
                       {getSortedReviews(selectedBusiness.reviews).map(review => (
                         <div key={review.id} className={styles.reviewItem}>
-                          <div className={styles.reviewHeader}>
-                            <strong className={styles.reviewAuthor}>
-                              {review.isAnonymous ? "Anonymous" : review.author}
-                            </strong>
-                            <div className={styles.reviewRating}>
-                              {"⭐".repeat(review.rating)}
-                            </div>
-                          </div>
+                          {/* Edit form for this review */}
+                          {editingReview && editingReview.id === review.id ? (
+                            <form onSubmit={submitEditReview} className={styles.editReviewForm}>
+                              <h4 className={styles.editFormTitle}>Edit Your Review</h4>
 
-                          {/* Individual Category Ratings */}
-                          {(review.foodQuality || review.service || review.cleanliness || review.atmosphere) && (
-                            <div className={styles.reviewCategoryRatings}>
-                              {review.foodQuality && (
-                                <span className={styles.reviewCategoryBadge}>
-                                  Food: {review.foodQuality}/5
-                                </span>
+                              <div className={styles.formGroup}>
+                                <label className={styles.label}>
+                                  Overall Rating: {editForm.rating} ⭐
+                                </label>
+                                <input
+                                  type="range"
+                                  min="1"
+                                  max="5"
+                                  value={editForm.rating}
+                                  onChange={(e) => setEditForm(prev => ({ ...prev, rating: parseInt(e.target.value) }))}
+                                  className={styles.slider}
+                                />
+                              </div>
+
+                              <div className={styles.categoryRatingsForm}>
+                                <div className={styles.categoryRatingsGrid}>
+                                  <div className={styles.categoryRatingItem}>
+                                    <label className={styles.categoryLabel}>Food Quality: {editForm.foodQuality}/5</label>
+                                    <input
+                                      type="range"
+                                      min="1"
+                                      max="5"
+                                      value={editForm.foodQuality}
+                                      onChange={(e) => setEditForm(prev => ({ ...prev, foodQuality: parseInt(e.target.value) }))}
+                                      className={styles.categorySlider}
+                                    />
+                                  </div>
+                                  <div className={styles.categoryRatingItem}>
+                                    <label className={styles.categoryLabel}>Service: {editForm.service}/5</label>
+                                    <input
+                                      type="range"
+                                      min="1"
+                                      max="5"
+                                      value={editForm.service}
+                                      onChange={(e) => setEditForm(prev => ({ ...prev, service: parseInt(e.target.value) }))}
+                                      className={styles.categorySlider}
+                                    />
+                                  </div>
+                                  <div className={styles.categoryRatingItem}>
+                                    <label className={styles.categoryLabel}>Cleanliness: {editForm.cleanliness}/5</label>
+                                    <input
+                                      type="range"
+                                      min="1"
+                                      max="5"
+                                      value={editForm.cleanliness}
+                                      onChange={(e) => setEditForm(prev => ({ ...prev, cleanliness: parseInt(e.target.value) }))}
+                                      className={styles.categorySlider}
+                                    />
+                                  </div>
+                                  <div className={styles.categoryRatingItem}>
+                                    <label className={styles.categoryLabel}>Atmosphere: {editForm.atmosphere}/5</label>
+                                    <input
+                                      type="range"
+                                      min="1"
+                                      max="5"
+                                      value={editForm.atmosphere}
+                                      onChange={(e) => setEditForm(prev => ({ ...prev, atmosphere: parseInt(e.target.value) }))}
+                                      className={styles.categorySlider}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <textarea
+                                value={editForm.comment}
+                                onChange={(e) => setEditForm(prev => ({ ...prev, comment: e.target.value }))}
+                                className={styles.textarea}
+                                rows={3}
+                                placeholder="Your review (optional)"
+                              />
+
+                              <label className={styles.anonymousCheckbox}>
+                                <input
+                                  type="checkbox"
+                                  checked={editForm.isAnonymous}
+                                  onChange={(e) => setEditForm(prev => ({ ...prev, isAnonymous: e.target.checked }))}
+                                />
+                                <span>Post anonymously</span>
+                              </label>
+
+                              <div className={styles.formButtons}>
+                                <button type="submit" className={styles.submitBtn}>Save Changes</button>
+                                <button type="button" onClick={cancelEditReview} className={styles.cancelBtn}>Cancel</button>
+                              </div>
+                            </form>
+                          ) : (
+                            <>
+                              <div className={styles.reviewHeader}>
+                                <strong className={styles.reviewAuthor}>
+                                  {review.isAnonymous ? "Anonymous" : review.author}
+                                  {user && review.userId === user.id && (
+                                    <span className={styles.yourReviewBadge}>Your Review</span>
+                                  )}
+                                </strong>
+                                <div className={styles.reviewRating}>
+                                  {"⭐".repeat(review.rating)}
+                                </div>
+                              </div>
+
+                              {/* Individual Category Ratings */}
+                              {(review.foodQuality || review.service || review.cleanliness || review.atmosphere) && (
+                                <div className={styles.reviewCategoryRatings}>
+                                  {review.foodQuality && (
+                                    <span className={styles.reviewCategoryBadge}>
+                                      Food: {review.foodQuality}/5
+                                    </span>
+                                  )}
+                                  {review.service && (
+                                    <span className={styles.reviewCategoryBadge}>
+                                      Service: {review.service}/5
+                                    </span>
+                                  )}
+                                  {review.cleanliness && (
+                                    <span className={styles.reviewCategoryBadge}>
+                                      Clean: {review.cleanliness}/5
+                                    </span>
+                                  )}
+                                  {review.atmosphere && (
+                                    <span className={styles.reviewCategoryBadge}>
+                                      Atmosphere: {review.atmosphere}/5
+                                    </span>
+                                  )}
+                                </div>
                               )}
-                              {review.service && (
-                                <span className={styles.reviewCategoryBadge}>
-                                  Service: {review.service}/5
-                                </span>
+
+                              {review.comment && <p className={styles.reviewComment}>{review.comment}</p>}
+
+                              {review.editedAt && (
+                                <p className={styles.reviewEdited}>
+                                  (edited {new Date(review.editedAt).toLocaleDateString()})
+                                </p>
                               )}
-                              {review.cleanliness && (
-                                <span className={styles.reviewCategoryBadge}>
-                                  Clean: {review.cleanliness}/5
-                                </span>
-                              )}
-                              {review.atmosphere && (
-                                <span className={styles.reviewCategoryBadge}>
-                                  Atmosphere: {review.atmosphere}/5
-                                </span>
-                              )}
-                            </div>
+
+                              <div className={styles.reviewFooter}>
+                                <div className={styles.reviewDate}>
+                                  {new Date(review.date).toLocaleDateString()}
+                                </div>
+                                <div className={styles.reviewInteractions}>
+                                  {/* Edit/Delete buttons for own reviews */}
+                                  {user && review.userId === user.id && (
+                                    <>
+                                      <button
+                                        onClick={() => startEditReview(review)}
+                                        className={styles.editButton}
+                                        title="Edit your review"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        onClick={() => deleteReview(review.id)}
+                                        className={styles.deleteButton}
+                                        title="Delete your review"
+                                      >
+                                        Delete
+                                      </button>
+                                    </>
+                                  )}
+                                  <button
+                                    onClick={() => upvoteReview(review.id)}
+                                    className={upvotedReviews.includes(review.id) ? styles.upvoteButtonActive : styles.upvoteButton}
+                                    title={upvotedReviews.includes(review.id) ? "Click to remove your upvote" : "Mark as helpful"}
+                                  >
+                                    <span className={styles.upvoteIcon}>👍</span>
+                                    <span>{review.helpful || 0}</span>
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      const reason = window.prompt(
+                                        "Why are you reporting this review?\n\nOptions:\n- Spam or fake review\n- Inappropriate content\n- Off-topic\n- Other",
+                                        "Inappropriate content"
+                                      );
+                                      if (reason) reportReview(review.id, reason);
+                                    }}
+                                    className={reportedReviews.includes(review.id) ? styles.reportButtonReported : styles.reportButton}
+                                    disabled={reportedReviews.includes(review.id)}
+                                    title={reportedReviews.includes(review.id) ? "You reported this review" : "Report this review"}
+                                  >
+                                    {reportedReviews.includes(review.id) ? "Reported" : "Report"}
+                                  </button>
+                                </div>
+                              </div>
+                            </>
                           )}
-
-                          {review.comment && <p className={styles.reviewComment}>{review.comment}</p>}
-                          <div className={styles.reviewFooter}>
-                            <div className={styles.reviewDate}>
-                              {new Date(review.date).toLocaleDateString()}
-                            </div>
-                            <div className={styles.reviewInteractions}>
-                              <button
-                                onClick={() => upvoteReview(review.id)}
-                                className={upvotedReviews.includes(review.id) ? styles.upvoteButtonActive : styles.upvoteButton}
-                                title={upvotedReviews.includes(review.id) ? "Click to remove your upvote" : "Mark as helpful"}
-                              >
-                                <span className={styles.upvoteIcon}>👍</span>
-                                <span>{review.helpful || 0}</span>
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const reason = window.prompt(
-                                    "Why are you reporting this review?\n\nOptions:\n- Spam or fake review\n- Inappropriate content\n- Off-topic\n- Other",
-                                    "Inappropriate content"
-                                  );
-                                  if (reason) reportReview(review.id, reason);
-                                }}
-                                className={reportedReviews.includes(review.id) ? styles.reportButtonReported : styles.reportButton}
-                                disabled={reportedReviews.includes(review.id)}
-                                title={reportedReviews.includes(review.id) ? "You reported this review" : "Report this review"}
-                              >
-                                {reportedReviews.includes(review.id) ? "Reported" : "Report"}
-                              </button>
-                            </div>
-                          </div>
                         </div>
                       ))}
                     </div>
@@ -1832,6 +2283,153 @@ function App() {
               </div>
             </>
           )}
+        </main>
+      )}
+
+      {/* Login View */}
+      {view === "login" && (
+        <main className={styles.content} id="main-content" role="main">
+          <div className={styles.authContainer}>
+            <div className={styles.authCard}>
+              <h2 className={styles.authTitle}>Log In</h2>
+              <p className={styles.authSubtitle}>Welcome back! Log in to leave reviews and interact with the community.</p>
+
+              {authError && (
+                <div className={styles.authError} role="alert">
+                  {authError}
+                </div>
+              )}
+
+              <form onSubmit={handleLogin} className={styles.authForm}>
+                <div className={styles.formGroup}>
+                  <label htmlFor="login-username" className={styles.label}>Username</label>
+                  <input
+                    id="login-username"
+                    type="text"
+                    value={loginForm.username}
+                    onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
+                    className={styles.input}
+                    placeholder="Enter your username"
+                    required
+                    autoComplete="username"
+                  />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label htmlFor="login-password" className={styles.label}>Password</label>
+                  <input
+                    id="login-password"
+                    type="password"
+                    value={loginForm.password}
+                    onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
+                    className={styles.input}
+                    placeholder="Enter your password"
+                    required
+                    autoComplete="current-password"
+                  />
+                </div>
+
+                <button type="submit" className={styles.authSubmitBtn}>
+                  Log In
+                </button>
+              </form>
+
+              <p className={styles.authSwitch}>
+                Don't have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => { setView("signup"); setAuthError(""); }}
+                  className={styles.authSwitchLink}
+                >
+                  Sign up
+                </button>
+              </p>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* Signup View */}
+      {view === "signup" && (
+        <main className={styles.content} id="main-content" role="main">
+          <div className={styles.authContainer}>
+            <div className={styles.authCard}>
+              <h2 className={styles.authTitle}>Create Account</h2>
+              <p className={styles.authSubtitle}>Join LocalLink to share your experiences and support local businesses.</p>
+
+              {authError && (
+                <div className={styles.authError} role="alert">
+                  {authError}
+                </div>
+              )}
+
+              <form onSubmit={handleSignup} className={styles.authForm}>
+                <div className={styles.formGroup}>
+                  <label htmlFor="signup-username" className={styles.label}>Username</label>
+                  <input
+                    id="signup-username"
+                    type="text"
+                    value={signupForm.username}
+                    onChange={(e) => setSignupForm(prev => ({ ...prev, username: e.target.value }))}
+                    className={styles.input}
+                    placeholder="Choose a username (3-20 characters)"
+                    required
+                    minLength={3}
+                    maxLength={20}
+                    pattern="[a-zA-Z0-9_]+"
+                    title="Username can only contain letters, numbers, and underscores"
+                    autoComplete="username"
+                  />
+                  <p className={styles.inputHint}>Letters, numbers, and underscores only</p>
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label htmlFor="signup-password" className={styles.label}>Password</label>
+                  <input
+                    id="signup-password"
+                    type="password"
+                    value={signupForm.password}
+                    onChange={(e) => setSignupForm(prev => ({ ...prev, password: e.target.value }))}
+                    className={styles.input}
+                    placeholder="Create a password (min 6 characters)"
+                    required
+                    minLength={6}
+                    autoComplete="new-password"
+                  />
+                  <p className={styles.inputHint}>Must be at least 6 characters</p>
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label htmlFor="signup-confirm" className={styles.label}>Confirm Password</label>
+                  <input
+                    id="signup-confirm"
+                    type="password"
+                    value={signupForm.confirmPassword}
+                    onChange={(e) => setSignupForm(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                    className={styles.input}
+                    placeholder="Confirm your password"
+                    required
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                <button type="submit" className={styles.authSubmitBtn}>
+                  Create Account
+                </button>
+              </form>
+
+              <p className={styles.authSwitch}>
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => { setView("login"); setAuthError(""); }}
+                  className={styles.authSwitchLink}
+                >
+                  Log in
+                </button>
+              </p>
+            </div>
+          </div>
         </main>
       )}
 
