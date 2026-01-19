@@ -17,7 +17,6 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
   const [recommendations, setRecommendations] = useState([]);
-  const [trending, setTrending] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -100,15 +99,13 @@ function App() {
         setFilteredBusinesses(bizData);
 
         // Then fetch supporting data in parallel
-        const [trendData, analyticsData, tagsData, verificationConfig, demoStatusData] = await Promise.all([
-          fetchWithRetry(`${API_URL}/trending`, 2, 2000),
+        const [analyticsData, tagsData, verificationConfig, demoStatusData] = await Promise.all([
           fetchWithRetry(`${API_URL}/analytics`, 2, 2000),
           fetchWithRetry(`${API_URL}/tags`, 2, 2000),
           fetchWithRetry(`${API_URL}/verification/config`, 2, 2000),
           fetchWithRetry(`${API_URL}/demo-status`, 2, 2000).catch(() => null)
         ]);
 
-        setTrending(trendData);
         setAnalytics(analyticsData);
         setAvailableTags(tagsData);
         console.log("Verification config loaded:", verificationConfig);
@@ -728,38 +725,6 @@ function App() {
             </section>
           )}
 
-          {/* Trending Section */}
-          {trending.length > 0 && (
-            <section className={styles.section} aria-labelledby="trending-title">
-              <h3 id="trending-title" className={styles.sectionTitle}>Trending Now</h3>
-              <div className={styles.trendingGrid} role="list">
-                {trending.filter(biz => !biz.isChain).slice(0, 3).map(biz => (
-                  <article
-                    key={biz.id}
-                    className={styles.trendingCard}
-                    onClick={() => viewBusiness(biz)}
-                    role="listitem button"
-                    tabIndex={0}
-                    onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
-                    aria-label={`View ${biz.name}`}
-                  >
-                    <img src={biz.image} alt={`${biz.name} storefront`} className={styles.trendingImage} />
-                    <div className={styles.trendingContent}>
-                      <h4 className={styles.trendingName}>{biz.name}</h4>
-                      {biz.rating > 0 ? (
-                        <div className={styles.rating} aria-label={`Rating: ${biz.rating.toFixed(1)} out of 5 stars`}>
-                          ⭐ {biz.rating.toFixed(1)}
-                        </div>
-                      ) : (
-                        <div className={styles.noRating}>No ratings yet</div>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          )}
-
           {/* Local Gems */}
           {localGems.length > 0 && (
             <div className={styles.section}>
@@ -1222,7 +1187,7 @@ function App() {
 
                       {/* Category Ratings Section */}
                       <div className={styles.categoryRatingsForm}>
-                        <h5 className={styles.categoryRatingsTitle}>Rate by Category (Optional)</h5>
+                        <h5 className={styles.categoryRatingsTitle}>Rate by Category</h5>
                         <div className={styles.categoryRatingsGrid}>
                           <div className={styles.categoryRatingItem}>
                             <label className={styles.categoryLabel}>

@@ -905,12 +905,13 @@ app.post("/api/businesses/:id/reviews", async (req, res) => {
       return res.status(400).json({ error: "Comment must be at least 10 characters" });
     }
 
-    // Validate category ratings (optional, but if provided must be 1-5)
+    // Validate category ratings (required, must be 1-5)
     const validateCategoryRating = (val, name) => {
-      if (val !== undefined && val !== null) {
-        if (typeof val !== "number" || val < 1 || val > 5) {
-          return `${name} rating must be between 1 and 5`;
-        }
+      if (val === undefined || val === null) {
+        return `${name} rating is required`;
+      }
+      if (typeof val !== "number" || val < 1 || val > 5) {
+        return `${name} rating must be between 1 and 5`;
       }
       return null;
     };
