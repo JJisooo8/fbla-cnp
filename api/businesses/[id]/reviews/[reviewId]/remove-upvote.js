@@ -1,5 +1,5 @@
-// Explicit Vercel serverless function for /api/businesses/:id/reviews/:reviewId/upvote
-// Handles upvoting a review
+// Explicit Vercel serverless function for /api/businesses/:id/reviews/:reviewId/remove-upvote
+// Handles removing an upvote from a review
 
 import jwt from 'jsonwebtoken';
 import { put, list } from '@vercel/blob';
@@ -85,7 +85,7 @@ export default async function handler(req, res) {
   }
 
   const { id: businessId, reviewId } = req.query;
-  console.log(`[UPVOTE] User ${user.username} upvoting review ${reviewId} for business ${businessId}`);
+  console.log(`[UPVOTE] User ${user.username} removing upvote from review ${reviewId} for business ${businessId}`);
 
   try {
     // Load reviews
@@ -106,28 +106,28 @@ export default async function handler(req, res) {
       review.upvotedBy = [];
     }
 
-    // Check if user already upvoted
-    if (review.upvotedBy.includes(user.id)) {
-      return res.status(400).json({ error: 'You have already upvoted this review.', helpful: review.helpful });
+    // Check if user has actually upvoted
+    if (!review.upvotedBy.includes(user.id)) {
+      return res.status(400).json({ error: 'You have not upvoted this review.', helpful: review.helpful });
     }
 
-    // Add user to upvotedBy and increment helpful count
-    review.upvotedBy.push(user.id);
+    // Remove user from upvotedBy and update helpful count
+    review.upvotedBy = review.upvotedBy.filter(id => id !== user.id);
     review.helpful = review.upvotedBy.length;
 
     // Save
     const saved = await saveReviews(localReviews);
     if (!saved) {
       // Revert changes
-      review.upvotedBy = review.upvotedBy.filter(id => id !== user.id);
+      review.upvotedBy.push(user.id);
       review.helpful = review.upvotedBy.length;
-      return res.status(500).json({ error: 'Failed to save upvote.' });
+      return res.status(500).json({ error: 'Failed to remove upvote.' });
     }
 
-    console.log(`[UPVOTE] User ${user.username} upvoted review ${reviewId}`);
-    res.status(200).json({ message: 'Upvote recorded.', helpful: review.helpful });
+    console.log(`[UPVOTE] User ${user.username} removed upvote from review ${reviewId}`);
+    res.status(200).json({ message: 'Upvote removed.', helpful: review.helpful });
   } catch (error) {
     console.error('[UPVOTE] Error:', error.message, error.stack);
-    res.status(500).json({ error: 'Failed to upvote review.' });
+    res.status(500).json({ error: 'Failed to remove upvote.' });
   }
 }

@@ -111,6 +111,12 @@ function App() {
   // Scroll position management
   const [savedScrollPosition, setSavedScrollPosition] = useState(0);
 
+  // Pagination state
+  const [reviewPage, setReviewPage] = useState(1);
+  const [businessPage, setBusinessPage] = useState(1);
+  const REVIEWS_PER_PAGE = 3;
+  const BUSINESSES_PER_PAGE = 12;
+
   // Copy button state management
   const [copiedField, setCopiedField] = useState(null);
 
@@ -507,6 +513,11 @@ function App() {
     </svg>
   );
 
+  // Reset business page when filters change
+  useEffect(() => {
+    setBusinessPage(1);
+  }, [category, selectedTag, searchTerm, minRating, showDealsOnly, sortBy]);
+
   // Deduplicate chain businesses for front page display
   // Only show one instance of each chain unless user is searching
   const deduplicateChains = (businesses) => {
@@ -545,6 +556,7 @@ function App() {
     setView("business");
     setShowReviewForm(false);
     setDetailLoading(true);
+    setReviewPage(1); // Reset review pagination when viewing new business
 
     // Scroll to top when opening business panel
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -1398,7 +1410,13 @@ function App() {
                 No businesses found. Try adjusting your filters.
               </div>
             ) : (
-              deduplicateChains(filteredBusinesses).map(biz => (
+              (() => {
+                const allBusinesses = deduplicateChains(filteredBusinesses);
+                const totalBusinessPages = Math.ceil(allBusinesses.length / BUSINESSES_PER_PAGE);
+                const startIdx = (businessPage - 1) * BUSINESSES_PER_PAGE;
+                const paginatedBusinesses = allBusinesses.slice(startIdx, startIdx + BUSINESSES_PER_PAGE);
+
+                return paginatedBusinesses.map(biz => (
                 <article
                   key={biz.id}
                   className={styles.businessCard}
@@ -1464,9 +1482,76 @@ function App() {
                     </button>
                   </div>
                 </article>
-              ))
+              ));
+              })()
             )}
           </section>
+
+          {/* Business Pagination Controls */}
+          {filteredBusinesses.length > BUSINESSES_PER_PAGE && (
+            <div className={styles.paginationControls} style={{ marginTop: 'var(--space-6)', marginBottom: 'var(--space-6)' }}>
+              <button
+                onClick={() => {
+                  setBusinessPage(p => Math.max(1, p - 1));
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                disabled={businessPage === 1}
+                className={styles.paginationBtn}
+              >
+                Previous
+              </button>
+              <div className={styles.paginationNumbers}>
+                {(() => {
+                  const totalPages = Math.ceil(deduplicateChains(filteredBusinesses).length / BUSINESSES_PER_PAGE);
+                  const pages = [];
+
+                  // Always show first page
+                  if (totalPages > 0) pages.push(1);
+
+                  // Show ellipsis if needed
+                  if (businessPage > 3) pages.push('...');
+
+                  // Show pages around current page
+                  for (let i = Math.max(2, businessPage - 1); i <= Math.min(totalPages - 1, businessPage + 1); i++) {
+                    if (!pages.includes(i)) pages.push(i);
+                  }
+
+                  // Show ellipsis if needed
+                  if (businessPage < totalPages - 2) pages.push('...');
+
+                  // Always show last page
+                  if (totalPages > 1 && !pages.includes(totalPages)) pages.push(totalPages);
+
+                  return pages.map((page, idx) => (
+                    page === '...' ? (
+                      <span key={`ellipsis-${idx}`} className={styles.paginationEllipsis}>...</span>
+                    ) : (
+                      <button
+                        key={page}
+                        onClick={() => {
+                          setBusinessPage(page);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className={businessPage === page ? styles.paginationBtnActive : styles.paginationBtn}
+                      >
+                        {page}
+                      </button>
+                    )
+                  ));
+                })()}
+              </div>
+              <button
+                onClick={() => {
+                  setBusinessPage(p => Math.min(Math.ceil(deduplicateChains(filteredBusinesses).length / BUSINESSES_PER_PAGE), p + 1));
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                disabled={businessPage >= Math.ceil(deduplicateChains(filteredBusinesses).length / BUSINESSES_PER_PAGE)}
+                className={styles.paginationBtn}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </main>
       )}
 
@@ -1475,12 +1560,16 @@ function App() {
         <>
           <button
             onClick={() => {
+              const targetScroll = savedScrollPosition;
               setSelectedBusiness(null);
               setView("home");
-              // Restore scroll position after view change
-              setTimeout(() => {
-                window.scrollTo({ top: savedScrollPosition, behavior: 'instant' });
-              }, 50);
+              // Restore scroll position after view change using requestAnimationFrame
+              // for better reliability across different render speeds
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  window.scrollTo({ top: targetScroll, behavior: 'instant' });
+                });
+              });
             }}
             className={styles.backButton}
             style={{ margin: 'var(--space-4)' }}
@@ -1925,7 +2014,13 @@ function App() {
                     </div>
                   ) : (
                     <div className={styles.reviewsList}>
-                      {getSortedReviews(selectedBusiness.reviews).map(review => (
+                      {(() => {
+                        const sortedReviews = getSortedReviews(selectedBusiness.reviews);
+                        const totalReviewPages = Math.ceil(sortedReviews.length / REVIEWS_PER_PAGE);
+                        const startIndex = (reviewPage - 1) * REVIEWS_PER_PAGE;
+                        const paginatedReviews = sortedReviews.slice(startIndex, startIndex + REVIEWS_PER_PAGE);
+
+                        return paginatedReviews.map(review => (
                         <div key={review.id} className={styles.reviewItem}>
                           {/* Edit form for this review */}
                           {editingReview && editingReview.id === review.id ? (
@@ -2116,7 +2211,65 @@ function App() {
                             </>
                           )}
                         </div>
-                      ))}
+                      ));
+                      })()}
+
+                      {/* Review Pagination Controls */}
+                      {selectedBusiness.reviews.length > REVIEWS_PER_PAGE && (
+                        <div className={styles.paginationControls}>
+                          <button
+                            onClick={() => setReviewPage(p => Math.max(1, p - 1))}
+                            disabled={reviewPage === 1}
+                            className={styles.paginationBtn}
+                          >
+                            Previous
+                          </button>
+                          <div className={styles.paginationNumbers}>
+                            {(() => {
+                              const totalPages = Math.ceil(selectedBusiness.reviews.length / REVIEWS_PER_PAGE);
+                              const pages = [];
+
+                              // Always show first page
+                              if (totalPages > 0) pages.push(1);
+
+                              // Show ellipsis if needed
+                              if (reviewPage > 3) pages.push('...');
+
+                              // Show pages around current page
+                              for (let i = Math.max(2, reviewPage - 1); i <= Math.min(totalPages - 1, reviewPage + 1); i++) {
+                                if (!pages.includes(i)) pages.push(i);
+                              }
+
+                              // Show ellipsis if needed
+                              if (reviewPage < totalPages - 2) pages.push('...');
+
+                              // Always show last page
+                              if (totalPages > 1 && !pages.includes(totalPages)) pages.push(totalPages);
+
+                              return pages.map((page, idx) => (
+                                page === '...' ? (
+                                  <span key={`ellipsis-${idx}`} className={styles.paginationEllipsis}>...</span>
+                                ) : (
+                                  <button
+                                    key={page}
+                                    onClick={() => setReviewPage(page)}
+                                    className={reviewPage === page ? styles.paginationBtnActive : styles.paginationBtn}
+                                  >
+                                    {page}
+                                  </button>
+                                )
+                              ));
+                            })()}
+                          </div>
+                          <button
+                            onClick={() => setReviewPage(p => Math.min(Math.ceil(selectedBusiness.reviews.length / REVIEWS_PER_PAGE), p + 1))}
+                            disabled={reviewPage >= Math.ceil(selectedBusiness.reviews.length / REVIEWS_PER_PAGE)}
+                            className={styles.paginationBtn}
+                          >
+                            Next
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
