@@ -212,6 +212,34 @@ async function saveReviewsAsync() {
   }
 }
 
+// Lightweight refresh from Blob - used to get latest reviews on single business requests
+async function refreshReviewsFromBlob() {
+  if (!USE_VERCEL_BLOB) return;
+
+  try {
+    const { blobs } = await list({ prefix: REVIEWS_BLOB_NAME });
+    const reviewsBlob = blobs.find(b => b.pathname === REVIEWS_BLOB_NAME) ||
+                        blobs.find(b => b.pathname.includes(REVIEWS_BLOB_NAME));
+
+    if (reviewsBlob) {
+      const response = await fetch(reviewsBlob.url);
+      if (response.ok) {
+        const text = await response.text();
+        if (text.trim()) {
+          const data = JSON.parse(text);
+          if (Array.isArray(data)) {
+            localReviews = new Map(data);
+            reviewsBlobUrl = reviewsBlob.url;
+            console.log(`[BLOB] Refreshed ${localReviews.size} business review sets`);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[BLOB] Error refreshing reviews:', error.message);
+  }
+}
+
 // Synchronous fallback for initial load (file only)
 function loadReviewsSync() {
   try {
@@ -991,6 +1019,9 @@ app.get("/api/businesses/:id", async (req, res) => {
     if (!business.image) {
       business.image = getCategoryImage(business.category);
     }
+
+    // Refresh reviews from Blob to ensure latest data
+    await refreshReviewsFromBlob();
 
     // Get fresh reviews
     const localReviewSummary = getLocalReviewSummary(businessId);
