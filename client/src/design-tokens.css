@@ -15,6 +15,10 @@
   --color-primary-500: #2a6bb8;    /* Lighter blue - hover states */
   --color-primary-100: #e3f2fd;    /* Light blue - backgrounds */
 
+  /* Convenience aliases for primary color */
+  --color-primary: #1F4E8C;        /* Same as primary-700 - for buttons */
+  --color-primary-dark: #0f2a52;   /* Same as primary-900 - for hover states */
+
   /* Secondary Palette (FBLA Gold) */
   --color-secondary-900: #d89b1f;  /* Dark gold - text (WCAG AA: 4.5:1 on white) */
   --color-secondary-700: #F9B233;  /* FBLA gold - large buttons/backgrounds */

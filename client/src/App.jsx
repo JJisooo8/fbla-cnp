@@ -32,6 +32,22 @@ function App() {
   // Auth forms
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
   const [signupForm, setSignupForm] = useState({ username: "", password: "", confirmPassword: "" });
+  const [previousView, setPreviousView] = useState(null); // Track view before auth redirect
+
+  // Navigate to auth view (clear forms, scroll to top, save previous view)
+  const navigateToAuth = (authView) => {
+    // Save current view to return to after auth (unless already on an auth page)
+    if (view !== "login" && view !== "signup") {
+      setPreviousView({ view, business: selectedBusiness });
+    }
+    // Clear forms
+    setLoginForm({ username: "", password: "" });
+    setSignupForm({ username: "", password: "", confirmPassword: "" });
+    setAuthError("");
+    setView(authView);
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   // Filters
   const [category, setCategory] = useState("All");
@@ -75,14 +91,19 @@ function App() {
 
   // Review sorting and interactions
   const [reviewSortBy, setReviewSortBy] = useState("relevant");
-  const [upvotedReviews, setUpvotedReviews] = useState(() => {
-    const saved = localStorage.getItem("locallink_upvoted_reviews");
-    return saved ? JSON.parse(saved) : [];
-  });
+  // NOTE: Upvotes are now tracked server-side in each review's upvotedBy array
+  // No localStorage tracking - follows Reddit-style architecture where vote state
+  // is tied to user accounts, not browser storage
   const [reportedReviews, setReportedReviews] = useState(() => {
     const saved = localStorage.getItem("locallink_reported_reviews");
     return saved ? JSON.parse(saved) : [];
   });
+
+  // Helper function to check if current user has upvoted a review (Reddit-style)
+  const hasUserUpvoted = (review) => {
+    if (!user || !review.upvotedBy) return false;
+    return review.upvotedBy.includes(user.id);
+  };
 
   // Demo mode status
   const [demoStatus, setDemoStatus] = useState(null);
@@ -149,7 +170,7 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setAuthError(data.error || "Login failed");
+        setAuthError(data.error || "Login failed.");
         return;
       }
 
@@ -158,7 +179,16 @@ function App() {
       setAuthToken(data.token);
       setUser(data.user);
       setLoginForm({ username: "", password: "" });
-      setView("home");
+      // Return to previous view or home
+      if (previousView) {
+        setView(previousView.view);
+        if (previousView.business) {
+          setSelectedBusiness(previousView.business);
+        }
+        setPreviousView(null);
+      } else {
+        setView("home");
+      }
     } catch (error) {
       console.error("Login error:", error);
       setAuthError("Login failed. Please try again.");
@@ -172,15 +202,15 @@ function App() {
 
     // Client-side validation
     if (signupForm.username.length < 3) {
-      setAuthError("Username must be at least 3 characters long");
+      setAuthError("Username must be at least 3 characters long.");
       return;
     }
     if (signupForm.password.length < 6) {
-      setAuthError("Password must be at least 6 characters long");
+      setAuthError("Password must be at least 6 characters long.");
       return;
     }
     if (signupForm.password !== signupForm.confirmPassword) {
-      setAuthError("Passwords do not match");
+      setAuthError("Passwords do not match.");
       return;
     }
 
@@ -194,7 +224,7 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        setAuthError(data.error || "Signup failed");
+        setAuthError(data.error || "Signup failed.");
         return;
       }
 
@@ -203,7 +233,16 @@ function App() {
       setAuthToken(data.token);
       setUser(data.user);
       setSignupForm({ username: "", password: "", confirmPassword: "" });
-      setView("home");
+      // Return to previous view or home
+      if (previousView) {
+        setView(previousView.view);
+        if (previousView.business) {
+          setSelectedBusiness(previousView.business);
+        }
+        setPreviousView(null);
+      } else {
+        setView("home");
+      }
     } catch (error) {
       console.error("Signup error:", error);
       setAuthError("Signup failed. Please try again.");
@@ -215,9 +254,7 @@ function App() {
     localStorage.removeItem("locallink_auth_token");
     setAuthToken(null);
     setUser(null);
-    // Clear user-specific upvotes from localStorage
-    localStorage.removeItem("locallink_upvoted_reviews");
-    setUpvotedReviews([]);
+    // Upvotes are server-side only, no localStorage to clear
   };
 
   // URL Routing: Parse URL on initial load
@@ -442,10 +479,33 @@ function App() {
   }, [favorites]);
 
   const toggleFavorite = (id) => {
+    // Require login to favorite businesses
+    if (!user) {
+      alert("Please log in to save favorites.");
+      navigateToAuth("login");
+      return;
+    }
     setFavorites(prev =>
       prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]
     );
   };
+
+  // SVG Heart Icon component for favorites
+  const HeartIcon = ({ filled, size = 20 }) => (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ display: 'block' }}
+    >
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  );
 
   // Deduplicate chain businesses for front page display
   // Only show one instance of each chain unless user is searching
@@ -547,7 +607,7 @@ function App() {
     // Check if user is logged in
     if (!user) {
       alert("Please log in to submit a review.");
-      setView("login");
+      navigateToAuth("login");
       return;
     }
 
@@ -589,7 +649,7 @@ function App() {
       if (!res.ok) {
         if (res.status === 401) {
           alert("Please log in to submit a review.");
-          setView("login");
+          navigateToAuth("login");
           return;
         }
         alert(data.error || "Failed to submit review");
@@ -637,44 +697,42 @@ function App() {
     }
   };
 
-  // Save upvoted/reported reviews to localStorage
-  useEffect(() => {
-    localStorage.setItem("locallink_upvoted_reviews", JSON.stringify(upvotedReviews));
-  }, [upvotedReviews]);
-
+  // Save reported reviews to localStorage (upvotes are now server-side only)
   useEffect(() => {
     localStorage.setItem("locallink_reported_reviews", JSON.stringify(reportedReviews));
   }, [reportedReviews]);
 
-  // Upvote or remove upvote from a review
+  // Upvote or remove upvote from a review (Reddit-style - server-side tracking)
   const upvoteReview = async (reviewId) => {
     // Check if user is logged in
     if (!user) {
       alert("Please log in to upvote reviews.");
-      setView("login");
+      navigateToAuth("login");
       return;
     }
 
-    const alreadyUpvoted = upvotedReviews.includes(reviewId);
+    // Find the review to check if already upvoted (from upvotedBy array)
+    const review = (selectedBusiness?.reviews || []).find(r => r.id === reviewId);
+    if (!review) return;
 
-    // Optimistically update the UI first
-    if (alreadyUpvoted) {
-      setUpvotedReviews(prev => prev.filter(id => id !== reviewId));
-      setSelectedBusiness(prev => ({
-        ...prev,
-        reviews: (prev.reviews || []).map(r =>
-          r.id === reviewId ? { ...r, helpful: Math.max(0, (r.helpful || 0) - 1) } : r
-        )
-      }));
-    } else {
-      setUpvotedReviews(prev => [...prev, reviewId]);
-      setSelectedBusiness(prev => ({
-        ...prev,
-        reviews: (prev.reviews || []).map(r =>
-          r.id === reviewId ? { ...r, helpful: (r.helpful || 0) + 1 } : r
-        )
-      }));
-    }
+    const alreadyUpvoted = (review.upvotedBy || []).includes(user.id);
+
+    // Optimistically update the UI - update the upvotedBy array and helpful count
+    setSelectedBusiness(prev => ({
+      ...prev,
+      reviews: (prev.reviews || []).map(r => {
+        if (r.id !== reviewId) return r;
+        if (alreadyUpvoted) {
+          // Remove upvote
+          const newUpvotedBy = (r.upvotedBy || []).filter(id => id !== user.id);
+          return { ...r, upvotedBy: newUpvotedBy, helpful: newUpvotedBy.length };
+        } else {
+          // Add upvote
+          const newUpvotedBy = [...(r.upvotedBy || []), user.id];
+          return { ...r, upvotedBy: newUpvotedBy, helpful: newUpvotedBy.length };
+        }
+      })
+    }));
 
     try {
       const endpoint = alreadyUpvoted
@@ -692,39 +750,46 @@ function App() {
       const data = await res.json();
 
       if (!res.ok) {
-        // Revert optimistic update on failure
         console.error("Failed to toggle upvote:", data.error);
         if (res.status === 401) {
           alert("Please log in to upvote reviews.");
-          setView("login");
-        } else if (res.status === 400) {
-          // Already upvoted/not upvoted - sync state from server
-          console.log("Syncing upvote state from server:", data.helpful);
+          navigateToAuth("login");
         }
-        // Revert UI state
-        if (alreadyUpvoted) {
-          setUpvotedReviews(prev => [...prev, reviewId]);
-        } else {
-          setUpvotedReviews(prev => prev.filter(id => id !== reviewId));
-        }
-        // Update with server's helpful count
-        if (data.helpful !== undefined) {
-          setSelectedBusiness(prev => ({
-            ...prev,
-            reviews: (prev.reviews || []).map(r =>
-              r.id === reviewId ? { ...r, helpful: data.helpful } : r
-            )
-          }));
-        }
+        // Revert optimistic update on failure
+        setSelectedBusiness(prev => ({
+          ...prev,
+          reviews: (prev.reviews || []).map(r => {
+            if (r.id !== reviewId) return r;
+            if (alreadyUpvoted) {
+              // Restore upvote
+              const newUpvotedBy = [...(r.upvotedBy || []), user.id];
+              return { ...r, upvotedBy: newUpvotedBy, helpful: data.helpful !== undefined ? data.helpful : newUpvotedBy.length };
+            } else {
+              // Remove upvote
+              const newUpvotedBy = (r.upvotedBy || []).filter(id => id !== user.id);
+              return { ...r, upvotedBy: newUpvotedBy, helpful: data.helpful !== undefined ? data.helpful : newUpvotedBy.length };
+            }
+          })
+        }));
       }
     } catch (err) {
       console.error("Failed to toggle upvote:", err);
       // Revert optimistic update on error
-      if (alreadyUpvoted) {
-        setUpvotedReviews(prev => [...prev, reviewId]);
-      } else {
-        setUpvotedReviews(prev => prev.filter(id => id !== reviewId));
-      }
+      setSelectedBusiness(prev => ({
+        ...prev,
+        reviews: (prev.reviews || []).map(r => {
+          if (r.id !== reviewId) return r;
+          if (alreadyUpvoted) {
+            // Restore upvote
+            const newUpvotedBy = [...(r.upvotedBy || []), user.id];
+            return { ...r, upvotedBy: newUpvotedBy, helpful: newUpvotedBy.length };
+          } else {
+            // Remove upvote
+            const newUpvotedBy = (r.upvotedBy || []).filter(id => id !== user.id);
+            return { ...r, upvotedBy: newUpvotedBy, helpful: newUpvotedBy.length };
+          }
+        })
+      }));
     }
   };
 
@@ -1119,13 +1184,13 @@ function App() {
               <div className={styles.authButtons}>
                 <button
                   className={view === "login" ? styles.navButtonActive : styles.navButton}
-                  onClick={() => { setView("login"); setAuthError(""); }}
+                  onClick={() => navigateToAuth("login")}
                 >
                   Log In
                 </button>
                 <button
                   className={view === "signup" ? styles.authButtonSignup : styles.authButtonSignup}
-                  onClick={() => { setView("signup"); setAuthError(""); }}
+                  onClick={() => navigateToAuth("signup")}
                 >
                   Sign Up
                 </button>
@@ -1359,14 +1424,15 @@ function App() {
                           e.stopPropagation();
                           toggleFavorite(biz.id);
                         }}
-                        className={styles.favoriteBtn}
-                        aria-label={favorites.includes(biz.id) ? `Remove ${biz.name} from favorites` : `Add ${biz.name} to favorites`}
+                        className={favorites.includes(biz.id) ? styles.favoriteBtnActive : styles.favoriteBtn}
+                        aria-label={favorites.includes(biz.id) ? `Remove ${biz.name} from favorites` : (user ? `Add ${biz.name} to favorites` : "Log in to save favorites")}
                         aria-pressed={favorites.includes(biz.id)}
+                        title={user ? (favorites.includes(biz.id) ? "Remove from favorites" : "Add to favorites") : "Log in to save favorites"}
                       >
-                        {favorites.includes(biz.id) ? "❤️" : "🤍"}
+                        <HeartIcon filled={favorites.includes(biz.id)} size={18} />
                       </button>
                     </div>
-                    
+
                     <div className={styles.businessMeta}>
                       <span className={styles.category}>{biz.category}</span>
                       {biz.rating > 0 ? (
@@ -1495,14 +1561,15 @@ function App() {
                   )}
                 </div>
 
-                {/* Favorite Button */}
+                {/* Favorite Button - Large prominent button in detail view */}
                 <button
                   onClick={() => toggleFavorite(selectedBusiness.id)}
-                  className={favorites.includes(selectedBusiness.id) ? styles.favoriteBtnActive : styles.favoriteBtn}
-                  aria-label={favorites.includes(selectedBusiness.id) ? `Remove ${selectedBusiness.name} from favorites` : `Save ${selectedBusiness.name} to favorites`}
-                  title="Save to favorites"
+                  className={favorites.includes(selectedBusiness.id) ? styles.favoriteBtnLargeActive : styles.favoriteBtnLarge}
+                  aria-label={favorites.includes(selectedBusiness.id) ? `Remove ${selectedBusiness.name} from favorites` : (user ? `Save ${selectedBusiness.name} to favorites` : "Log in to save favorites")}
+                  title={user ? (favorites.includes(selectedBusiness.id) ? "Remove from favorites" : "Save to favorites") : "Log in to save favorites"}
                 >
-                  {favorites.includes(selectedBusiness.id) ? "❤️" : "🤍"}
+                  <HeartIcon filled={favorites.includes(selectedBusiness.id)} size={20} />
+                  <span>{favorites.includes(selectedBusiness.id) ? "Favorited" : "Favorite"}</span>
                 </button>
               </div>
 
@@ -1602,7 +1669,7 @@ function App() {
                           </button>
                         ) : (
                           <button
-                            onClick={() => setView("login")}
+                            onClick={() => navigateToAuth("login")}
                             className={styles.btnPrimary}
                             title="Log in to write a review"
                           >
@@ -1847,7 +1914,7 @@ function App() {
                           </button>
                         ) : (
                           <button
-                            onClick={() => setView("login")}
+                            onClick={() => navigateToAuth("login")}
                             className={styles.btnAccent}
                             title="Log in to write a review"
                           >
@@ -2024,8 +2091,8 @@ function App() {
                                   )}
                                   <button
                                     onClick={() => upvoteReview(review.id)}
-                                    className={upvotedReviews.includes(review.id) ? styles.upvoteButtonActive : styles.upvoteButton}
-                                    title={upvotedReviews.includes(review.id) ? "Click to remove your upvote" : "Mark as helpful"}
+                                    className={hasUserUpvoted(review) ? styles.upvoteButtonActive : styles.upvoteButton}
+                                    title={hasUserUpvoted(review) ? "Click to remove your upvote" : (user ? "Mark as helpful" : "Log in to upvote")}
                                   >
                                     <span className={styles.upvoteIcon}>👍</span>
                                     <span>{review.helpful || 0}</span>
@@ -2237,11 +2304,12 @@ function App() {
                               e.stopPropagation();
                               toggleFavorite(biz.id);
                             }}
-                            className={styles.favoriteBtn}
+                            className={styles.favoriteBtnActive}
                             aria-label={`Remove ${biz.name} from favorites`}
                             aria-pressed="true"
+                            title="Remove from favorites"
                           >
-                            ❤️
+                            <HeartIcon filled={true} size={18} />
                           </button>
                         </div>
 
@@ -2338,7 +2406,7 @@ function App() {
                 Don't have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => { setView("signup"); setAuthError(""); }}
+                  onClick={() => navigateToAuth("signup")}
                   className={styles.authSwitchLink}
                 >
                   Sign up
@@ -2422,7 +2490,7 @@ function App() {
                 Already have an account?{" "}
                 <button
                   type="button"
-                  onClick={() => { setView("login"); setAuthError(""); }}
+                  onClick={() => navigateToAuth("login")}
                   className={styles.authSwitchLink}
                 >
                   Log in

@@ -220,21 +220,20 @@ async function refreshUsersFromBlob() {
 let usersLoadPromise = null;
 let usersLoaded = false;
 
-if (USE_VERCEL_BLOB) {
-  usersLoadPromise = loadUsersAsync()
-    .then(() => {
-      usersLoaded = true;
-      console.log('[BLOB] Users loaded and ready');
-    })
-    .catch(err => {
-      console.error('[BLOB] Users async load failed:', err);
-      usersLoaded = true;
-    });
-}
+// Always initialize users loading (whether using Blob or file storage)
+usersLoadPromise = loadUsersAsync()
+  .then(() => {
+    usersLoaded = true;
+    console.log('[AUTH] Users loaded and ready');
+  })
+  .catch(err => {
+    console.error('[AUTH] Users async load failed:', err);
+    usersLoaded = true; // Mark as loaded even on error to prevent blocking
+  });
 
 // Middleware to ensure users are loaded
 async function ensureUsersLoaded(req, res, next) {
-  if (USE_VERCEL_BLOB && !usersLoaded && usersLoadPromise) {
+  if (!usersLoaded && usersLoadPromise) {
     await usersLoadPromise;
   }
   next();
@@ -494,7 +493,7 @@ async function verifyRecaptcha(token) {
     return response.data;
   } catch (error) {
     console.error('reCAPTCHA verification error:', error.message);
-    return { success: false, error: 'Verification failed' };
+    return { success: false, error: 'Verification failed.' };
   }
 }
 
@@ -1051,36 +1050,36 @@ app.post("/api/auth/signup", async (req, res) => {
 
     // Input validation
     if (!username || typeof username !== 'string') {
-      return res.status(400).json({ error: 'Username is required' });
+      return res.status(400).json({ error: 'Username is required.' });
     }
 
     const trimmedUsername = username.trim();
 
     // Username validation
     if (trimmedUsername.length < 3) {
-      return res.status(400).json({ error: 'Username must be at least 3 characters long' });
+      return res.status(400).json({ error: 'Username must be at least 3 characters long.' });
     }
     if (trimmedUsername.length > 20) {
-      return res.status(400).json({ error: 'Username must be 20 characters or less' });
+      return res.status(400).json({ error: 'Username must be 20 characters or less.' });
     }
     if (!/^[a-zA-Z0-9_]+$/.test(trimmedUsername)) {
-      return res.status(400).json({ error: 'Username can only contain letters, numbers, and underscores' });
+      return res.status(400).json({ error: 'Username can only contain letters, numbers, and underscores.' });
     }
 
     // Password validation
     if (!password || typeof password !== 'string') {
-      return res.status(400).json({ error: 'Password is required' });
+      return res.status(400).json({ error: 'Password is required.' });
     }
     if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters long' });
+      return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
     }
     if (password.length > 100) {
-      return res.status(400).json({ error: 'Password must be 100 characters or less' });
+      return res.status(400).json({ error: 'Password must be 100 characters or less.' });
     }
 
     // Confirm password validation
     if (password !== confirmPassword) {
-      return res.status(400).json({ error: 'Passwords do not match' });
+      return res.status(400).json({ error: 'Passwords do not match.' });
     }
 
     // Refresh users from blob to get latest data
@@ -1142,7 +1141,7 @@ app.post("/api/auth/login", async (req, res) => {
 
     // Input validation
     if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required' });
+      return res.status(400).json({ error: 'Username and password are required.' });
     }
 
     // Refresh users from blob to get latest data
@@ -1154,13 +1153,13 @@ app.post("/api/auth/login", async (req, res) => {
     );
 
     if (!user) {
-      return res.status(401).json({ error: 'Invalid username or password' });
+      return res.status(401).json({ error: 'Invalid username or password.' });
     }
 
     // Verify password
     const passwordValid = await bcrypt.compare(password, user.passwordHash);
     if (!passwordValid) {
-      return res.status(401).json({ error: 'Invalid username or password' });
+      return res.status(401).json({ error: 'Invalid username or password.' });
     }
 
     // Generate token
@@ -1185,7 +1184,7 @@ app.post("/api/auth/login", async (req, res) => {
 // Get current user (verify token and return user info)
 app.get("/api/auth/me", (req, res) => {
   if (!req.user) {
-    return res.status(401).json({ error: 'Not authenticated' });
+    return res.status(401).json({ error: 'Not authenticated.' });
   }
 
   res.json({
