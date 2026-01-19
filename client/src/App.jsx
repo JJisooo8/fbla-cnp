@@ -50,9 +50,9 @@ function App() {
   };
 
   // Filters
-  const [category, setCategory] = useState("All");
-  const [selectedTag, setSelectedTag] = useState("All");
+  const [selectedTags, setSelectedTags] = useState([]); // Multiple tag selection
   const [availableTags, setAvailableTags] = useState([]);
+  const [labelSearchTerm, setLabelSearchTerm] = useState(""); // For filtering labels
   const [searchTerm, setSearchTerm] = useState("");
   const [minRating, setMinRating] = useState("");
   const [showDealsOnly, setShowDealsOnly] = useState(false);
@@ -91,6 +91,8 @@ function App() {
 
   // Review sorting and interactions
   const [reviewSortBy, setReviewSortBy] = useState("relevant");
+  // Stable sort order - only updated on business load or sort option change (not on upvote)
+  const [sortedReviewIds, setSortedReviewIds] = useState([]);
   // NOTE: Upvotes are now tracked server-side in each review's upvotedBy array
   // No localStorage tracking - follows Reddit-style architecture where vote state
   // is tied to user accounts, not browser storage
@@ -485,8 +487,6 @@ function App() {
   // Apply filters and search
   useEffect(() => {
     const params = new URLSearchParams();
-    if (category !== "All") params.append("category", category);
-    if (selectedTag !== "All") params.append("tag", selectedTag);
     if (searchTerm) params.append("search", searchTerm);
     if (minRating) params.append("minRating", minRating);
     if (showDealsOnly) params.append("hasDeals", "true");
@@ -495,9 +495,24 @@ function App() {
 
     fetch(`${API_URL}/businesses?${params}`)
       .then(r => r.json())
-      .then(data => setFilteredBusinesses(data))
+      .then(data => {
+        // Client-side filtering for selected tags (supports multiple)
+        if (selectedTags.length > 0) {
+          const filtered = data.filter(biz => {
+            const bizTags = biz.tags || [];
+            const bizCategory = biz.category || "";
+            // Match if business has any of the selected tags OR matches category
+            return selectedTags.some(tag =>
+              bizTags.includes(tag) || bizCategory === tag
+            );
+          });
+          setFilteredBusinesses(filtered);
+        } else {
+          setFilteredBusinesses(data);
+        }
+      })
       .catch(err => console.error(err));
-  }, [category, selectedTag, searchTerm, minRating, showDealsOnly, sortBy]);
+  }, [selectedTags, searchTerm, minRating, showDealsOnly, sortBy]);
 
   // Fetch recommendations when favorites change
   useEffect(() => {
@@ -575,7 +590,7 @@ function App() {
   // Reset business page when filters change
   useEffect(() => {
     setBusinessPage(1);
-  }, [category, selectedTag, searchTerm, minRating, showDealsOnly, sortBy]);
+  }, [selectedTags, searchTerm, minRating, showDealsOnly, sortBy]);
 
   // Deduplicate chain businesses for front page display
   // Only show one instance of each chain unless user is searching
@@ -1035,6 +1050,37 @@ function App() {
     return sorted;
   };
 
+  // Update sorted review order ONLY when business changes or sort option changes (not on upvote)
+  useEffect(() => {
+    if (selectedBusiness?.reviews && selectedBusiness.reviews.length > 0) {
+      const sorted = getSortedReviews(selectedBusiness.reviews);
+      setSortedReviewIds(sorted.map(r => r.id));
+    } else {
+      setSortedReviewIds([]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBusiness?.id, reviewSortBy]); // Only re-sort when business ID or sort option changes
+
+  // Get reviews in stable sorted order (preserves order during upvotes)
+  const getStableSortedReviews = (reviews) => {
+    if (!reviews || reviews.length === 0) return [];
+
+    // If we have a stable order, use it
+    if (sortedReviewIds.length > 0) {
+      const reviewMap = new Map(reviews.map(r => [r.id, r]));
+      const ordered = sortedReviewIds
+        .map(id => reviewMap.get(id))
+        .filter(Boolean);
+
+      // Add any new reviews that aren't in the sorted order (newly added)
+      const newReviews = reviews.filter(r => !sortedReviewIds.includes(r.id));
+      return [...newReviews, ...ordered];
+    }
+
+    // Fallback to dynamic sort if no stable order yet
+    return getSortedReviews(reviews);
+  };
+
   // Helper: Copy to clipboard with feedback
   const copyToClipboard = (text, fieldName) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -1105,16 +1151,15 @@ function App() {
     return hoursList;
   };
 
-  // Helper: Apply filter and return to browse section
+  // Helper: Apply filter (toggle tag) and return to browse section
   const applyFilter = (filterType, value) => {
     setView("home");
-    if (filterType === "category") {
-      setCategory(value);
-      setSelectedTag("All"); // Reset tag filter when changing category
-    } else if (filterType === "tag") {
-      // Use the tag dropdown instead of search bar
-      setSelectedTag(value);
-    }
+    // Toggle the tag in selectedTags array
+    setSelectedTags(prev =>
+      prev.includes(value)
+        ? prev.filter(t => t !== value)
+        : [...prev, value]
+    );
     // Scroll to the browse section after a short delay to allow view change
     setTimeout(() => {
       const filtersSection = document.querySelector('[data-section="filters"]');
@@ -1124,6 +1169,15 @@ function App() {
     }, 100);
   };
 
+  // Helper: Toggle tag selection
+  const toggleTag = (tag) => {
+    setSelectedTags(prev =>
+      prev.includes(tag)
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
+  };
+
   // Helper: Extract domain from URL
   const extractDomain = (url) => {
     try {
@@ -1131,6 +1185,56 @@ function App() {
       return urlObj.hostname.replace('www.', '');
     } catch {
       return url;
+    }
+  };
+
+  // Developer tool: Export businesses to JSON/CSV
+  const exportBusinesses = (format) => {
+    const businessesToExport = deduplicateChains(filteredBusinesses);
+    const timestamp = new Date().toISOString().split('T')[0];
+
+    if (format === 'json') {
+      const dataStr = JSON.stringify(businessesToExport, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `locallink-businesses-${timestamp}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } else if (format === 'csv') {
+      // CSV headers
+      const headers = ['id', 'name', 'category', 'rating', 'reviewCount', 'address', 'phone', 'website', 'tags', 'deal'];
+      const csvRows = [headers.join(',')];
+
+      businessesToExport.forEach(biz => {
+        const row = [
+          biz.id,
+          `"${(biz.name || '').replace(/"/g, '""')}"`,
+          biz.category || '',
+          biz.rating || '',
+          biz.reviewCount || 0,
+          `"${(biz.address || '').replace(/"/g, '""')}"`,
+          biz.phone || '',
+          biz.website || '',
+          `"${(biz.tags || []).join('; ')}"`,
+          `"${(biz.deal || '').replace(/"/g, '""')}"`
+        ];
+        csvRows.push(row.join(','));
+      });
+
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `locallink-businesses-${timestamp}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     }
   };
 
@@ -1414,35 +1518,6 @@ function App() {
               />
 
               <select
-                value={category}
-                onChange={e => {
-                  setCategory(e.target.value);
-                  setSelectedTag("All"); // Reset tag when category changes
-                }}
-                className={styles.select}
-                aria-label="Filter by category"
-              >
-                <option value="All">All Categories</option>
-                <option value="Food">Food ({totalCategoryCounts.Food || 0})</option>
-                <option value="Retail">Retail ({totalCategoryCounts.Retail || 0})</option>
-                <option value="Services">Services ({totalCategoryCounts.Services || 0})</option>
-              </select>
-
-              <select
-                value={selectedTag}
-                onChange={e => setSelectedTag(e.target.value)}
-                className={styles.select}
-                aria-label="Filter by label/type"
-              >
-                <option value="All">All Labels</option>
-                {availableTags.map(({ tag, count }) => (
-                  <option key={tag} value={tag}>
-                    {tag} ({count})
-                  </option>
-                ))}
-              </select>
-
-              <select
                 value={minRating}
                 onChange={e => setMinRating(e.target.value)}
                 className={styles.select}
@@ -1462,6 +1537,81 @@ function App() {
                 />
                 <span className={styles.checkboxLabel}>Deals Only</span>
               </label>
+            </div>
+
+            {/* Label/Tag Chip Filter */}
+            <div className={styles.labelFilterSection}>
+              <div className={styles.labelFilterHeader}>
+                <input
+                  type="text"
+                  placeholder="Search labels (e.g., Pizza, Coffee, Salon)..."
+                  value={labelSearchTerm}
+                  onChange={e => setLabelSearchTerm(e.target.value)}
+                  className={styles.labelSearchInput}
+                  aria-label="Search for labels to filter by"
+                />
+                {selectedTags.length > 0 && (
+                  <button
+                    onClick={() => setSelectedTags([])}
+                    className={styles.clearFiltersBtn}
+                    aria-label="Clear all selected labels"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+
+              {/* Selected Tags */}
+              {selectedTags.length > 0 && (
+                <div className={styles.selectedTagsRow}>
+                  <span className={styles.selectedTagsLabel}>Active filters:</span>
+                  <div className={styles.tagChipsContainer}>
+                    {selectedTags.map(tag => (
+                      <button
+                        key={tag}
+                        onClick={() => toggleTag(tag)}
+                        className={styles.tagChipSelected}
+                        aria-label={`Remove ${tag} filter`}
+                      >
+                        {tag} ×
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Available Tags (filtered by search) */}
+              <div className={styles.availableTagsRow}>
+                {(() => {
+                  const searchLower = labelSearchTerm.toLowerCase().trim();
+                  const filteredTags = availableTags
+                    .filter(({ tag }) =>
+                      !selectedTags.includes(tag) &&
+                      (searchLower === '' || tag.toLowerCase().includes(searchLower))
+                    )
+                    .slice(0, searchLower ? 20 : 12); // Show more when searching
+
+                  if (filteredTags.length === 0 && labelSearchTerm) {
+                    return <span className={styles.noLabelsFound}>No labels match "{labelSearchTerm}"</span>;
+                  }
+
+                  return filteredTags.map(({ tag, count }) => (
+                    <button
+                      key={tag}
+                      onClick={() => toggleTag(tag)}
+                      className={styles.tagChip}
+                      aria-label={`Filter by ${tag}`}
+                    >
+                      {tag} <span className={styles.tagCount}>({count})</span>
+                    </button>
+                  ));
+                })()}
+                {!labelSearchTerm && availableTags.filter(t => !selectedTags.includes(t.tag)).length > 12 && (
+                  <span className={styles.moreLabelsHint}>
+                    Type to search {availableTags.length - 12} more labels...
+                  </span>
+                )}
+              </div>
             </div>
           </section>
 
@@ -1642,6 +1792,32 @@ function App() {
               </button>
             </div>
           )}
+
+          {/* Developer Export Tool */}
+          <div className={styles.devExportSection}>
+            <details className={styles.devExportDetails}>
+              <summary className={styles.devExportSummary}>Developer Tools</summary>
+              <div className={styles.devExportContent}>
+                <p className={styles.devExportText}>
+                  Export {deduplicateChains(filteredBusinesses).length} currently displayed businesses:
+                </p>
+                <div className={styles.devExportButtons}>
+                  <button
+                    onClick={() => exportBusinesses('json')}
+                    className={styles.devExportBtn}
+                  >
+                    Export JSON
+                  </button>
+                  <button
+                    onClick={() => exportBusinesses('csv')}
+                    className={styles.devExportBtn}
+                  >
+                    Export CSV
+                  </button>
+                </div>
+              </div>
+            </details>
+          </div>
         </main>
       )}
 
@@ -2105,7 +2281,7 @@ function App() {
                   ) : (
                     <div className={styles.reviewsList}>
                       {(() => {
-                        const sortedReviews = getSortedReviews(selectedBusiness.reviews);
+                        const sortedReviews = getStableSortedReviews(selectedBusiness.reviews);
                         const displayedReviews = sortedReviews.slice(0, visibleReviewsCount);
 
                         return displayedReviews.map(review => (
