@@ -70,6 +70,93 @@ function App() {
   // Copy button state management
   const [copiedField, setCopiedField] = useState(null);
 
+  // Track if initial URL has been processed
+  const [urlInitialized, setUrlInitialized] = useState(false);
+
+  // URL Routing: Parse URL on initial load
+  useEffect(() => {
+    const parseUrl = () => {
+      const path = window.location.pathname;
+      const params = new URLSearchParams(window.location.search);
+
+      if (path.startsWith('/business/')) {
+        const businessId = path.split('/business/')[1];
+        if (businessId) {
+          // Will be handled after businesses load
+          return { view: 'business', businessId };
+        }
+      } else if (path === '/favorites') {
+        return { view: 'favorites', businessId: null };
+      }
+      return { view: 'home', businessId: null };
+    };
+
+    const { view: urlView, businessId } = parseUrl();
+
+    if (urlView === 'favorites') {
+      setView('favorites');
+    } else if (urlView === 'business' && businessId) {
+      // Store the business ID to load after businesses are fetched
+      sessionStorage.setItem('pendingBusinessId', businessId);
+    }
+    // home view is default, no action needed
+
+    setUrlInitialized(true);
+  }, []);
+
+  // URL Routing: Update URL when view changes
+  useEffect(() => {
+    if (!urlInitialized) return;
+
+    let newPath = '/';
+    if (view === 'favorites') {
+      newPath = '/favorites';
+    } else if (view === 'business' && selectedBusiness) {
+      newPath = `/business/${selectedBusiness.id}`;
+    }
+
+    // Only push state if path actually changed
+    if (window.location.pathname !== newPath) {
+      window.history.pushState({ view, businessId: selectedBusiness?.id }, '', newPath);
+    }
+  }, [view, selectedBusiness, urlInitialized]);
+
+  // URL Routing: Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = (event) => {
+      const path = window.location.pathname;
+
+      if (path.startsWith('/business/')) {
+        const businessId = path.split('/business/')[1];
+        if (businessId && businesses.length > 0) {
+          const business = businesses.find(b => b.id === businessId);
+          if (business) {
+            setSelectedBusiness(business);
+            setView('business');
+            // Fetch full details
+            fetch(`${API_URL}/businesses/${businessId}`)
+              .then(r => r.json())
+              .then(data => setSelectedBusiness(data))
+              .catch(err => console.error(err));
+            return;
+          }
+        }
+        // Business not found, go home
+        setView('home');
+        setSelectedBusiness(null);
+      } else if (path === '/favorites') {
+        setView('favorites');
+        setSelectedBusiness(null);
+      } else {
+        setView('home');
+        setSelectedBusiness(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [businesses]);
+
   // Save favorites to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem("locallink_favorites", JSON.stringify(favorites));
@@ -97,6 +184,22 @@ function App() {
         const bizData = await fetchWithRetry(`${API_URL}/businesses`, 3, 3000);
         setBusinesses(bizData);
         setFilteredBusinesses(bizData);
+
+        // Check if we need to navigate to a specific business from URL
+        const pendingBusinessId = sessionStorage.getItem('pendingBusinessId');
+        if (pendingBusinessId) {
+          sessionStorage.removeItem('pendingBusinessId');
+          const business = bizData.find(b => b.id === pendingBusinessId);
+          if (business) {
+            setSelectedBusiness(business);
+            setView('business');
+            // Fetch full details
+            fetch(`${API_URL}/businesses/${pendingBusinessId}`)
+              .then(r => r.json())
+              .then(data => setSelectedBusiness(data))
+              .catch(err => console.error(err));
+          }
+        }
 
         // Then fetch supporting data in parallel
         const [analyticsData, tagsData, verificationConfig, demoStatusData] = await Promise.all([
@@ -321,6 +424,16 @@ function App() {
 
       alert("Review submitted successfully!");
       setShowReviewForm(false);
+
+      // Optimistically update the UI with the new review immediately
+      if (data.review) {
+        setSelectedBusiness(prev => ({
+          ...prev,
+          reviews: [...(prev.reviews || []), data.review],
+          reviewCount: (prev.reviewCount || 0) + 1
+        }));
+      }
+
       setReviewForm({
         author: "",
         rating: 5,
@@ -335,9 +448,11 @@ function App() {
         isAnonymous: false
       });
 
-      // Refresh business data
-      const updatedBiz = await fetch(`${API_URL}/businesses/${selectedBusiness.id}`).then(r => r.json());
-      setSelectedBusiness(updatedBiz);
+      // Also fetch from server to ensure consistency (but UI already updated)
+      fetch(`${API_URL}/businesses/${selectedBusiness.id}`)
+        .then(r => r.json())
+        .then(updatedBiz => setSelectedBusiness(updatedBiz))
+        .catch(err => console.error("Failed to refresh business data:", err));
     } catch (err) {
       console.error("Review submission error:", err);
       alert(`Failed to submit review: ${err.message || "Unknown error"}. Please try again.`);
@@ -944,6 +1059,7 @@ function App() {
         <>
           <button
             onClick={() => {
+              setSelectedBusiness(null);
               setView("home");
               // Restore scroll position after view change
               setTimeout(() => {
