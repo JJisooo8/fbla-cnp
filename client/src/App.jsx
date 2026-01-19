@@ -8,7 +8,7 @@ const API_URL = import.meta.env.DEV
   : "/api";
 
 function App() {
-  const [view, setView] = useState("home"); // home, business, favorites, login, signup
+  const [view, setView] = useState("home"); // home, business, favorites, login, signup, myReviews
   const [businesses, setBusinesses] = useState([]);
   const [filteredBusinesses, setFilteredBusinesses] = useState([]);
   const [selectedBusiness, setSelectedBusiness] = useState(null);
@@ -16,6 +16,8 @@ function App() {
   const [favorites, setFavorites] = useState([]);
   const [recommendations, setRecommendations] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [myReviews, setMyReviews] = useState([]);
+  const [myReviewsLoading, setMyReviewsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -255,12 +257,11 @@ function App() {
     }
   };
 
-  // Handle logout
+  // Handle logout - refresh page to reset all personalized content
   const handleLogout = () => {
     localStorage.removeItem("locallink_auth_token");
-    setAuthToken(null);
-    setUser(null);
-    // Upvotes are server-side only, no localStorage to clear
+    // Refresh the page to fully reset all state and show anonymous view
+    window.location.href = '/';
   };
 
   // URL Routing: Parse URL on initial load
@@ -333,8 +334,10 @@ function App() {
             setSelectedBusiness(business);
             setView('business');
             window.scrollTo({ top: 0, behavior: 'instant' });
-            // Fetch full details
-            fetch(`${API_URL}/businesses/${businessId}`)
+            // Fetch full details with auth headers
+            fetch(`${API_URL}/businesses/${businessId}`, {
+              headers: getAuthHeaders()
+            })
               .then(r => r.json())
               .then(data => setSelectedBusiness(data))
               .catch(err => console.error(err));
@@ -423,8 +426,10 @@ function App() {
           if (business) {
             setSelectedBusiness(business);
             setView('business');
-            // Fetch full details
-            fetch(`${API_URL}/businesses/${pendingBusinessId}`)
+            // Fetch full details with auth headers
+            fetch(`${API_URL}/businesses/${pendingBusinessId}`, {
+              headers: getAuthHeaders()
+            })
               .then(r => r.json())
               .then(data => setSelectedBusiness(data))
               .catch(err => console.error(err));
@@ -508,6 +513,36 @@ function App() {
     }
   }, [favorites]);
 
+  // Fetch my reviews when viewing the my reviews page
+  const fetchMyReviews = async () => {
+    if (!user) return;
+    setMyReviewsLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/my-reviews`, {
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setMyReviews(data.reviews || []);
+      } else {
+        console.error("Failed to fetch my reviews");
+        setMyReviews([]);
+      }
+    } catch (err) {
+      console.error("Error fetching my reviews:", err);
+      setMyReviews([]);
+    } finally {
+      setMyReviewsLoading(false);
+    }
+  };
+
+  // Navigate to My Reviews page
+  const goToMyReviews = () => {
+    setView("myReviews");
+    fetchMyReviews();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  };
+
   const toggleFavorite = (id) => {
     // Require login to favorite businesses
     if (!user) {
@@ -587,7 +622,9 @@ function App() {
     // Scroll to top when opening business panel
     window.scrollTo({ top: 0, behavior: 'instant' });
 
-    fetch(`${API_URL}/businesses/${business.id}`)
+    fetch(`${API_URL}/businesses/${business.id}`, {
+      headers: getAuthHeaders()
+    })
       .then(r => r.json())
       .then(data => setSelectedBusiness(data))
       .catch(err => console.error(err))
@@ -809,6 +846,18 @@ function App() {
             }
           })
         }));
+      } else {
+        // Success! Update with server's actual helpful count to ensure accuracy
+        // (handles concurrent upvotes from other users)
+        if (data.helpful !== undefined) {
+          setSelectedBusiness(prev => ({
+            ...prev,
+            reviews: (prev.reviews || []).map(r => {
+              if (r.id !== reviewId) return r;
+              return { ...r, helpful: data.helpful };
+            })
+          }));
+        }
       }
     } catch (err) {
       console.error("Failed to toggle upvote:", err);
@@ -1085,48 +1134,16 @@ function App() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className={styles.container}>
-        <header className={styles.header} role="banner">
-          <div className={styles.headerContent}>
-            <h1 className={styles.logo}>LocalLink</h1>
-            <nav className={styles.nav} aria-label="Main navigation">
-              <button className={styles.navButtonActive}>Home</button>
-              <button className={styles.navButton}>Favorites (0)</button>
-            </nav>
-          </div>
-        </header>
-        <div className={styles.loadingContainer} role="status" aria-live="polite">
-          <div className={styles.loadingHeader}>
-            <div className={styles.loadingSpinner}></div>
-            <span className={styles.loadingText}>Loading LocalLink...</span>
-          </div>
-          <div className={styles.skeletonGrid}>
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className={styles.skeletonCard}>
-                <div className={styles.skeletonImage}></div>
-                <div className={styles.skeletonCardContent}>
-                  <div className={styles.skeletonTitle}></div>
-                  <div className={styles.skeletonMeta}>
-                    <div className={styles.skeletonBadge}></div>
-                    <div className={styles.skeletonBadge}></div>
-                  </div>
-                  <div className={styles.skeletonText}></div>
-                  <div className={styles.skeletonTextShort}></div>
-                  <div className={styles.skeletonButton}></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Note: Loading state is now handled inline in the main view
+  // This allows the header and navigation to appear immediately
+  // while content loads progressively
 
   const localGems = [...businesses]
     .filter(biz => !biz.isChain)
-    .sort((a, b) => b.relevancyScore - a.relevancyScore)
+    .sort((a, b) => {
+      const diff = b.relevancyScore - a.relevancyScore;
+      return diff !== 0 ? diff : a.id.localeCompare(b.id);
+    })
     .slice(0, 4);
 
   const categoryCounts = analytics?.byCategory || {};
@@ -1210,6 +1227,13 @@ function App() {
             {user ? (
               <div className={styles.userMenu}>
                 <span className={styles.username}>Hi, {user.username}</span>
+                <button
+                  className={view === "myReviews" ? styles.navButtonActive : styles.navButton}
+                  onClick={goToMyReviews}
+                  aria-current={view === "myReviews" ? "page" : undefined}
+                >
+                  My Reviews
+                </button>
                 <button
                   className={styles.navButton}
                   onClick={handleLogout}
@@ -1443,7 +1467,26 @@ function App() {
 
           {/* Business List */}
           <section className={styles.businessGrid} aria-label="Business listings">
-            {filteredBusinesses.length === 0 ? (
+            {loading ? (
+              // Show skeleton cards while loading
+              <>
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className={styles.skeletonCard}>
+                    <div className={styles.skeletonImage}></div>
+                    <div className={styles.skeletonCardContent}>
+                      <div className={styles.skeletonTitle}></div>
+                      <div className={styles.skeletonMeta}>
+                        <div className={styles.skeletonBadge}></div>
+                        <div className={styles.skeletonBadge}></div>
+                      </div>
+                      <div className={styles.skeletonText}></div>
+                      <div className={styles.skeletonTextShort}></div>
+                      <div className={styles.skeletonButton}></div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            ) : filteredBusinesses.length === 0 ? (
               <div className={styles.noResults} role="status">
                 No businesses found. Try adjusting your filters.
               </div>
@@ -2536,6 +2579,189 @@ function App() {
                 </button>
               </div>
             </>
+          )}
+        </main>
+      )}
+
+      {/* My Reviews View */}
+      {view === "myReviews" && (
+        <main className={styles.content} id="main-content" role="main">
+          <h2 className={styles.pageTitle}>My Reviews</h2>
+
+          {myReviewsLoading ? (
+            <div className={styles.emptyState}>
+              <p className={styles.emptyText}>Loading your reviews...</p>
+            </div>
+          ) : myReviews.length === 0 ? (
+            <div className={styles.emptyState}>
+              <div className={styles.emptyStateIcon}>📝</div>
+              <h3 className={styles.emptyStateTitle}>No reviews yet</h3>
+              <p className={styles.emptyStateMessage}>
+                You haven't written any reviews yet. Explore businesses and share your experiences!
+              </p>
+              <button onClick={() => setView("home")} className={styles.btnPrimary}>
+                Browse Businesses
+              </button>
+            </div>
+          ) : (
+            <div className={styles.myReviewsList}>
+              {myReviews.map(review => (
+                <article key={review.id} className={styles.myReviewCard}>
+                  <div className={styles.myReviewHeader}>
+                    <div className={styles.myReviewBusiness}>
+                      {review.businessImage && (
+                        <img
+                          src={review.businessImage}
+                          alt={review.businessName}
+                          className={styles.myReviewBusinessImage}
+                        />
+                      )}
+                      <div className={styles.myReviewBusinessInfo}>
+                        <h3 className={styles.myReviewBusinessName}>{review.businessName}</h3>
+                        <span className={styles.myReviewBusinessCategory}>{review.businessCategory}</span>
+                      </div>
+                    </div>
+                    <button
+                      className={styles.myReviewViewBtn}
+                      onClick={() => {
+                        const business = businesses.find(b => b.id === review.businessId);
+                        if (business) {
+                          viewBusiness(business);
+                        } else {
+                          // Fetch and navigate to business
+                          fetch(`${API_URL}/businesses/${review.businessId}`, {
+                            headers: getAuthHeaders()
+                          })
+                            .then(r => r.json())
+                            .then(data => {
+                              setSelectedBusiness(data);
+                              setView("business");
+                              window.scrollTo({ top: 0, behavior: 'instant' });
+                            })
+                            .catch(err => console.error(err));
+                        }
+                      }}
+                    >
+                      View Business →
+                    </button>
+                  </div>
+
+                  <div className={styles.myReviewContent}>
+                    <div className={styles.myReviewRating}>
+                      <span className={styles.myReviewStars}>
+                        {"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}
+                      </span>
+                      <span className={styles.myReviewDate}>
+                        {new Date(review.date).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                        {review.editedAt && " (edited)"}
+                      </span>
+                    </div>
+
+                    {review.comment && (
+                      <p className={styles.myReviewComment}>{review.comment}</p>
+                    )}
+
+                    <div className={styles.myReviewCategories}>
+                      {review.foodQuality && (
+                        <span className={styles.myReviewCategoryRating}>
+                          Food: {review.foodQuality}/5
+                        </span>
+                      )}
+                      {review.service && (
+                        <span className={styles.myReviewCategoryRating}>
+                          Service: {review.service}/5
+                        </span>
+                      )}
+                      {review.cleanliness && (
+                        <span className={styles.myReviewCategoryRating}>
+                          Clean: {review.cleanliness}/5
+                        </span>
+                      )}
+                      {review.atmosphere && (
+                        <span className={styles.myReviewCategoryRating}>
+                          Vibe: {review.atmosphere}/5
+                        </span>
+                      )}
+                    </div>
+
+                    <div className={styles.myReviewActions}>
+                      <span className={styles.myReviewHelpful}>
+                        👍 {review.helpful || 0} found helpful
+                      </span>
+                      <div className={styles.myReviewButtons}>
+                        <button
+                          className={styles.myReviewEditBtn}
+                          onClick={() => {
+                            // Navigate to business and open edit mode
+                            const business = businesses.find(b => b.id === review.businessId);
+                            if (business) {
+                              setSelectedBusiness(business);
+                              setView("business");
+                              // Fetch full details and then open edit
+                              fetch(`${API_URL}/businesses/${review.businessId}`, {
+                                headers: getAuthHeaders()
+                              })
+                                .then(r => r.json())
+                                .then(data => {
+                                  setSelectedBusiness(data);
+                                  // Find the review in the loaded data and start edit
+                                  const reviewToEdit = data.reviews?.find(r => r.id === review.id);
+                                  if (reviewToEdit) {
+                                    setEditingReview(reviewToEdit);
+                                    setEditForm({
+                                      rating: reviewToEdit.rating,
+                                      comment: reviewToEdit.comment || "",
+                                      foodQuality: reviewToEdit.foodQuality || 3,
+                                      service: reviewToEdit.service || 3,
+                                      cleanliness: reviewToEdit.cleanliness || 3,
+                                      atmosphere: reviewToEdit.atmosphere || 3,
+                                      isAnonymous: reviewToEdit.isAnonymous || false
+                                    });
+                                  }
+                                  window.scrollTo({ top: 0, behavior: 'instant' });
+                                })
+                                .catch(err => console.error(err));
+                            }
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          className={styles.myReviewDeleteBtn}
+                          onClick={async () => {
+                            if (!window.confirm("Are you sure you want to delete this review? This action cannot be undone.")) {
+                              return;
+                            }
+                            try {
+                              const res = await fetch(`${API_URL}/businesses/${review.businessId}/reviews/${review.id}`, {
+                                method: "DELETE",
+                                headers: getAuthHeaders()
+                              });
+                              if (res.ok) {
+                                setMyReviews(prev => prev.filter(r => r.id !== review.id));
+                                alert("Review deleted successfully!");
+                              } else {
+                                const data = await res.json();
+                                alert(data.error || "Failed to delete review");
+                              }
+                            } catch (err) {
+                              console.error("Failed to delete review:", err);
+                              alert("Failed to delete review. Please try again.");
+                            }
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
           )}
         </main>
       )}
