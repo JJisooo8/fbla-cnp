@@ -1331,6 +1331,20 @@ function App() {
             </button>
             {user ? (
               <div className={styles.userMenu}>
+                <button
+                  className={view === "myReviews" ? styles.navButtonActive : styles.navButton}
+                  onClick={goToMyReviews}
+                  aria-current={view === "myReviews" ? "page" : undefined}
+                >
+                  My Reviews
+                </button>
+                <button
+                  className={styles.navButton}
+                  onClick={handleLogout}
+                  aria-label="Log out"
+                >
+                  Log Out
+                </button>
                 <div className={styles.profileIndicator} aria-label={`Logged in as ${user.username}`}>
                   <svg
                     className={styles.profileIcon}
@@ -1347,20 +1361,6 @@ function App() {
                   </svg>
                   <span className={styles.profileUsername}>{user.username}</span>
                 </div>
-                <button
-                  className={view === "myReviews" ? styles.navButtonActive : styles.navButton}
-                  onClick={goToMyReviews}
-                  aria-current={view === "myReviews" ? "page" : undefined}
-                >
-                  My Reviews
-                </button>
-                <button
-                  className={styles.navButton}
-                  onClick={handleLogout}
-                  aria-label="Log out"
-                >
-                  Log Out
-                </button>
               </div>
             ) : (
               <div className={styles.authButtons}>
@@ -3169,35 +3169,57 @@ function App() {
           </div>
           <div className={styles.footerSection}>
             <h4 className={styles.footerSectionTitle}>Quick Links</h4>
-            <button className={styles.footerLink} onClick={() => setView("home")}>
+            <button className={styles.footerLink} onClick={() => {
+              setView("home");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}>
               Browse Businesses
             </button>
-            <button className={styles.footerLink} onClick={() => setView("favorites")}>
+            <button className={styles.footerLink} onClick={() => {
+              setView("favorites");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}>
               Your Favorites
             </button>
-            <button className={styles.footerLink} onClick={() => setShowDealsOnly(true)}>
+            <button className={styles.footerLink} onClick={() => {
+              setShowDealsOnly(true);
+              setView("home");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}>
               View Deals
             </button>
           </div>
           <div className={styles.footerSection}>
             <h4 className={styles.footerSectionTitle}>Categories</h4>
-            <button className={styles.footerLink} onClick={() => { setCategory("Food"); setView("home"); }}>
+            <button className={styles.footerLink} onClick={() => {
+              setSelectedTags(["Food & Dining"]);
+              setView("home");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}>
               Food & Dining
             </button>
-            <button className={styles.footerLink} onClick={() => { setCategory("Retail"); setView("home"); }}>
+            <button className={styles.footerLink} onClick={() => {
+              setSelectedTags(["Retail"]);
+              setView("home");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}>
               Retail & Shopping
             </button>
-            <button className={styles.footerLink} onClick={() => { setCategory("Services"); setView("home"); }}>
+            <button className={styles.footerLink} onClick={() => {
+              setSelectedTags(["Services"]);
+              setView("home");
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}>
               Local Services
             </button>
           </div>
         </div>
         <div className={styles.footerBottom}>
           <p className={styles.footerText}>
-            © 2024 LocalLink. Supporting local businesses.
+            © 2026 LocalLink. Supporting local businesses.
           </p>
           <span className={styles.footerBadge}>
-            FBLA Byte-Sized Business Boost
+            FBLA Coding and Programming 2026
           </span>
         </div>
       </footer>

@@ -402,14 +402,20 @@ async function saveReviewsAsync() {
 
 // Lightweight refresh from Blob - used to get latest reviews on single business requests
 async function refreshReviewsFromBlob() {
-  if (!USE_VERCEL_BLOB) return;
+  if (!USE_VERCEL_BLOB) {
+    console.log('[BLOB] Skipping refresh - USE_VERCEL_BLOB is false');
+    return;
+  }
 
   try {
     const { blobs } = await list({ prefix: REVIEWS_BLOB_NAME });
+    console.log(`[BLOB] Found ${blobs.length} blobs with prefix "${REVIEWS_BLOB_NAME}"`);
+
     const reviewsBlob = blobs.find(b => b.pathname === REVIEWS_BLOB_NAME) ||
                         blobs.find(b => b.pathname.includes(REVIEWS_BLOB_NAME));
 
     if (reviewsBlob) {
+      console.log(`[BLOB] Fetching from ${reviewsBlob.url}`);
       const response = await fetch(reviewsBlob.url);
       if (response.ok) {
         const text = await response.text();
@@ -419,12 +425,31 @@ async function refreshReviewsFromBlob() {
             localReviews = new Map(data);
             reviewsBlobUrl = reviewsBlob.url;
             console.log(`[BLOB] Refreshed ${localReviews.size} business review sets`);
+            // Log a sample of the data for debugging
+            if (localReviews.size > 0) {
+              const firstEntry = localReviews.entries().next().value;
+              if (firstEntry) {
+                const [bizId, reviews] = firstEntry;
+                console.log(`[BLOB] Sample: business ${bizId} has ${reviews.length} reviews`);
+                if (reviews.length > 0 && reviews[0].userId) {
+                  console.log(`[BLOB] First review userId: ${reviews[0].userId}`);
+                }
+              }
+            }
+          } else {
+            console.log('[BLOB] Data is not an array:', typeof data);
           }
+        } else {
+          console.log('[BLOB] Blob content is empty');
         }
+      } else {
+        console.log(`[BLOB] Failed to fetch blob: ${response.status}`);
       }
+    } else {
+      console.log('[BLOB] No reviews blob found');
     }
   } catch (error) {
-    console.error('[BLOB] Error refreshing reviews:', error.message);
+    console.error('[BLOB] Error refreshing reviews:', error.message, error.stack);
   }
 }
 
@@ -2150,19 +2175,35 @@ app.get("/api/trending", async (req, res) => {
 app.get("/api/my-reviews", authenticateToken, requireAuth, async (req, res) => {
   try {
     const userId = req.user.id;
+    console.log(`[MY-REVIEWS] Fetching reviews for user: ${userId}`);
 
-    // Refresh reviews from blob to get latest data
-    await refreshReviewsFromBlob();
+    // Ensure reviews are loaded - critical for serverless environments
+    if (USE_VERCEL_BLOB) {
+      // Wait for initial blob load if still in progress
+      if (!blobLoaded && blobLoadPromise) {
+        console.log('[MY-REVIEWS] Waiting for initial blob load...');
+        await blobLoadPromise;
+      }
+      // Always refresh from blob to get latest data
+      await refreshReviewsFromBlob();
+    }
+
+    console.log(`[MY-REVIEWS] localReviews has ${localReviews.size} business entries`);
 
     // Get all businesses to map review businessId to business info
     const businesses = await fetchBusinesses();
     const businessMap = new Map(businesses.map(b => [b.id, b]));
 
-    // Collect all reviews by this user
+    // Collect all reviews by this user (by userId, regardless of anonymous status)
     const userReviews = [];
 
     for (const [businessId, reviews] of localReviews.entries()) {
+      if (!Array.isArray(reviews)) {
+        console.log(`[MY-REVIEWS] Warning: reviews for ${businessId} is not an array`);
+        continue;
+      }
       for (const review of reviews) {
+        // Match by userId - user should see all their reviews including anonymous ones
         if (review.userId === userId && !review.hidden) {
           const business = businessMap.get(businessId);
           userReviews.push({
@@ -2176,6 +2217,8 @@ app.get("/api/my-reviews", authenticateToken, requireAuth, async (req, res) => {
         }
       }
     }
+
+    console.log(`[MY-REVIEWS] Found ${userReviews.length} reviews for user ${userId}`);
 
     // Sort by date (newest first)
     userReviews.sort((a, b) => new Date(b.date) - new Date(a.date));
