@@ -1,5 +1,5 @@
 // Explicit Vercel serverless function for /api/auth/signup
-// Handles user registration
+// Handles user registration with CAPTCHA verification to prevent bot registrations
 
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
@@ -9,6 +9,32 @@ import { put, list } from '@vercel/blob';
 const USERS_BLOB_NAME = "users.json";
 const JWT_SECRET = process.env.JWT_SECRET || 'locallink-dev-secret-change-in-production';
 const JWT_EXPIRES_IN = '7d';
+
+// CAPTCHA configuration
+const RECAPTCHA_SECRET = process.env.RECAPTCHA_SECRET_KEY;
+const RECAPTCHA_ENABLED = !!RECAPTCHA_SECRET;
+
+// In-memory verification challenges (for fallback when reCAPTCHA is disabled)
+const verificationChallenges = new Map();
+
+// Verify reCAPTCHA token
+async function verifyRecaptcha(token) {
+  if (!RECAPTCHA_SECRET) {
+    return { success: false, error: 'reCAPTCHA not configured' };
+  }
+
+  try {
+    const response = await fetch('https://www.google.com/recaptcha/api/siteverify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `secret=${RECAPTCHA_SECRET}&response=${token}`
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('[AUTH] reCAPTCHA verification error:', error);
+    return { success: false, error: error.message };
+  }
+}
 
 // Load users from Vercel Blob
 async function loadUsers() {
@@ -89,7 +115,7 @@ export default async function handler(req, res) {
   console.log('[AUTH] Request body:', JSON.stringify(req.body || {}));
 
   try {
-    const { username, password, confirmPassword } = req.body || {};
+    const { username, password, confirmPassword, recaptchaToken, verificationId, verificationAnswer } = req.body || {};
 
     // Input validation
     if (!username || typeof username !== 'string') {
@@ -124,6 +150,45 @@ export default async function handler(req, res) {
     // Confirm password validation
     if (password !== confirmPassword) {
       return res.status(400).json({ error: 'Passwords do not match.' });
+    }
+
+    // CAPTCHA verification - required for signup to prevent bot registrations
+    console.log(`[AUTH] reCAPTCHA enabled: ${RECAPTCHA_ENABLED}, token provided: ${!!recaptchaToken}`);
+
+    if (RECAPTCHA_ENABLED && recaptchaToken) {
+      console.log('[AUTH] Verifying reCAPTCHA token...');
+      const recaptchaResult = await verifyRecaptcha(recaptchaToken);
+      console.log('[AUTH] reCAPTCHA result:', JSON.stringify(recaptchaResult));
+      if (!recaptchaResult.success) {
+        console.log('[AUTH] reCAPTCHA verification failed:', recaptchaResult['error-codes'] || recaptchaResult.error);
+        return res.status(400).json({ error: 'CAPTCHA verification failed. Please try again.' });
+      }
+      console.log('[AUTH] reCAPTCHA verification successful');
+    } else if (verificationId && verificationAnswer) {
+      // Fallback to math challenge
+      console.log('[AUTH] Verifying math challenge...');
+      const challenge = verificationChallenges.get(verificationId);
+      if (!challenge) {
+        console.log('[AUTH] Challenge expired or invalid');
+        return res.status(400).json({ error: 'Verification expired. Please refresh and try again.' });
+      }
+
+      if (challenge.answer !== parseInt(verificationAnswer)) {
+        console.log('[AUTH] Challenge answer incorrect');
+        return res.status(400).json({ error: 'Verification failed. Please try again.' });
+      }
+
+      verificationChallenges.delete(verificationId);
+      console.log('[AUTH] Math challenge verification successful');
+    } else {
+      // No verification provided - check if CAPTCHA is required
+      if (RECAPTCHA_ENABLED) {
+        console.log('[AUTH] No CAPTCHA token provided but reCAPTCHA is enabled');
+        return res.status(400).json({ error: 'CAPTCHA verification is required.' });
+      }
+      // If reCAPTCHA is not enabled and no math challenge, we still require some verification
+      console.log('[AUTH] No verification provided');
+      return res.status(400).json({ error: 'Verification is required.' });
     }
 
     console.log('[AUTH] Validations passed, loading users...');

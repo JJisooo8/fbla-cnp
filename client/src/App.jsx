@@ -29,22 +29,79 @@ function App() {
 
   // Auth forms
   const [loginForm, setLoginForm] = useState({ username: "", password: "" });
-  const [signupForm, setSignupForm] = useState({ username: "", password: "", confirmPassword: "" });
+  const [signupForm, setSignupForm] = useState({
+    username: "",
+    password: "",
+    confirmPassword: "",
+    verificationId: "",
+    verificationAnswer: ""
+  });
   const [previousView, setPreviousView] = useState(null); // Track view before auth redirect
 
   // Navigate to auth view (clear forms, scroll to top, save previous view)
-  const navigateToAuth = (authView) => {
+  const navigateToAuth = async (authView) => {
     // Save current view to return to after auth (unless already on an auth page)
     if (view !== "login" && view !== "signup") {
       setPreviousView({ view, business: selectedBusiness });
     }
     // Clear forms
     setLoginForm({ username: "", password: "" });
-    setSignupForm({ username: "", password: "", confirmPassword: "" });
+    setSignupForm({ username: "", password: "", confirmPassword: "", verificationId: "", verificationAnswer: "" });
     setAuthError("");
+    setSignupCaptchaReady(false);
+    setSignupVerificationChallenge(null);
     setView(authView);
     // Scroll to top
     window.scrollTo({ top: 0, behavior: "smooth" });
+
+    // If navigating to signup, load CAPTCHA
+    if (authView === "signup") {
+      await loadSignupCaptcha();
+    }
+  };
+
+  // Load CAPTCHA for signup form
+  const loadSignupCaptcha = async () => {
+    try {
+      const recaptchaAvailable = window.grecaptcha && window.grecaptcha.render && recaptchaConfig.recaptchaSiteKey;
+
+      if (recaptchaAvailable) {
+        // Use reCAPTCHA
+        setSignupVerificationChallenge(null);
+        setSignupCaptchaReady(true);
+
+        // Wait for React to render the DOM, then explicitly render reCAPTCHA
+        setTimeout(() => {
+          const container = document.getElementById('signup-recaptcha-container');
+          if (container && window.grecaptcha && window.grecaptcha.render) {
+            container.innerHTML = '';
+            try {
+              window.grecaptcha.render('signup-recaptcha-container', {
+                sitekey: recaptchaConfig.recaptchaSiteKey
+              });
+              console.log("Signup reCAPTCHA widget rendered successfully");
+            } catch (err) {
+              console.error("Error rendering signup reCAPTCHA:", err);
+            }
+          }
+        }, 100);
+      } else {
+        // Fall back to math challenge
+        console.log("reCAPTCHA not available, using math challenge for signup");
+        const res = await fetch(`${API_URL}/verification/challenge`);
+        if (!res.ok) {
+          throw new Error(`Server error: ${res.status}`);
+        }
+        const challenge = await res.json();
+        setSignupVerificationChallenge(challenge);
+        setSignupForm(prev => ({ ...prev, verificationId: challenge.id }));
+        setSignupCaptchaReady(true);
+      }
+    } catch (err) {
+      console.error("Signup verification load error:", err);
+      // Still allow signup attempt - server will validate
+      setSignupCaptchaReady(true);
+    }
   };
 
   // Filters
@@ -56,13 +113,10 @@ function App() {
   const [showDealsOnly, setShowDealsOnly] = useState(false);
   const [sortBy, setSortBy] = useState("local");
 
-  // Review form
+  // Review form (no CAPTCHA needed - users verified at signup)
   const [reviewForm, setReviewForm] = useState({
     rating: 5,
     comment: "",
-    verificationId: "",
-    verificationAnswer: "",
-    recaptchaToken: "",
     // Category ratings
     foodQuality: 3,
     service: 3,
@@ -70,10 +124,14 @@ function App() {
     atmosphere: 3,
     isAnonymous: false
   });
-  const [verificationChallenge, setVerificationChallenge] = useState(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
+
+  // CAPTCHA config for signup
   const [recaptchaConfig, setRecaptchaConfig] = useState({ recaptchaEnabled: false, recaptchaSiteKey: null });
   const [recaptchaLoaded, setRecaptchaLoaded] = useState(false);
+  // Signup CAPTCHA state
+  const [signupCaptchaReady, setSignupCaptchaReady] = useState(false);
+  const [signupVerificationChallenge, setSignupVerificationChallenge] = useState(null);
 
   // Edit review state
   const [editingReview, setEditingReview] = useState(null);
@@ -222,17 +280,54 @@ function App() {
       return;
     }
 
+    // Get CAPTCHA verification
+    let recaptchaToken = "";
+    const recaptchaAvailable = window.grecaptcha && recaptchaConfig.recaptchaSiteKey;
+
+    if (recaptchaAvailable) {
+      try {
+        recaptchaToken = window.grecaptcha.getResponse();
+        if (!recaptchaToken) {
+          setAuthError("Please complete the CAPTCHA verification (check the 'I'm not a robot' box).");
+          return;
+        }
+      } catch (err) {
+        console.error("Error getting reCAPTCHA response:", err);
+        setAuthError("CAPTCHA error. Please refresh and try again.");
+        return;
+      }
+    } else if (signupVerificationChallenge) {
+      // Using math challenge fallback
+      if (!signupForm.verificationAnswer) {
+        setAuthError("Please answer the verification question.");
+        return;
+      }
+    }
+
     try {
+      const submitData = {
+        username: signupForm.username,
+        password: signupForm.password,
+        confirmPassword: signupForm.confirmPassword,
+        recaptchaToken: recaptchaToken,
+        verificationId: signupForm.verificationId,
+        verificationAnswer: signupForm.verificationAnswer
+      };
+
       const res = await fetch(`${API_URL}/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(signupForm)
+        body: JSON.stringify(submitData)
       });
 
       const data = await res.json();
 
       if (!res.ok) {
         setAuthError(data.error || "Signup failed.");
+        // Reset CAPTCHA on error
+        if (window.grecaptcha) {
+          window.grecaptcha.reset();
+        }
         return;
       }
 
@@ -240,7 +335,9 @@ function App() {
       localStorage.setItem("locallink_auth_token", data.token);
       setAuthToken(data.token);
       setUser(data.user);
-      setSignupForm({ username: "", password: "", confirmPassword: "" });
+      setSignupForm({ username: "", password: "", confirmPassword: "", verificationId: "", verificationAnswer: "" });
+      setSignupCaptchaReady(false);
+      setSignupVerificationChallenge(null);
       // Return to previous view or home
       if (previousView) {
         setView(previousView.view);
@@ -254,6 +351,10 @@ function App() {
     } catch (error) {
       console.error("Signup error:", error);
       setAuthError("Unable to connect to server. Please check your connection and try again.");
+      // Reset CAPTCHA on error
+      if (window.grecaptcha) {
+        window.grecaptcha.reset();
+      }
     }
   };
 
@@ -482,6 +583,13 @@ function App() {
     return () => clearInterval(checkRecaptcha);
   }, []);
 
+  // Load CAPTCHA when navigating to signup view
+  useEffect(() => {
+    if (view === "signup" && !signupCaptchaReady) {
+      loadSignupCaptcha();
+    }
+  }, [view, recaptchaConfig]);
+
   // Apply filters and search
   useEffect(() => {
     const params = new URLSearchParams();
@@ -615,51 +723,12 @@ function App() {
       .finally(() => setDetailLoading(false));
   };
 
-  const startReview = async () => {
-    try {
-      // Check if reCAPTCHA is available (loaded from index.html)
-      const recaptchaAvailable = window.grecaptcha && window.grecaptcha.render && recaptchaConfig.recaptchaSiteKey;
-
-      if (recaptchaAvailable) {
-        // Use reCAPTCHA - show the form, then explicitly render the widget
-        setVerificationChallenge(null);
-        setShowReviewForm(true);
-        console.log("Starting review with reCAPTCHA, site key:", recaptchaConfig.recaptchaSiteKey);
-
-        // Wait for React to render the DOM, then explicitly render reCAPTCHA
-        setTimeout(() => {
-          const container = document.getElementById('recaptcha-container');
-          if (container && window.grecaptcha && window.grecaptcha.render) {
-            // Clear any existing widget
-            container.innerHTML = '';
-            try {
-              window.grecaptcha.render('recaptcha-container', {
-                sitekey: recaptchaConfig.recaptchaSiteKey
-              });
-              console.log("reCAPTCHA widget rendered successfully");
-            } catch (err) {
-              console.error("Error rendering reCAPTCHA:", err);
-            }
-          }
-        }, 100);
-      } else {
-        // Fall back to math challenge
-        console.log("reCAPTCHA not available, using math challenge");
-        const res = await fetch(`${API_URL}/verification/challenge`);
-        if (!res.ok) {
-          throw new Error(`Server error: ${res.status}`);
-        }
-        const challenge = await res.json();
-        setVerificationChallenge(challenge);
-        setReviewForm(prev => ({ ...prev, verificationId: challenge.id }));
-        setShowReviewForm(true);
-      }
-    } catch (err) {
-      console.error("Verification load error:", err);
-      alert("Failed to load verification. Please try again.");
-    }
+  // Start review - no CAPTCHA needed since users verified at signup
+  const startReview = () => {
+    setShowReviewForm(true);
   };
 
+  // Submit review - no CAPTCHA needed since users verified at signup
   const submitReview = async (e) => {
     e.preventDefault();
 
@@ -670,37 +739,14 @@ function App() {
       return;
     }
 
-    // Get reCAPTCHA token if available
-    let recaptchaToken = "";
-    const recaptchaAvailable = window.grecaptcha && recaptchaConfig.recaptchaSiteKey;
-
-    if (recaptchaAvailable) {
-      try {
-        recaptchaToken = window.grecaptcha.getResponse();
-        if (!recaptchaToken) {
-          alert("Please complete the reCAPTCHA verification (check the 'I'm not a robot' box).");
-          return;
-        }
-      } catch (err) {
-        console.error("Error getting reCAPTCHA response:", err);
-        alert("reCAPTCHA error. Please refresh and try again.");
-        return;
-      }
-    }
-
     try {
-      const submitData = {
-        ...reviewForm,
-        recaptchaToken: recaptchaToken
-      };
-
       const res = await fetch(`${API_URL}/businesses/${selectedBusiness.id}/reviews`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...getAuthHeaders()
         },
-        body: JSON.stringify(submitData)
+        body: JSON.stringify(reviewForm)
       });
 
       const data = await res.json();
@@ -712,10 +758,6 @@ function App() {
           return;
         }
         alert(data.error || "Failed to submit review");
-        // Reset reCAPTCHA on error
-        if (window.grecaptcha) {
-          window.grecaptcha.reset();
-        }
         return;
       }
 
@@ -734,9 +776,6 @@ function App() {
       setReviewForm({
         rating: 5,
         comment: "",
-        verificationId: "",
-        verificationAnswer: "",
-        recaptchaToken: "",
         foodQuality: 3,
         service: 3,
         cleanliness: 3,
@@ -749,10 +788,6 @@ function App() {
     } catch (err) {
       console.error("Review submission error:", err);
       alert(`Failed to submit review: ${err.message || "Unknown error"}. Please try again.`);
-      // Reset reCAPTCHA on error
-      if (window.grecaptcha) {
-        window.grecaptcha.reset();
-      }
     }
   };
 
@@ -2064,7 +2099,7 @@ function App() {
                     </div>
                   </div>
 
-                  {showReviewForm && (verificationChallenge || recaptchaConfig.recaptchaSiteKey) && (
+                  {showReviewForm && (
                     <form onSubmit={submitReview} className={styles.reviewForm} aria-labelledby="review-form-title">
                       <h4 id="review-form-title" className={styles.formTitle}>Write Your Review</h4>
 
@@ -2174,40 +2209,6 @@ function App() {
                         aria-label="Your review (optional)"
                       />
 
-                      {/* Verification: reCAPTCHA or Math Challenge */}
-                      <div className={styles.verification}>
-                        {recaptchaConfig.recaptchaSiteKey ? (
-                          <>
-                            <label className={styles.label}>
-                              Please verify you're human:
-                            </label>
-                            {/* reCAPTCHA widget - explicitly rendered via grecaptcha.render() */}
-                            <div
-                              id="recaptcha-container"
-                              style={{ marginTop: '8px' }}
-                            ></div>
-                          </>
-                        ) : verificationChallenge && (
-                          <>
-                            <label className={styles.label} htmlFor="verification-answer">
-                              Quick check: {verificationChallenge.question}
-                            </label>
-                            <input
-                              id="verification-answer"
-                              type="number"
-                              placeholder="Answer"
-                              value={reviewForm.verificationAnswer}
-                              onChange={e => setReviewForm(prev => ({ ...prev, verificationAnswer: e.target.value }))}
-                              className={styles.input}
-                              aria-label="Verification answer"
-                              required
-                            />
-                            <p style={{ fontSize: 'var(--text-label)', color: 'var(--color-gray-500)', marginTop: 'var(--space-1)' }}>
-                              Verified by quick check to prevent spam
-                            </p>
-                          </>
-                        )}
-                      </div>
 
                       <div className={styles.formButtons}>
                         <button type="submit" className={styles.submitBtn}>
@@ -2915,8 +2916,44 @@ function App() {
                   />
                 </div>
 
-                <button type="submit" className={styles.authSubmitBtn}>
-                  Create Account
+                {/* CAPTCHA verification for signup */}
+                {signupCaptchaReady && (
+                  <div className={styles.formGroup}>
+                    {recaptchaConfig.recaptchaSiteKey ? (
+                      <>
+                        <label className={styles.label}>
+                          Please verify you're human:
+                        </label>
+                        <div
+                          id="signup-recaptcha-container"
+                          style={{ marginTop: '8px' }}
+                        ></div>
+                      </>
+                    ) : signupVerificationChallenge && (
+                      <>
+                        <label className={styles.label} htmlFor="signup-verification-answer">
+                          Quick check: {signupVerificationChallenge.question}
+                        </label>
+                        <input
+                          id="signup-verification-answer"
+                          type="number"
+                          placeholder="Answer"
+                          value={signupForm.verificationAnswer}
+                          onChange={e => setSignupForm(prev => ({ ...prev, verificationAnswer: e.target.value }))}
+                          className={styles.input}
+                          aria-label="Verification answer"
+                          required
+                        />
+                        <p className={styles.inputHint}>
+                          Verified by quick check to prevent spam
+                        </p>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <button type="submit" className={styles.authSubmitBtn} disabled={!signupCaptchaReady}>
+                  {signupCaptchaReady ? 'Create Account' : 'Loading...'}
                 </button>
               </form>
 
