@@ -530,6 +530,7 @@ app.use((req, res, next) => {
 // Ensure reviews are loaded from Blob before handling business/review requests
 app.use('/api/businesses', ensureReviewsLoaded);
 app.use('/api/reviews', ensureReviewsLoaded);
+app.use('/api/my-reviews', ensureReviewsLoaded);
 app.use('/api/recommendations', ensureReviewsLoaded);
 app.use('/api/analytics', ensureReviewsLoaded);
 app.use('/api/auth', ensureUsersLoaded);
