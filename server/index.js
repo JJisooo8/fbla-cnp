@@ -7,7 +7,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
-import { kv } from "@vercel/kv";
+import { put, list, del } from "@vercel/blob";
 
 // Load environment variables
 const envPaths = [
@@ -89,11 +89,11 @@ console.log(`  - GOOGLE_SEARCH_ENGINE_ID: ${process.env.GOOGLE_SEARCH_ENGINE_ID 
 console.log(`  - RECAPTCHA_SECRET_KEY: ${process.env.RECAPTCHA_SECRET_KEY ? 'SET' : 'NOT SET'}`);
 console.log(`  - RECAPTCHA_SITE_KEY: ${process.env.RECAPTCHA_SITE_KEY ? 'SET' : 'NOT SET'}`);
 console.log(`  - OFFLINE_MODE: ${OFFLINE_MODE ? 'true' : 'false'}`);
-console.log(`  - KV_REST_API_URL: ${process.env.KV_REST_API_URL ? 'SET (Vercel KV enabled)' : 'NOT SET (using file storage)'}`);
+console.log(`  - BLOB_READ_WRITE_TOKEN: ${process.env.BLOB_READ_WRITE_TOKEN ? 'SET (Vercel Blob enabled)' : 'NOT SET (using file storage)'}`);
 console.log('========================================');
 
-// Determine if we should use Vercel KV
-const USE_VERCEL_KV = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+// Determine if we should use Vercel Blob
+const USE_VERCEL_BLOB = !!process.env.BLOB_READ_WRITE_TOKEN;
 
 // Cache for API responses (TTL: 1 hour)
 const cache = new NodeCache({ stdTTL: 3600 });
@@ -104,27 +104,39 @@ const REVIEWS_FILE = process.env.VERCEL
   ? path.join("/tmp", "reviews.json")
   : path.join(__dirname, "reviews.json");
 
-// In-memory cache for reviews (synced with KV or file)
+// In-memory cache for reviews (synced with Blob or file)
 let localReviews = new Map();
 
 // ============================================
-// VERCEL KV REVIEW STORAGE
+// VERCEL BLOB REVIEW STORAGE
 // ============================================
-const REVIEWS_KV_KEY = "locallink:reviews";
+const REVIEWS_BLOB_NAME = "reviews.json";
+let reviewsBlobUrl = null; // Cache the blob URL for deletion
 
-// Load reviews from Vercel KV or file
+// Load reviews from Vercel Blob or file
 async function loadReviewsAsync() {
-  if (USE_VERCEL_KV) {
+  if (USE_VERCEL_BLOB) {
     try {
-      const data = await kv.get(REVIEWS_KV_KEY);
-      if (data && Array.isArray(data)) {
-        localReviews = new Map(data);
-        console.log(`[KV] Loaded ${localReviews.size} business review sets from Vercel KV`);
-        return;
+      // List blobs to find our reviews file
+      const { blobs } = await list({ prefix: REVIEWS_BLOB_NAME });
+      const reviewsBlob = blobs.find(b => b.pathname === REVIEWS_BLOB_NAME);
+
+      if (reviewsBlob) {
+        reviewsBlobUrl = reviewsBlob.url;
+        // Fetch the blob content
+        const response = await fetch(reviewsBlob.url);
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            localReviews = new Map(data);
+            console.log(`[BLOB] Loaded ${localReviews.size} business review sets from Vercel Blob`);
+            return;
+          }
+        }
       }
-      console.log('[KV] No reviews found in Vercel KV, starting fresh');
+      console.log('[BLOB] No reviews found in Vercel Blob, starting fresh');
     } catch (error) {
-      console.error('[KV] Error loading reviews from Vercel KV:', error.message);
+      console.error('[BLOB] Error loading reviews from Vercel Blob:', error.message);
     }
   }
 
@@ -140,24 +152,39 @@ async function loadReviewsAsync() {
   }
 }
 
-// Save reviews to Vercel KV or file
+// Save reviews to Vercel Blob or file
 async function saveReviewsAsync() {
   const data = Array.from(localReviews.entries());
+  const jsonData = JSON.stringify(data);
 
-  if (USE_VERCEL_KV) {
+  if (USE_VERCEL_BLOB) {
     try {
-      await kv.set(REVIEWS_KV_KEY, data);
-      console.log(`[KV] Saved ${localReviews.size} business review sets to Vercel KV`);
+      // Delete old blob if exists (Blob doesn't overwrite by default)
+      if (reviewsBlobUrl) {
+        try {
+          await del(reviewsBlobUrl);
+        } catch (e) {
+          // Ignore delete errors
+        }
+      }
+
+      // Upload new blob
+      const blob = await put(REVIEWS_BLOB_NAME, jsonData, {
+        access: 'public',
+        contentType: 'application/json'
+      });
+      reviewsBlobUrl = blob.url;
+      console.log(`[BLOB] Saved ${localReviews.size} business review sets to Vercel Blob`);
       return;
     } catch (error) {
-      console.error('[KV] Error saving reviews to Vercel KV:', error.message);
+      console.error('[BLOB] Error saving reviews to Vercel Blob:', error.message);
       // Fall through to file backup
     }
   }
 
   // Fallback to file-based storage
   try {
-    fs.writeFileSync(REVIEWS_FILE, JSON.stringify(data), "utf8");
+    fs.writeFileSync(REVIEWS_FILE, jsonData, "utf8");
   } catch (error) {
     console.error("[FILE] Error saving reviews:", error);
   }
@@ -179,9 +206,9 @@ function loadReviewsSync() {
 // Initialize reviews - sync for startup, async load follows
 localReviews = loadReviewsSync();
 
-// Load from KV asynchronously after startup
-if (USE_VERCEL_KV) {
-  loadReviewsAsync().catch(err => console.error('[KV] Async load failed:', err));
+// Load from Blob asynchronously after startup
+if (USE_VERCEL_BLOB) {
+  loadReviewsAsync().catch(err => console.error('[BLOB] Async load failed:', err));
 }
 
 // Store verification challenges in memory
