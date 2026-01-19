@@ -13,7 +13,7 @@
     "nodemon": "^3.1.11"
   },
   "dependencies": {
-    "@vercel/kv": "^3.0.0",
+    "@vercel/blob": "^2.0.0",
     "axios": "^1.13.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
