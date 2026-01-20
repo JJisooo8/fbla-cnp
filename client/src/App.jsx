@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import styles from "./App.module.css";
+import { ChatButton, ChatPanel } from "./components/Chatbot";
 
 // Use relative path in production (same domain), localhost in development
 // Always use relative path in production to avoid CORS and work on any domain (preview/production)
@@ -18,6 +19,9 @@ function App() {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  // Chatbot state
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Authentication state
   const [user, setUser] = useState(null);
@@ -3082,6 +3086,24 @@ function App() {
           </span>
         </div>
       </footer>
+
+      {/* AI Chatbot */}
+      <ChatButton
+        onClick={() => setIsChatOpen(true)}
+        isOpen={isChatOpen}
+      />
+      <ChatPanel
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        businesses={businesses}
+        favoriteBusinesses={businesses.filter(b => favorites.includes(b.id))}
+        isLoggedIn={!!user}
+        onBusinessClick={(business) => {
+          setSelectedBusiness(business);
+          setView("business");
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+      />
     </div>
   );
 }
