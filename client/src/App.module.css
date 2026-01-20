@@ -1803,7 +1803,7 @@
 
 .reviewItem {
   padding: var(--space-6);
-  background-color: var(--color-gray-100);
+  background-color: var(--color-gray-200);
   border-radius: var(--radius-lg);
   transition: all var(--transition-base);
 }
