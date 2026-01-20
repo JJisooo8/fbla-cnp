@@ -109,7 +109,8 @@ export default async function handler(req, res) {
       const {
         rating,
         comment,
-        foodQuality,
+        quality,
+        foodQuality, // Legacy support
         service,
         cleanliness,
         atmosphere,
@@ -128,6 +129,9 @@ export default async function handler(req, res) {
       // Comment is optional - validate only if provided
       const reviewComment = (comment && typeof comment === "string") ? comment.trim() : "";
 
+      // Support both 'quality' and legacy 'foodQuality'
+      const qualityRating = quality !== undefined ? quality : foodQuality;
+
       // Validate category ratings (required, must be 1-5)
       const validateCategoryRating = (val, name) => {
         if (val === undefined || val === null) {
@@ -140,7 +144,7 @@ export default async function handler(req, res) {
       };
 
       const categoryErrors = [
-        validateCategoryRating(foodQuality, "Food quality"),
+        validateCategoryRating(qualityRating, "Quality"),
         validateCategoryRating(service, "Service"),
         validateCategoryRating(cleanliness, "Cleanliness"),
         validateCategoryRating(atmosphere, "Atmosphere")
@@ -168,7 +172,7 @@ export default async function handler(req, res) {
         helpful: 0,
         upvotedBy: [],
         source: 'local',
-        foodQuality,
+        quality: qualityRating,
         service,
         cleanliness,
         atmosphere
