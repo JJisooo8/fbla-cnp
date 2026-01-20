@@ -1,411 +1,285 @@
-# LocalLink - Byte-Sized Business Boost
+# LocalLink
 
-**A web-based application that helps users discover and support small, local businesses in Cumming, Georgia.**
+**A web application that helps users discover and support small, local businesses in their community.**
 
-Built for FBLA's Competitive Event: Byte-Sized Business Boost
-
-🗺️ **Powered by OpenStreetMap + Yelp!** LocalLink displays real businesses from OpenStreetMap with optional Yelp enrichment for websites, hours, and photos.
+Created for FBLA Coding & Programming: Byte-Sized Business Boost
 
 ---
 
-## 🌟 Features
+## Project Overview
 
-### Core Functionality
-- **Browse Real Businesses**: Powered by OpenStreetMap - real restaurants, stores, and services in Cumming, GA
-- **10-Mile Coverage**: Discover businesses within a 10-mile radius of Cumming, Georgia
-- **Live Business Data**: Real addresses, phone numbers, hours, and websites (OSM with optional Yelp enrichment)
-- **Smart Search**: Search by name, description, tags, or category
-- **Advanced Filters**: Filter by category, minimum rating, and sort by rating/reviews/name
-- **Business Details**: View comprehensive information including address, hours, contact, and website
-- **Favorites System**: Save and bookmark favorite businesses (persisted in browser)
-- **Reviews & Ratings**: Submit reviews with spam protection (only user-submitted reviews are stored)
-- **Business Photos**: Uses Yelp images when available; optional Bing image search fills gaps
+LocalLink addresses the FBLA "Byte-Sized Business Boost" challenge by providing a comprehensive platform for discovering local businesses in Cumming, Georgia. The application connects community members with nearby restaurants, retail stores, and service providers through an intuitive interface that encourages supporting local commerce.
 
-### Intelligent Features
-- **Personalized Recommendations**: AI-powered suggestions based on favorite businesses and categories
-- **Trending Businesses**: Smart algorithm combining local ratings and reviews to surface popular businesses
-- **Analytics Dashboard**: Real-time stats showing total businesses and local review totals
-- **Analytics Dashboard**: Real-time stats showing total businesses and local review counts
-- **Smart Filtering**: Efficient filtering and search across all business attributes
+### Key Capabilities
 
-### Security & Validation
-- **Spam Prevention**: Math-based CAPTCHA challenge before submitting reviews
-- **Input Validation**: Server-side validation for all user submissions
-- **Error Handling**: Comprehensive error handling on both frontend and backend
+- **Business Discovery**: Browse real businesses from OpenStreetMap with optional Yelp data enrichment
+- **Category Sorting**: Filter businesses by type (Food, Retail, Services) and custom labels
+- **Reviews & Ratings**: Community-driven review system with star ratings and category breakdowns
+- **Sort by Reviews/Ratings**: Order results by rating, review count, or relevance
+- **Favorites System**: Save and bookmark businesses for quick access
+- **Special Deals Display**: Highlighted promotions and offers from local businesses
+- **Bot Prevention**: CAPTCHA verification (reCAPTCHA v2 or math challenge) on user signup
 
 ---
 
-## 🏗️ Technical Architecture
+## Tech Stack
 
-### Backend (Node.js + Express)
-- **OpenStreetMap + Yelp Integration**: Fetches real business data via Overpass API with optional Yelp enrichment
-- **Smart Caching**: 1-hour cache to minimize API load and improve performance
-- **RESTful API** with modular endpoint structure
-- **Location-Based Search**: Searches within 10-mile radius of Cumming, GA
-- **Smart Algorithms**: Recommendation engine, trending calculator, search scoring
-- **Anti-Spam System**: UUID-based verification challenges with expiration
-- **Data Transformation**: Converts OSM data to user-friendly format
-- **Data Validation**: Robust input validation and error responses
+### Frontend
 
-**Key Technologies:**
-- Express 5.2.1
-- Axios (for Overpass API calls)
-- Node-Cache (response caching)
-- Crypto (UUID generation)
+| Technology | Purpose |
+|------------|---------|
+| **React 19** | Component-based UI library using hooks for state management |
+| **Vite** | Fast build tool with hot module replacement for development |
+| **CSS Modules** | Scoped styling to prevent class name conflicts |
+| **ES Modules** | Modern JavaScript module system for better code organization |
 
-### Frontend (React + Vite)
-- **Modern React**: Hooks-based architecture with functional components
-- **Single-Page Application**: Client-side routing between home, details, and favorites
-- **Responsive Design**: Clean, accessible UI optimized for presentations
-- **Local Storage**: Persistent favorites across sessions
-- **Real-time Updates**: Dynamic filtering and instant search results
-- **Business Photos**: Uses Yelp images, with optional Bing image search for missing photos
+**Why React?** React's component architecture allows for modular, reusable UI elements. The hooks-based approach simplifies state management without external libraries.
 
----
+### Backend
 
-## 📋 API Endpoints
+| Technology | Purpose |
+|------------|---------|
+| **Node.js** | JavaScript runtime enabling full-stack development in one language |
+| **Express 5** | Minimal web framework for RESTful API endpoints |
+| **node-cache** | In-memory caching to reduce API calls and improve performance |
+| **bcryptjs** | Secure password hashing for user authentication |
+| **jsonwebtoken** | Stateless authentication via JWT tokens |
 
-### Business Endpoints
-```
-GET  /api/health                      - Health check
-GET  /api/businesses                  - Get all businesses (with optional filters)
-GET  /api/businesses/:id              - Get single business by ID
-POST /api/businesses/:id/reviews      - Submit review (with verification)
-```
+**Why Express?** Express provides a lightweight foundation that doesn't impose unnecessary structure, making it ideal for a focused API server.
 
-### Intelligent Features
-```
-POST /api/recommendations             - Get personalized recommendations
-GET  /api/trending                    - Get trending businesses
-GET  /api/analytics                   - Get platform analytics
-```
+### Data Sources
 
-### Verification
-```
-GET  /api/verification/challenge      - Get anti-spam challenge
-```
+| Service | Purpose |
+|---------|---------|
+| **OpenStreetMap** | Free, community-maintained business data (no API key required) |
+| **Yelp API** (optional) | Enrichment data including photos, hours, and websites |
+| **Vercel Blob** | Serverless storage for user data and reviews in production |
 
-### Query Parameters
-- `category` - Filter by category (Food, Retail, Services)
-- `search` - Search term (searches name, description, tags, category)
-- `minRating` - Minimum rating threshold (e.g., 4, 4.5)
-- `hasDeals` - Filter businesses with deals (true/false)
-- `sort` - Sort order (rating, reviews, name)
+**Why OpenStreetMap?** Unlike Google Places, OpenStreetMap is completely free with no usage limits, making it sustainable for any deployment scale.
+
+### Deployment
+
+| Platform | Purpose |
+|----------|---------|
+| **Vercel** | Serverless hosting with automatic scaling and global CDN |
+| **Vercel Blob** | Persistent storage for user accounts and reviews |
 
 ---
 
-## 🚀 Setup Instructions
+## Installation
 
 ### Prerequisites
-- Node.js (v16 or higher)
-- npm or yarn
-- **Optional API keys:** Yelp for enrichment and Bing Image Search for photos
 
-### Installation
+- Node.js v16 or higher
+- npm (included with Node.js)
 
-1. **Clone the repository**
+### Local Development Setup
+
+1. **Clone and navigate to the repository**
    ```bash
    cd fbla-cnp
    ```
 
-2. **Install Backend Dependencies**
+2. **Install backend dependencies**
    ```bash
    cd server
    npm install
    ```
 
-3. **Install Frontend Dependencies**
+3. **Install frontend dependencies**
    ```bash
    cd ../client
    npm install
    ```
 
-### Running the Application
-
-1. **Start the Backend Server** (Terminal 1)
+4. **Start the backend server** (Terminal 1)
    ```bash
    cd server
    npm run dev
    ```
-   Server runs on `http://localhost:3001`
+   The API runs on `http://localhost:3001`
 
-   ✅ Look for:
-   ```
-   🗺️  Data Source: OpenStreetMap (FREE!)
-   📍 Location: Cumming, Georgia
-   📏 Search radius: 10 miles (16093 meters)
-   🧭 Yelp enrichment: enabled/disabled
-   🖼️  Bing image search: enabled/disabled
-   ```
-
-2. **Start the Frontend** (Terminal 2)
+5. **Start the frontend** (Terminal 2)
    ```bash
    cd client
    npm run dev
    ```
-   Frontend runs on `http://localhost:5173`
+   The application runs on `http://localhost:5173`
 
-3. **Access the Application**
-   Open your browser to `http://localhost:5173`
+6. **Open the application**
+   Navigate to `http://localhost:5173` in your browser
+
+### Environment Variables (Optional)
+
+Create a `.env` file in the `server` directory for enhanced features:
+
+```env
+# Yelp API for business enrichment (photos, hours, websites)
+YELP_API_KEY=your_key_here
+
+# Google Custom Search for additional business images
+GOOGLE_SEARCH_API_KEY=your_key_here
+GOOGLE_SEARCH_ENGINE_ID=your_id_here
+
+# reCAPTCHA v2 for enhanced bot prevention
+RECAPTCHA_SITE_KEY=your_site_key_here
+RECAPTCHA_SECRET_KEY=your_secret_key_here
+```
+
+The application functions fully without these keys using OpenStreetMap data and a math-based verification challenge.
 
 ---
 
-## 🎨 User Guide
+## User Guide
 
 ### Browsing Businesses
-1. View trending businesses and analytics on the homepage
-2. Use the search bar to find specific businesses
-3. Apply filters: category, minimum rating
-4. Sort results by rating, review count, or name (local reviews only)
-5. Click any business card to view full details
+
+1. The home page displays community statistics, local favorites, and personalized recommendations
+2. Use the search bar to find businesses by name
+3. Click label chips to filter by category (e.g., "Pizza", "Coffee", "Salon")
+4. Adjust the rating filter to show only highly-rated businesses
+5. Toggle "Deals Only" to see businesses with active promotions
+6. Click any business card to view full details
 
 ### Viewing Business Details
-1. Click "View Details" or the business name/image
-2. See comprehensive info: address, phone, hours, website
-3. View current rating and review count (local only)
-4. Read customer reviews
-5. Submit your own review
+
+1. The detail view shows comprehensive information: address, phone, hours, and website
+2. Click "Directions" to open the location in Google Maps
+3. View the rating breakdown by category (Quality, Service, Cleanliness, Atmosphere)
+4. Read community reviews sorted by relevance, newest, or oldest
+5. Click tags to discover similar businesses
 
 ### Managing Favorites
-1. Click the heart icon on any business card
-2. View all favorites in the Favorites tab
-3. Favorites are saved automatically in your browser
 
-### Submitting Reviews
-1. Open a business detail page
-2. Click "Write a Review"
-3. Fill out the form: name, rating (1-5 stars), comment
-4. Solve the simple math challenge (spam prevention)
-5. Submit your review
+1. Log in or create an account to save favorites
+2. Click the heart icon on any business card to save it
+3. Access all saved businesses from the "Favorites" tab in the navigation
+4. Favorites persist across sessions and inform personalized recommendations
 
----
+### Writing Reviews
 
-## 📊 Data Source: OpenStreetMap
+1. Log in to your account (required to prevent spam)
+2. Open a business detail page and click "Write a Review"
+3. Rate the business overall (1-5 stars)
+4. Optionally rate by category: Quality, Service, Cleanliness, Atmosphere
+5. Add a written comment to share your experience
+6. Submit the review (no additional CAPTCHA required after signup)
 
-### Why OpenStreetMap?
-- ✅ **Completely FREE** - No API keys, no billing, no quotas
-- ✅ **Real Data** - Actual businesses from community-contributed map data
-- ✅ **No Usage Limits** - Use as much as you need
-- ✅ **Privacy-Friendly** - No tracking or personal data collection
-- ✅ **Open Source** - Community-driven, collaborative data
+### Special Features
 
-### How It Works
-1. **Overpass API**: We query OpenStreetMap data via the Overpass API
-2. **10-Mile Radius**: Searches businesses around Cumming, GA (34.2073, -84.1402)
-3. **Business Types**: Restaurants, cafes, shops, services, and more
-4. **Data Transformation**: Converts OSM tags to user-friendly business profiles
-5. **Caching**: Results cached for 1 hour for better performance
-
-### OSM Data Categories
-- **Food**: restaurants, cafes, fast_food, bars, pubs, bakeries
-- **Retail**: shops, supermarkets, convenience stores, boutiques, bookstores
-- **Services**: pharmacies, salons, gyms, banks, auto repair, veterinarians
-
-### Optional Yelp + Bing Setup
-LocalLink can optionally enrich data with Yelp (websites/hours/photos) and fill missing photos with Bing Image Search.
-
-Add these environment variables before starting the server:
-
-```
-export YELP_API_KEY="your-yelp-api-key"
-export BING_IMAGE_SEARCH_KEY="your-bing-search-key"
-export BING_IMAGE_SEARCH_ENDPOINT="https://api.bing.microsoft.com/v7.0/images/search"
-```
-
-Notes:
-- `BING_IMAGE_SEARCH_ENDPOINT` is optional; the default shown above is used if omitted.
-- If you do not set these variables, LocalLink still works using OpenStreetMap data only.
+- **Upvote Reviews**: Mark helpful reviews to surface quality content
+- **Report Reviews**: Flag inappropriate content for moderation
+- **Edit/Delete**: Modify or remove your own reviews
+- **Export Data**: Use Developer Tools to export business data as JSON or CSV
 
 ---
 
-## 🖼️ Images & Photos
+## Accessibility Features
 
-Since OpenStreetMap doesn't include photos, LocalLink uses:
-- **Yelp Photos (optional)**: Uses Yelp images when an API key is provided
-- **Bing Image Search (optional)**: Fills in missing photos with Bing Image Search
-- **Curated Fallbacks**: Category-appropriate images when no external photo is available
-
----
-
-## 💡 Intelligent Features Explained
-
-### Personalized Recommendations
-- Analyzes your favorited businesses
-- Identifies category preferences
-- Scores all businesses based on:
-  - Category match (highest weight)
-  - High ratings (4.5+ stars)
-  - Popularity (review count)
-- Returns top 4 personalized suggestions
-
-### Trending Algorithm
-```javascript
-trendScore = rating × log₁₀(reviewCount + 1) × 10
-```
-- Uses only locally submitted ratings and reviews
-- Top 3 trending businesses displayed
-
-### Analytics Dashboard
-Real-time statistics:
-- Total businesses in Cumming area
-- Total local review count
-- Breakdown by category (Food, Retail, Services)
+- Semantic HTML structure with proper heading hierarchy
+- ARIA labels on interactive elements
+- Keyboard navigation support (Tab, Enter, Escape)
+- Focus indicators on all interactive components
+- Screen reader compatible form labels and error messages
+- Sufficient color contrast ratios
+- Responsive design for mobile and desktop viewports
 
 ---
 
-## 🛡️ Security Features
-
-### Review Spam Prevention
-- Math-based CAPTCHA (e.g., "What is 7 + 3?")
-- UUID-based challenge system
-- 5-minute challenge expiration
-- One-time use (challenge deleted after verification)
-
-### Input Validation
-- Author name: minimum 2 characters
-- Rating: must be 1-5 stars
-- Comment: minimum 10 characters
-- All inputs sanitized and trimmed
-
-### Error Handling
-- Graceful error messages for users
-- Detailed server-side logging
-- Network error recovery
-- Cache fallback mechanisms
-
----
-
-## 📂 Project Structure
+## Project Structure
 
 ```
 fbla-cnp/
-├── client/                    # React frontend
+├── client/                 # React frontend application
 │   ├── src/
-│   │   ├── App.jsx           # Main application component
-│   │   ├── main.jsx          # React entry point
-│   │   └── index.css         # Global styles
+│   │   ├── App.jsx        # Main application component
+│   │   ├── App.module.css # Component styles
+│   │   ├── design-tokens.css # Design system variables
+│   │   └── index.css      # Global styles
 │   ├── package.json
 │   └── vite.config.js
-├── server/                    # Node.js backend
-│   ├── index.js              # Express server + Overpass API integration
+├── server/                 # Express backend API
+│   ├── index.js           # Server and API routes
+│   ├── seed-data.js       # Offline data seeding script
 │   └── package.json
+├── api/                    # Vercel serverless functions
+│   ├── auth/              # Authentication endpoints
+│   ├── businesses/        # Business and review endpoints
+│   └── verification/      # CAPTCHA challenge endpoints
+├── vercel.json            # Deployment configuration
 └── README.md
 ```
 
 ---
 
-## 🎯 FBLA Competition Alignment
+## API Reference
 
-### "Byte-Sized Business Boost" Requirements
-✅ **Local Business Focus**: Exclusively serves Cumming, GA businesses
-✅ **Discovery Platform**: Browse, search, and filter local establishments
-✅ **Community Engagement**: Reviews, ratings, and favorites
-✅ **Intelligent Features**: Recommendations and trending algorithms
-✅ **User-Friendly**: Clean, accessible interface
-✅ **Real Data**: Actual businesses from OpenStreetMap
-✅ **Scalable Architecture**: Modular, well-documented code
+### Authentication
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/signup` | Create new user account |
+| POST | `/api/auth/login` | Authenticate and receive JWT token |
+| GET | `/api/auth/me` | Get current user information |
 
-### Demonstration Tips
-1. **Show Real Data**: Highlight that these are actual Cumming, GA businesses
-2. **Demo Recommendations**: Add favorites to show personalized suggestions
-3. **Test Search**: Search for specific business types (e.g., "pizza", "pharmacy")
-4. **Submit a Review**: Demonstrate the verification system
-5. **Show Analytics**: Display the dashboard with real statistics
-6. **Highlight FREE Aspect**: No API costs = sustainable solution
+### Businesses
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/businesses` | List businesses with optional filters |
+| GET | `/api/businesses/:id` | Get single business with reviews |
+| POST | `/api/businesses/:id/reviews` | Submit a review (auth required) |
 
----
+### Reviews
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| PUT | `/api/businesses/:businessId/reviews/:reviewId` | Edit review |
+| DELETE | `/api/businesses/:businessId/reviews/:reviewId` | Delete review |
+| POST | `/api/businesses/:businessId/reviews/:reviewId/upvote` | Upvote review |
+| POST | `/api/businesses/:businessId/reviews/:reviewId/report` | Report review |
 
-## 🔧 Customization
-
-### Change Location
-Edit `server/index.js`:
-```javascript
-const CUMMING_GA_LAT = 34.2073;  // Your latitude
-const CUMMING_GA_LON = -84.1402;  // Your longitude
-const SEARCH_RADIUS_METERS = 24140; // 15 miles
-```
-
-### Change Search Radius
-Adjust the radius (in meters):
-```javascript
-const SEARCH_RADIUS_METERS = 16093; // 10 miles
-const SEARCH_RADIUS_METERS = 32186; // 20 miles
-```
-
-### Customize Images
-Edit the `getCategoryImage()` function in `server/index.js` to use your own image URLs.
+### Query Parameters
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `category` | Filter by category | `Food`, `Retail`, `Services` |
+| `search` | Search by name or tags | `pizza`, `coffee` |
+| `minRating` | Minimum rating threshold | `4`, `4.5` |
+| `hasDeals` | Show only businesses with deals | `true` |
+| `sort` | Sort order | `rating`, `reviews`, `name` |
 
 ---
 
-## 🐛 Troubleshooting
+## FBLA Rubric Alignment
 
-### "Failed to fetch businesses" Error
+### Byte-Sized Business Boost Requirements
 
-**Cause**: Overpass API timeout or network issue
+| Requirement | Implementation |
+|-------------|----------------|
+| Tool for local business discovery | Browse, search, and filter 100+ real businesses |
+| Category sorting | Three main categories with dynamic label filtering |
+| User reviews and ratings | Full review system with 5-star ratings |
+| Sort by reviews/ratings | Multiple sort options available |
+| Save/bookmark favorites | Persistent favorites with user accounts |
+| Display special deals | Deal badges and dedicated filtering |
+| Bot prevention | CAPTCHA verification on signup |
 
-**Solution**:
-1. Wait a few seconds and refresh the page
-2. Check your internet connection
-3. The Overpass API may be temporarily busy - try again in a moment
+### Technical Criteria
 
-### No businesses showing up
-
-**Possible causes**:
-1. **Limited OSM data in area** - Some areas have sparse OpenStreetMap data
-2. **Filters too restrictive** - Try removing filters
-3. **Cache issue** - Restart the backend server
-
-### Slow initial load
-
-**Cause**: First query to Overpass API can be slow
-
-**Solution**:
-- Wait 10-15 seconds for initial load
-- Subsequent loads will be fast (cached for 1 hour)
-- Results are cached automatically
+| Criterion | Implementation |
+|-----------|----------------|
+| Modular code structure | Separated frontend/backend, logical component organization |
+| Comments and naming | Descriptive names, technical documentation |
+| Data structures | Arrays for collections, objects for entities, proper scoping |
+| Language selection | JavaScript chosen for full-stack consistency |
 
 ---
 
-## 🌟 Key Advantages
+## Data Attribution
 
-### vs. Google Places API
-- ✅ **FREE** (no billing, no API key)
-- ✅ **No usage limits**
-- ✅ **Privacy-friendly**
-- ❌ Photos not included (we use Unsplash)
-- ❌ Reviews not included (we provide local review system)
-
-### vs. Sample Data
-- ✅ **Real businesses** from OpenStreetMap
-- ✅ **Up-to-date information**
-- ✅ **Actual addresses and contacts**
-- ✅ **Community-verified data**
+- Business data: OpenStreetMap contributors (Open Database License)
+- Optional enrichment: Yelp Fusion API
+- Stock images: Unsplash (free to use)
 
 ---
 
-## 📝 License
+## License
 
-This project is created for educational purposes as part of FBLA's "Byte-Sized Business Boost" competitive event.
-
----
-
-## 🙏 Data Attribution
-
-Business data © OpenStreetMap contributors
-- Data available under the Open Database License
-- Learn more: https://www.openstreetmap.org/copyright
-- Images from Unsplash (free to use)
-
----
-
-## 📧 Support
-
-For technical issues or questions:
-1. Check the Troubleshooting section above
-2. Verify both frontend and backend servers are running
-3. Check browser console for detailed error messages
-4. Ensure internet connection is stable
-
----
-
-**Built with ❤️ for FBLA by showcasing real Cumming, Georgia businesses!**
+Created for educational purposes as part of FBLA Coding & Programming competition.

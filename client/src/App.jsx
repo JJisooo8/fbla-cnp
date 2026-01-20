@@ -1,13 +1,33 @@
+/**
+ * LocalLink - Main Application Component
+ * FBLA Coding & Programming: Byte-Sized Business Boost
+ *
+ * This single-page React application provides the user interface for
+ * discovering and supporting local businesses in Cumming, Georgia.
+ *
+ * Key Features:
+ * - Business browsing with filtering by category, rating, and labels
+ * - User authentication with CAPTCHA protection
+ * - Review system with upvoting and reporting
+ * - Favorites system with personalized recommendations
+ * - Responsive design with accessibility features
+ */
+
 import { useEffect, useState } from "react";
 import styles from "./App.module.css";
 
-// Use relative path in production (same domain), localhost in development
-// Always use relative path in production to avoid CORS and work on any domain (preview/production)
+// API endpoint configuration - uses relative paths in production for Vercel deployment
 const API_URL = import.meta.env.DEV
   ? "http://localhost:3001/api"
   : "/api";
 
 function App() {
+  // ============================================
+  // STATE MANAGEMENT
+  // React hooks for managing application state
+  // ============================================
+
+  // Navigation state - controls which view is displayed
   const [view, setView] = useState("home"); // home, business, favorites, login, signup
   const [businesses, setBusinesses] = useState([]);
   const [filteredBusinesses, setFilteredBusinesses] = useState([]);
@@ -682,7 +702,8 @@ function App() {
     );
   };
 
-  // SVG Heart Icon component for favorites
+  // SVG Icon Components
+  // Heart icon for favorites
   const HeartIcon = ({ filled, size = 20 }) => (
     <svg
       width={size}
@@ -696,6 +717,78 @@ function App() {
       style={{ display: 'block' }}
     >
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    </svg>
+  );
+
+  // Star icon for ratings
+  const StarIcon = ({ filled = true, size = 16 }) => (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ display: 'inline-block', verticalAlign: 'middle' }}
+    >
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  );
+
+  // Gift icon for deals/promotions
+  const GiftIcon = ({ size = 20 }) => (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ display: 'inline-block', verticalAlign: 'middle' }}
+    >
+      <polyline points="20 12 20 22 4 22 4 12" />
+      <rect x="2" y="7" width="20" height="5" />
+      <line x1="12" y1="22" x2="12" y2="7" />
+      <path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
+      <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+    </svg>
+  );
+
+  // Message/chat icon for empty reviews state
+  const MessageIcon = ({ size = 48 }) => (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ display: 'block', margin: '0 auto' }}
+    >
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+
+  // Thumbs up icon for upvoting reviews
+  const ThumbsUpIcon = ({ filled = false, size = 16 }) => (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ display: 'inline-block', verticalAlign: 'middle' }}
+    >
+      <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
     </svg>
   );
 
@@ -1490,7 +1583,7 @@ function App() {
                       </div>
                       <div className={styles.cardRatingRow}>
                         {biz.rating > 0 ? (
-                          <span className={styles.cardRating}>⭐ {biz.rating.toFixed(1)}</span>
+                          <span className={styles.cardRating}><StarIcon size={14} /> {biz.rating.toFixed(1)}</span>
                         ) : (
                           <span className={styles.noRating}>No ratings</span>
                         )}
@@ -1500,7 +1593,7 @@ function App() {
                       </div>
                       <p className={styles.cardCategory}>{biz.category}</p>
                       {biz.deal && (
-                        <div className={styles.dealPill}>🎁 {biz.deal}</div>
+                        <div className={styles.dealPill}><GiftIcon size={14} /> {biz.deal}</div>
                       )}
                     </div>
                   </div>
@@ -1524,7 +1617,7 @@ function App() {
                     <div className={styles.cardContent}>
                       <h4 className={styles.cardTitle}>{biz.name}</h4>
                       {biz.rating > 0 ? (
-                        <div className={styles.cardRating}>⭐ {biz.rating.toFixed(1)}</div>
+                        <div className={styles.cardRating}><StarIcon size={14} /> {biz.rating.toFixed(1)}</div>
                       ) : (
                         <div className={styles.noRating}>No ratings yet</div>
                       )}
@@ -1787,7 +1880,7 @@ function App() {
                     <div className={styles.businessMeta}>
                       <span className={styles.category}>{biz.category}</span>
                       {biz.rating > 0 ? (
-                        <span className={styles.rating}>⭐ {biz.rating.toFixed(1)}</span>
+                        <span className={styles.rating}><StarIcon size={14} /> {biz.rating.toFixed(1)}</span>
                       ) : (
                         <span className={styles.noRating}>No ratings yet</span>
                       )}
@@ -1799,7 +1892,7 @@ function App() {
 
                     {biz.deal && (
                       <div className={styles.deal}>
-                        🎁 {biz.deal}
+                        <GiftIcon size={14} /> {biz.deal}
                       </div>
                     )}
 
@@ -1983,7 +2076,7 @@ function App() {
                     )}
 
                     <div className={styles.ratingDisplay}>
-                      <span className={styles.ratingStar}>★</span>
+                      <span className={styles.ratingStar}><StarIcon size={16} filled={true} /></span>
                       <span className={styles.ratingValue}>
                         {selectedBusiness.rating > 0 ? selectedBusiness.rating.toFixed(1) : '—'}
                       </span>
@@ -2091,7 +2184,7 @@ function App() {
                 {selectedBusiness.deal && (
                   <div className={styles.detailPanel} style={{ backgroundColor: 'var(--color-warning-bg)', border: '2px solid var(--color-secondary-700)' }}>
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 'var(--space-3)' }}>
-                      <span style={{ fontSize: '24px' }}>🎁</span>
+                      <GiftIcon size={24} />
                       <div>
                         <h3 className={styles.chipWarning} style={{ marginBottom: 'var(--space-2)' }}>Special Offer</h3>
                         <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-warning)', margin: 0 }}>
@@ -2165,7 +2258,7 @@ function App() {
 
                       <div className={styles.formGroup}>
                         <label className={styles.label} htmlFor="rating-slider">
-                          Overall Rating: {reviewForm.rating} ⭐
+                          Overall Rating: {reviewForm.rating}/5
                         </label>
                         <input
                           id="rating-slider"
@@ -2325,7 +2418,7 @@ function App() {
 
                   {selectedBusiness.reviews.length === 0 ? (
                     <div className={styles.emptyStateContainer}>
-                      <div className={styles.emptyStateIcon}>💬</div>
+                      <div className={styles.emptyStateIcon}><MessageIcon size={48} /></div>
                       <h3 className={styles.emptyStateTitle}>No reviews yet</h3>
                       <p className={styles.emptyStateMessage}>
                         This is a new listing. Be the first to share your experience!
@@ -2361,7 +2454,7 @@ function App() {
 
                               <div className={styles.formGroup}>
                                 <label className={styles.label}>
-                                  Overall Rating: {editForm.rating} ⭐
+                                  Overall Rating: {editForm.rating}/5
                                 </label>
                                 <input
                                   type="range"
@@ -2454,7 +2547,7 @@ function App() {
                                   )}
                                 </strong>
                                 <div className={styles.reviewRating}>
-                                  {"⭐".repeat(review.rating)}
+                                  {Array.from({ length: review.rating }, (_, i) => <StarIcon key={i} size={14} filled={true} />)}
                                 </div>
                               </div>
 
@@ -2521,7 +2614,7 @@ function App() {
                                     className={hasUserUpvoted(review) ? styles.upvoteButtonActive : styles.upvoteButton}
                                     title={hasUserUpvoted(review) ? "Click to remove your upvote" : (user ? "Mark as helpful" : "Log in to upvote")}
                                   >
-                                    <span className={styles.upvoteIcon}>👍</span>
+                                    <span className={styles.upvoteIcon}><ThumbsUpIcon size={14} /></span>
                                     <span>{review.helpful || 0}</span>
                                   </button>
                                   <button
@@ -2725,7 +2818,7 @@ function App() {
           {/* Show login prompt if not authenticated */}
           {!user ? (
             <div className={styles.emptyState}>
-              <div className={styles.emptyStateIcon}>❤️</div>
+              <div className={styles.emptyStateIcon}><HeartIcon size={48} filled={false} /></div>
               <h3 className={styles.emptyStateTitle}>Log in to save favorites</h3>
               <p className={styles.emptyStateMessage}>
                 Create an account or log in to save your favorite businesses and receive personalized recommendations.
@@ -2789,7 +2882,7 @@ function App() {
                         <div className={styles.businessMeta}>
                           <span className={styles.category}>{biz.category}</span>
                         {biz.rating > 0 ? (
-                          <span className={styles.rating}>⭐ {biz.rating.toFixed(1)}</span>
+                          <span className={styles.rating}><StarIcon size={14} /> {biz.rating.toFixed(1)}</span>
                         ) : (
                           <span className={styles.noRating}>No ratings yet</span>
                         )}
