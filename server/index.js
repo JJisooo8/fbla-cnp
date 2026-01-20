@@ -1323,6 +1323,149 @@ async function fetchYelpBusinessDetails(yelpId) {
   }
 }
 
+// Categories to import for better diversity (services and retail)
+const IMPORT_CATEGORIES = [
+  // Hair and Beauty
+  'hair', 'barbers', 'hairsalons', 'beautysvc', 'nail_salons', 'skincare', 'spas', 'massage',
+  // Auto Services
+  'auto', 'autorepair', 'carwash', 'tires', 'oilchange', 'autoglass', 'bodyshops',
+  // Home Services
+  'homeservices', 'plumbing', 'electricians', 'hvac', 'handyman', 'painters', 'roofing',
+  'landscaping', 'locksmiths', 'homecleaning', 'carpetcleaning', 'windowwashing',
+  // Professional Services
+  'professional', 'accountants', 'lawyers', 'financialservices', 'insurance', 'realestateagents',
+  // Health and Fitness
+  'gyms', 'fitness', 'yoga', 'martialarts', 'personaltrainers', 'physicaltherapy',
+  // Pet Services
+  'pets', 'petgroomers', 'veterinarians', 'petboarding', 'pettraining',
+  // Education
+  'education', 'tutoring', 'preschools', 'musiclessons', 'artschools', 'dancestudios',
+  // Other Services
+  'drycleaninglaundry', 'sewingalterations', 'photography', 'eventplanning', 'printing',
+  'shipping_centers', 'notaries', 'movers',
+  // Retail
+  'shopping', 'bookstores', 'clothing', 'jewelry', 'florists', 'giftshops', 'hardware',
+  'hobbyshops', 'sportgoods', 'electronics', 'furniture', 'antiques', 'thrift_stores'
+];
+
+// Import businesses from specific Yelp categories
+async function importBusinessesByCategory(categories = IMPORT_CATEGORIES) {
+  if (!YELP_API_KEY) {
+    console.log("[IMPORT] API key not set. Cannot import businesses.");
+    return { imported: 0, total: persistentBusinesses.size };
+  }
+
+  // Wait for persistent businesses to load first
+  if (businessBlobLoadPromise && !businessBlobLoaded) {
+    await businessBlobLoadPromise;
+  }
+
+  console.log(`[IMPORT] Starting import for ${categories.length} categories...`);
+  const previousSize = persistentBusinesses.size;
+  let totalFetched = 0;
+  let newCount = 0;
+
+  for (const category of categories) {
+    try {
+      console.log(`[IMPORT] Fetching category: ${category}...`);
+
+      // Fetch up to 50 businesses per category
+      const response = await axios.get(`${YELP_API_BASE_URL}/businesses/search`, {
+        headers: { Authorization: `Bearer ${YELP_API_KEY}` },
+        params: {
+          latitude: CUMMING_GA_LAT,
+          longitude: CUMMING_GA_LON,
+          radius: SEARCH_RADIUS_METERS,
+          categories: category,
+          limit: 50,
+          sort_by: "rating" // Get highly-rated businesses first
+        },
+        timeout: 15000
+      });
+
+      const businesses = response.data.businesses || [];
+      totalFetched += businesses.length;
+      console.log(`[IMPORT] Got ${businesses.length} businesses for ${category}`);
+
+      // Transform and add to persistent storage
+      for (const biz of businesses) {
+        const transformed = transformYelpToBusiness(biz);
+        if (transformed && !persistentBusinesses.has(transformed.id)) {
+          persistentBusinesses.set(transformed.id, transformed);
+          newCount++;
+        }
+      }
+
+      // Small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+    } catch (error) {
+      console.error(`[IMPORT] Error fetching category ${category}:`, error.message);
+      // Continue with other categories
+    }
+  }
+
+  console.log(`[IMPORT] Completed: ${totalFetched} fetched, ${newCount} new businesses added`);
+  console.log(`[IMPORT] Total businesses: ${persistentBusinesses.size} (was ${previousSize})`);
+
+  // Save to persistent storage
+  if (newCount > 0) {
+    await saveBusinessesToBlob();
+    console.log(`[IMPORT] Saved ${persistentBusinesses.size} businesses to storage`);
+  }
+
+  return {
+    imported: newCount,
+    total: persistentBusinesses.size,
+    categories: categories.length
+  };
+}
+
+// Seed reviews for businesses that don't have any
+async function seedReviewsForNewBusinesses() {
+  // Wait for reviews to load first
+  if (blobLoadPromise) {
+    await blobLoadPromise;
+  }
+
+  // Wait for businesses to load
+  if (businessBlobLoadPromise) {
+    await businessBlobLoadPromise;
+  }
+
+  const businessIds = Array.from(persistentBusinesses.keys());
+  const businessesWithoutReviews = businessIds.filter(id => !localReviews.has(id));
+
+  if (businessesWithoutReviews.length === 0) {
+    console.log('[SEED] All businesses already have reviews');
+    return { seeded: 0, total: businessIds.length };
+  }
+
+  console.log(`[SEED] Seeding reviews for ${businessesWithoutReviews.length} businesses without reviews...`);
+
+  let totalReviews = 0;
+  for (const businessId of businessesWithoutReviews) {
+    const reviewCount = 20 + Math.floor(Math.random() * 31); // 20-50
+    const reviews = generateReviewsForBusiness(businessId, reviewCount);
+    localReviews.set(businessId, reviews);
+    totalReviews += reviewCount;
+  }
+
+  console.log(`[SEED] Generated ${totalReviews} reviews for ${businessesWithoutReviews.length} businesses`);
+
+  // Save to blob
+  const saved = await saveReviewsAsync();
+  if (saved) {
+    console.log('[SEED] Reviews saved to storage successfully');
+  }
+
+  return {
+    seeded: businessesWithoutReviews.length,
+    reviews: totalReviews,
+    total: businessIds.length
+  };
+}
+
 // Format Yelp hours
 function formatYelpHours(hours = []) {
   if (!hours.length) return "Hours not available";
@@ -1783,6 +1926,33 @@ app.get("/api/verification/challenge", (req, res) => {
     res.json(challenge);
   } catch (error) {
     res.status(500).json({ error: "Failed to generate challenge" });
+  }
+});
+
+// Import additional businesses by category (for diversifying the database)
+// POST /api/import-businesses - imports service and retail businesses
+app.post("/api/import-businesses", async (req, res) => {
+  try {
+    console.log('[IMPORT] Starting business import...');
+
+    // Import businesses from all categories
+    const importResult = await importBusinessesByCategory();
+
+    // Seed reviews for new businesses
+    const seedResult = await seedReviewsForNewBusinesses();
+
+    // Clear cache so new businesses appear
+    cache.flushAll();
+
+    res.json({
+      success: true,
+      message: `Imported ${importResult.imported} new businesses and seeded ${seedResult.seeded} with reviews`,
+      import: importResult,
+      seed: seedResult
+    });
+  } catch (error) {
+    console.error('[IMPORT] Error:', error);
+    res.status(500).json({ error: "Failed to import businesses" });
   }
 });
 
