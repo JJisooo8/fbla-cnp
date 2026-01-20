@@ -852,13 +852,13 @@ function App() {
       reviews: (prev.reviews || []).map(r => {
         if (r.id !== reviewId) return r;
         if (alreadyUpvoted) {
-          // Remove upvote
+          // Remove upvote - decrement existing count
           const newUpvotedBy = (r.upvotedBy || []).filter(id => id !== user.id);
-          return { ...r, upvotedBy: newUpvotedBy, helpful: newUpvotedBy.length };
+          return { ...r, upvotedBy: newUpvotedBy, helpful: Math.max(0, (r.helpful || 1) - 1) };
         } else {
-          // Add upvote
+          // Add upvote - increment existing count
           const newUpvotedBy = [...(r.upvotedBy || []), user.id];
-          return { ...r, upvotedBy: newUpvotedBy, helpful: newUpvotedBy.length };
+          return { ...r, upvotedBy: newUpvotedBy, helpful: (r.helpful || 0) + 1 };
         }
       })
     }));
