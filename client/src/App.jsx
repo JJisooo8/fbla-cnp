@@ -118,7 +118,7 @@ function App() {
     rating: 5,
     comment: "",
     // Category ratings
-    foodQuality: 3,
+    quality: 3,
     service: 3,
     cleanliness: 3,
     atmosphere: 3,
@@ -138,7 +138,7 @@ function App() {
   const [editForm, setEditForm] = useState({
     rating: 5,
     comment: "",
-    foodQuality: 3,
+    quality: 3,
     service: 3,
     cleanliness: 3,
     atmosphere: 3,
@@ -817,7 +817,7 @@ function App() {
       setReviewForm({
         rating: 5,
         comment: "",
-        foodQuality: 3,
+        quality: 3,
         service: 3,
         cleanliness: 3,
         atmosphere: 3,
@@ -946,7 +946,7 @@ function App() {
     setEditForm({
       rating: review.rating,
       comment: review.comment || "",
-      foodQuality: review.foodQuality || 3,
+      quality: review.quality || 3,
       service: review.service || 3,
       cleanliness: review.cleanliness || 3,
       atmosphere: review.atmosphere || 3,
@@ -959,7 +959,7 @@ function App() {
     setEditForm({
       rating: 5,
       comment: "",
-      foodQuality: 3,
+      quality: 3,
       service: 3,
       cleanliness: 3,
       atmosphere: 3,
@@ -1577,8 +1577,11 @@ function App() {
                 aria-label="Filter by minimum rating"
               >
                 <option value="">Any Rating</option>
-                <option value="4">4+ Stars</option>
                 <option value="4.5">4.5+ Stars</option>
+                <option value="4">4+ Stars</option>
+                <option value="3">3+ Stars</option>
+                <option value="2">2+ Stars</option>
+                <option value="1">1+ Stars</option>
               </select>
 
               <label className={styles.checkbox}>
@@ -2188,14 +2191,14 @@ function App() {
                         <div className={styles.categoryRatingsGrid}>
                           <div className={styles.categoryRatingItem}>
                             <label className={styles.categoryLabel}>
-                              Food Quality: {reviewForm.foodQuality}/5
+                              Quality: {reviewForm.quality}/5
                             </label>
                             <input
                               type="range"
                               min="1"
                               max="5"
-                              value={reviewForm.foodQuality}
-                              onChange={e => setReviewForm(prev => ({ ...prev, foodQuality: parseInt(e.target.value) }))}
+                              value={reviewForm.quality}
+                              onChange={e => setReviewForm(prev => ({ ...prev, quality: parseInt(e.target.value) }))}
                               className={styles.categorySlider}
                             />
                           </div>
@@ -2271,16 +2274,16 @@ function App() {
                     <div className={styles.aggregateCategoryRatings}>
                       <h4 className={styles.aggregateTitle}>Rating Breakdown</h4>
                       <div className={styles.aggregateGrid}>
-                        {selectedBusiness.categoryRatings.foodQuality && (
+                        {selectedBusiness.categoryRatings.quality && (
                           <div className={styles.aggregateItem}>
-                            <span className={styles.aggregateLabel}>Food Quality</span>
+                            <span className={styles.aggregateLabel}>Quality</span>
                             <div className={styles.aggregateBar}>
                               <div
                                 className={styles.aggregateBarFill}
-                                style={{ width: `${(selectedBusiness.categoryRatings.foodQuality / 5) * 100}%` }}
+                                style={{ width: `${(selectedBusiness.categoryRatings.quality / 5) * 100}%` }}
                               ></div>
                             </div>
-                            <span className={styles.aggregateValue}>{selectedBusiness.categoryRatings.foodQuality}</span>
+                            <span className={styles.aggregateValue}>{selectedBusiness.categoryRatings.quality}</span>
                           </div>
                         )}
                         {selectedBusiness.categoryRatings.service && (
@@ -2379,13 +2382,13 @@ function App() {
                               <div className={styles.categoryRatingsForm}>
                                 <div className={styles.categoryRatingsGrid}>
                                   <div className={styles.categoryRatingItem}>
-                                    <label className={styles.categoryLabel}>Food Quality: {editForm.foodQuality}/5</label>
+                                    <label className={styles.categoryLabel}>Quality: {editForm.quality}/5</label>
                                     <input
                                       type="range"
                                       min="1"
                                       max="5"
-                                      value={editForm.foodQuality}
-                                      onChange={(e) => setEditForm(prev => ({ ...prev, foodQuality: parseInt(e.target.value) }))}
+                                      value={editForm.quality}
+                                      onChange={(e) => setEditForm(prev => ({ ...prev, quality: parseInt(e.target.value) }))}
                                       className={styles.categorySlider}
                                     />
                                   </div>
@@ -2462,11 +2465,11 @@ function App() {
                               </div>
 
                               {/* Individual Category Ratings */}
-                              {(review.foodQuality || review.service || review.cleanliness || review.atmosphere) && (
+                              {(review.quality || review.service || review.cleanliness || review.atmosphere) && (
                                 <div className={styles.reviewCategoryRatings}>
-                                  {review.foodQuality && (
+                                  {review.quality && (
                                     <span className={styles.reviewCategoryBadge}>
-                                      Food: {review.foodQuality}/5
+                                      Quality: {review.quality}/5
                                     </span>
                                   )}
                                   {review.service && (
