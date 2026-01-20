@@ -496,6 +496,47 @@ function App() {
     }
   }, [favorites, user]);
 
+  // Recover missing favorited businesses from Yelp
+  useEffect(() => {
+    if (!user || favorites.length === 0 || businesses.length === 0) return;
+
+    const businessIds = new Set(businesses.map(b => b.id));
+    const missingFavorites = favorites.filter(id => !businessIds.has(id));
+
+    if (missingFavorites.length > 0) {
+      console.log(`[FAVORITES] ${missingFavorites.length} favorites not in business list, attempting recovery...`);
+
+      fetch(`${API_URL}/businesses/recover-favorites`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders()
+        },
+        body: JSON.stringify({ favoriteIds: missingFavorites })
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.recovered && data.recovered.length > 0) {
+            console.log(`[FAVORITES] Recovered ${data.recovered.length} businesses`);
+            // Add recovered businesses to the list
+            setBusinesses(prev => [...prev, ...data.recovered]);
+            setFilteredBusinesses(prev => [...prev, ...data.recovered]);
+          }
+          if (data.missing && data.missing.length > 0) {
+            console.log(`[FAVORITES] ${data.missing.length} favorites could not be recovered (may have been deleted from Yelp)`);
+            // Remove permanently missing favorites from localStorage
+            const validFavorites = favorites.filter(id => !data.missing.includes(id));
+            if (validFavorites.length !== favorites.length) {
+              setFavorites(validFavorites);
+            }
+          }
+        })
+        .catch(err => {
+          console.error('[FAVORITES] Error recovering favorites:', err);
+        });
+    }
+  }, [user, favorites.length, businesses.length]); // Use .length to avoid infinite loops
+
   // Fetch with retry for cold start delays
   const fetchWithRetry = async (url, retries = 3, delay = 2000) => {
     for (let i = 0; i < retries; i++) {

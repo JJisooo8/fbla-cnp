@@ -498,6 +498,118 @@ async function ensureReviewsLoaded(req, res, next) {
 // Store verification challenges in memory
 const verificationChallenges = new Map();
 
+// ============================================
+// VERCEL BLOB BUSINESS STORAGE (for favorites persistence)
+// ============================================
+const BUSINESSES_BLOB_NAME = "businesses.json";
+let businessesBlobUrl = null;
+
+// In-memory storage for all seen businesses (ensures favorites never disappear)
+let persistentBusinesses = new Map();
+
+// Load businesses from Vercel Blob or file
+async function loadBusinessesFromBlob() {
+  if (USE_VERCEL_BLOB) {
+    try {
+      console.log('[BLOB] Loading businesses from Vercel Blob...');
+      const { blobs } = await list({ prefix: BUSINESSES_BLOB_NAME });
+
+      let businessesBlob = blobs.find(b => b.pathname === BUSINESSES_BLOB_NAME);
+      if (!businessesBlob && blobs.length > 0) {
+        businessesBlob = blobs.find(b => b.pathname.includes(BUSINESSES_BLOB_NAME));
+      }
+
+      if (businessesBlob) {
+        businessesBlobUrl = businessesBlob.url;
+        console.log(`[BLOB] Found businesses blob at ${businessesBlob.url}`);
+        const response = await fetch(businessesBlob.url);
+        if (response.ok) {
+          const text = await response.text();
+          if (text.trim()) {
+            const data = JSON.parse(text);
+            if (Array.isArray(data)) {
+              persistentBusinesses = new Map(data);
+              console.log(`[BLOB] Loaded ${persistentBusinesses.size} businesses from Vercel Blob`);
+              return;
+            }
+          }
+        }
+      }
+      console.log('[BLOB] No businesses found in Vercel Blob, starting fresh');
+    } catch (error) {
+      console.error('[BLOB] Error loading businesses from Vercel Blob:', error.message);
+    }
+  }
+
+  // Fallback to file-based storage
+  const BUSINESSES_FILE = process.env.VERCEL
+    ? path.join("/tmp", "businesses.json")
+    : path.join(__dirname, "businesses.json");
+
+  try {
+    if (fs.existsSync(BUSINESSES_FILE)) {
+      const data = fs.readFileSync(BUSINESSES_FILE, "utf8");
+      persistentBusinesses = new Map(JSON.parse(data));
+      console.log(`[FILE] Loaded ${persistentBusinesses.size} businesses from file`);
+    }
+  } catch (error) {
+    console.error("[FILE] Error loading businesses:", error);
+  }
+}
+
+// Save businesses to Vercel Blob or file
+async function saveBusinessesToBlob() {
+  const data = Array.from(persistentBusinesses.entries());
+  const jsonData = JSON.stringify(data);
+  console.log(`[SAVE] Saving ${persistentBusinesses.size} businesses (${jsonData.length} chars)`);
+
+  if (USE_VERCEL_BLOB) {
+    try {
+      const blob = await put(BUSINESSES_BLOB_NAME, jsonData, {
+        access: 'public',
+        contentType: 'application/json',
+        addRandomSuffix: false
+      });
+      businessesBlobUrl = blob.url;
+      console.log(`[BLOB] Saved ${persistentBusinesses.size} businesses to Vercel Blob`);
+      return true;
+    } catch (error) {
+      console.error('[BLOB] Error saving businesses to Vercel Blob:', error.message);
+    }
+  }
+
+  // Fallback to file-based storage
+  const BUSINESSES_FILE = process.env.VERCEL
+    ? path.join("/tmp", "businesses.json")
+    : path.join(__dirname, "businesses.json");
+
+  try {
+    fs.writeFileSync(BUSINESSES_FILE, jsonData, "utf8");
+    console.log(`[FILE] Saved ${persistentBusinesses.size} businesses to file`);
+    return true;
+  } catch (error) {
+    console.error("[FILE] Error saving businesses:", error);
+    return false;
+  }
+}
+
+// Track business blob loading state
+let businessBlobLoadPromise = null;
+let businessBlobLoaded = false;
+
+// Load businesses from Blob asynchronously after startup
+if (USE_VERCEL_BLOB || !process.env.VERCEL) {
+  businessBlobLoadPromise = loadBusinessesFromBlob()
+    .then(() => {
+      businessBlobLoaded = true;
+      console.log('[BLOB] Businesses loaded and ready');
+    })
+    .catch(err => {
+      console.error('[BLOB] Async business load failed:', err);
+      businessBlobLoaded = true;
+    });
+}
+
 // Cumming, Georgia coordinates and search radius
 const CUMMING_GA_LAT = 34.2073;
 const CUMMING_GA_LON = -84.1402;
@@ -862,10 +974,21 @@ function transformYelpToBusiness(yelpBusiness) {
   };
 }
 
-// Fetch businesses from Yelp
+// Fetch businesses from Yelp with persistent storage (ensures favorites never disappear)
 async function fetchYelpBusinesses() {
+  // Wait for persistent businesses to load first
+  if (businessBlobLoadPromise && !businessBlobLoaded) {
+    console.log('[YELP] Waiting for persistent businesses to load...');
+    await businessBlobLoadPromise;
+  }
+
   if (!YELP_API_KEY) {
     console.log("[YELP] API key not set. Cannot fetch businesses.");
+    // Return persistent businesses if available
+    if (persistentBusinesses.size > 0) {
+      console.log(`[YELP] Returning ${persistentBusinesses.size} persistent businesses`);
+      return Array.from(persistentBusinesses.values());
+    }
     return [];
   }
 
@@ -904,27 +1027,59 @@ async function fetchYelpBusinesses() {
       if (businesses.length < limit) break;
     }
 
-    console.log(`[YELP] Successfully fetched ${results.length} total businesses`);
+    console.log(`[YELP] Successfully fetched ${results.length} total businesses from API`);
 
-    // Transform and filter
+    // Transform and filter new results
     const transformed = results
       .map(transformYelpToBusiness)
       .filter(biz => biz !== null);
 
+    // Merge with persistent storage - add new businesses, update existing, NEVER remove
+    const previousSize = persistentBusinesses.size;
+    let newCount = 0;
+    let updatedCount = 0;
+
+    for (const biz of transformed) {
+      if (!persistentBusinesses.has(biz.id)) {
+        newCount++;
+      } else {
+        updatedCount++;
+      }
+      // Always update to get latest data (ratings, etc.)
+      persistentBusinesses.set(biz.id, biz);
+    }
+
+    console.log(`[YELP] Merged: ${newCount} new, ${updatedCount} updated, ${persistentBusinesses.size} total (was ${previousSize})`);
+
+    // Save to persistent storage (async, don't block response)
+    if (newCount > 0 || previousSize === 0) {
+      saveBusinessesToBlob().catch(err => {
+        console.error('[YELP] Failed to save businesses:', err.message);
+      });
+    }
+
+    // Return ALL persistent businesses (ensures favorites always included)
+    const allBusinesses = Array.from(persistentBusinesses.values());
+
     // Sort by relevancy (local businesses first), with stable secondary sort by ID
-    transformed.sort((a, b) => {
+    allBusinesses.sort((a, b) => {
       const diff = b.relevancyScore - a.relevancyScore;
       return diff !== 0 ? diff : a.id.localeCompare(b.id);
     });
 
-    cache.set(cacheKey, transformed);
-    return transformed;
+    cache.set(cacheKey, allBusinesses);
+    return allBusinesses;
 
   } catch (error) {
     console.error("[YELP] Error fetching businesses:", error.message);
     if (error.response) {
       console.error("[YELP] Response status:", error.response.status);
       console.error("[YELP] Response data:", JSON.stringify(error.response.data));
+    }
+    // Return persistent businesses on error (ensures favorites still work)
+    if (persistentBusinesses.size > 0) {
+      console.log(`[YELP] Returning ${persistentBusinesses.size} persistent businesses after error`);
+      return Array.from(persistentBusinesses.values());
     }
     return [];
   }
@@ -1495,6 +1650,71 @@ app.get("/api/businesses", async (req, res) => {
   }
 });
 
+// Recover missing favorited businesses by fetching them directly from Yelp
+app.post("/api/businesses/recover-favorites", async (req, res) => {
+  try {
+    const { favoriteIds } = req.body;
+
+    if (!Array.isArray(favoriteIds) || favoriteIds.length === 0) {
+      return res.json({ recovered: [], missing: [] });
+    }
+
+    // Get current businesses
+    const businesses = await fetchBusinesses();
+    const existingIds = new Set(businesses.map(b => b.id));
+
+    // Find which favorites are missing
+    const missingIds = favoriteIds.filter(id => !existingIds.has(id) && id.startsWith('yelp-'));
+
+    if (missingIds.length === 0) {
+      return res.json({ recovered: [], missing: [] });
+    }
+
+    console.log(`[RECOVER] Attempting to recover ${missingIds.length} missing favorites`);
+
+    const recovered = [];
+    const stillMissing = [];
+
+    // Fetch each missing business from Yelp (limit to 10 to avoid rate limits)
+    for (const businessId of missingIds.slice(0, 10)) {
+      const yelpId = businessId.replace('yelp-', '');
+
+      try {
+        const yelpData = await fetchYelpBusinessDetails(yelpId);
+        if (yelpData) {
+          const business = transformYelpToBusiness(yelpData);
+          if (business) {
+            persistentBusinesses.set(business.id, business);
+            recovered.push(business);
+            console.log(`[RECOVER] Recovered: ${business.name}`);
+          } else {
+            stillMissing.push(businessId);
+          }
+        } else {
+          stillMissing.push(businessId);
+        }
+      } catch (err) {
+        console.error(`[RECOVER] Failed to fetch ${businessId}:`, err.message);
+        stillMissing.push(businessId);
+      }
+    }
+
+    // Save recovered businesses
+    if (recovered.length > 0) {
+      await saveBusinessesToBlob();
+      console.log(`[RECOVER] Saved ${recovered.length} recovered businesses`);
+    }
+
+    res.json({
+      recovered,
+      missing: stillMissing
+    });
+  } catch (error) {
+    console.error('Error recovering favorites:', error);
+    res.status(500).json({ error: error.message || "Failed to recover favorites" });
+  }
+});
+
 // Get single business by ID
 app.get("/api/businesses/:id", async (req, res) => {
   try {
@@ -1522,7 +1742,27 @@ app.get("/api/businesses/:id", async (req, res) => {
 
     // Online mode - fetch from Yelp
     const businesses = await fetchBusinesses();
-    const business = businesses.find(b => b.id === businessId);
+    let business = businesses.find(b => b.id === businessId);
+
+    // If business not found but ID looks like a Yelp business, try to fetch directly
+    if (!business && businessId.startsWith('yelp-')) {
+      const yelpId = businessId.replace('yelp-', '');
+      console.log(`[YELP] Business ${businessId} not in list, fetching directly from Yelp...`);
+
+      const yelpData = await fetchYelpBusinessDetails(yelpId);
+      if (yelpData) {
+        // Transform the Yelp data to our format
+        business = transformYelpToBusiness(yelpData);
+        if (business) {
+          // Add to persistent storage so it won't be lost again
+          persistentBusinesses.set(business.id, business);
+          saveBusinessesToBlob().catch(err => {
+            console.error('[YELP] Failed to save recovered business:', err.message);
+          });
+          console.log(`[YELP] Recovered and saved business: ${business.name}`);
+        }
+      }
+    }
 
     if (!business) {
       return res.status(404).json({ error: "Business not found" });
