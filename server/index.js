@@ -1,3 +1,23 @@
+/**
+ * LocalLink - Express API Server
+ * FBLA Coding & Programming: Byte-Sized Business Boost
+ *
+ * This server provides the backend API for the LocalLink application,
+ * handling business data, user authentication, and review management.
+ *
+ * Key Features:
+ * - RESTful API endpoints for businesses, reviews, and authentication
+ * - Integration with Yelp API for business data (with offline fallback)
+ * - Persistent storage via Vercel Blob (production) or file system (development)
+ * - CAPTCHA verification for bot prevention on user signup
+ * - JWT-based authentication with secure password hashing
+ *
+ * Data Flow:
+ * 1. Business data fetched from Yelp API and cached for performance
+ * 2. User reviews stored in Vercel Blob with local file fallback
+ * 3. Recommendations generated based on user favorites and ratings
+ */
+
 import express from "express";
 import cors from "cors";
 import crypto from "crypto";
@@ -11,7 +31,7 @@ import { put, list, del } from "@vercel/blob";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
-// Load environment variables
+// Load environment variables from .env file
 const envPaths = [
   path.resolve(process.cwd(), '.env'),
   path.resolve(process.cwd(), 'server', '.env'),
@@ -2906,19 +2926,19 @@ const isMainModule = import.meta.url.endsWith(process.argv[1]) ||
 if (isMainModule && !process.env.VERCEL) {
   const PORT = 3001;
   app.listen(PORT, async () => {
-    console.log(`🚀 LocalLink API running on http://localhost:${PORT}`);
+    console.log(`LocalLink API running on http://localhost:${PORT}`);
     if (OFFLINE_MODE) {
-      console.log(`📴 Mode: OFFLINE (Demo Mode)`);
-      console.log(`📦 Data: ${offlineBusinesses.length} businesses loaded`);
+      console.log(`Mode: OFFLINE (Demo Mode)`);
+      console.log(`Data: ${offlineBusinesses.length} businesses loaded`);
       if (offlineMetadata) {
-        console.log(`📅 Synced: ${offlineMetadata.seedDateFormatted}`);
+        console.log(`Synced: ${offlineMetadata.seedDateFormatted}`);
       }
     } else {
-      console.log(`📍 Data Source: Yelp API`);
+      console.log(`Data Source: Yelp API`);
     }
-    console.log(`📍 Location: Cumming, Georgia`);
-    console.log(`📏 Search radius: 10 miles`);
-    console.log(`🔐 reCAPTCHA: ${RECAPTCHA_ENABLED ? "enabled" : "disabled"}`);
+    console.log(`Location: Cumming, Georgia`);
+    console.log(`Search radius: 10 miles`);
+    console.log(`reCAPTCHA: ${RECAPTCHA_ENABLED ? "enabled" : "disabled"}`);
 
     // Trigger review seeding if empty (runs once)
     if (!OFFLINE_MODE && !seedingComplete) {

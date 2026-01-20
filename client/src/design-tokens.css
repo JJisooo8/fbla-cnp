@@ -156,12 +156,11 @@
      TRANSITIONS & ANIMATIONS
      ======================================== */
 
-  /* 🎨 CUSTOMIZE ANIMATION SPEEDS HERE!
-     Change these values to speed up or slow down ALL site animations.
-     Examples:
-     - Fast animations: 150ms, 200ms, 300ms (current - snappy feel)
-     - Medium animations: 300ms, 500ms, 700ms
-     - Slow animations: 500ms, 800ms, 1200ms
+  /* Animation Speed Configuration
+     Adjust these values to change animation timing throughout the site.
+     - Fast: 150ms, 200ms, 300ms (current setting)
+     - Medium: 300ms, 500ms, 700ms
+     - Slow: 500ms, 800ms, 1200ms
   */
   --transition-fast: 150ms ease-out;       /* Quick interactions (hover, focus) */
   --transition-base: 200ms ease-out;       /* Standard animations (cards, buttons) */
