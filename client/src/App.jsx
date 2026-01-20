@@ -338,16 +338,10 @@ function App() {
       setSignupForm({ username: "", password: "", confirmPassword: "", verificationId: "", verificationAnswer: "" });
       setSignupCaptchaReady(false);
       setSignupVerificationChallenge(null);
-      // Return to previous view or home
-      if (previousView) {
-        setView(previousView.view);
-        if (previousView.business) {
-          setSelectedBusiness(previousView.business);
-        }
-        setPreviousView(null);
-      } else {
-        setView("home");
-      }
+      // Go to home page and scroll to top
+      setView("home");
+      setPreviousView(null);
+      window.scrollTo({ top: 0, behavior: 'instant' });
     } catch (error) {
       console.error("Signup error:", error);
       setAuthError("Unable to connect to server. Please check your connection and try again.");
