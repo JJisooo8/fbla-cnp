@@ -111,16 +111,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'You have not upvoted this review.', helpful: review.helpful });
     }
 
-    // Remove user from upvotedBy and update helpful count
+    // Remove user from upvotedBy and decrement helpful count
     review.upvotedBy = review.upvotedBy.filter(id => id !== user.id);
-    review.helpful = review.upvotedBy.length;
+    review.helpful = Math.max(0, (review.helpful || 1) - 1);
 
     // Save
     const saved = await saveReviews(localReviews);
     if (!saved) {
       // Revert changes
       review.upvotedBy.push(user.id);
-      review.helpful = review.upvotedBy.length;
+      review.helpful = (review.helpful || 0) + 1;
       return res.status(500).json({ error: 'Failed to remove upvote.' });
     }
 

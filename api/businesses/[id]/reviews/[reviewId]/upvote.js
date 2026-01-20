@@ -113,7 +113,7 @@ export default async function handler(req, res) {
 
     // Add user to upvotedBy and increment helpful count
     review.upvotedBy.push(user.id);
-    review.helpful = review.upvotedBy.length;
+    review.helpful = (review.helpful || 0) + 1;
 
     // Save
     const saved = await saveReviews(localReviews);
