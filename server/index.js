@@ -495,6 +495,225 @@ async function ensureReviewsLoaded(req, res, next) {
   next();
 }
 
+// ============================================
+// REVIEW SEEDING SYSTEM
+// ============================================
+
+// Pool of fake usernames for seeded reviews
+const FAKE_USERNAMES = [
+  "mike_j", "sarah2024", "localfoodie", "happycustomer", "johns_review",
+  "emily_k", "davidm_88", "jess.thomas", "chris_local", "amanda_reviews",
+  "kevin.smith", "lisa_marie", "jason_t", "megan_w", "ryan.p",
+  "nicole_g", "brian_h", "ashley_c", "matt_d", "jennifer_l",
+  "alex_m", "samantha_r", "tyler_b", "stephanie_f", "andrew_n",
+  "rachel_s", "daniel_j", "lauren_a", "josh_k", "heather_m",
+  "cumminglocal", "forsythfan", "ga_reviewer", "atl_foodie", "northga_local",
+  "weekend_explorer", "family_diner", "quality_seeker", "deal_hunter", "new_resident"
+];
+
+// Pool of positive comments
+const POSITIVE_COMMENTS = [
+  "Service was great!",
+  "Will definitely come back!",
+  "Exceeded my expectations.",
+  "Staff was super friendly and helpful.",
+  "Great value for the price.",
+  "Highly recommend this place!",
+  "Clean and welcoming atmosphere.",
+  "Quick and efficient service.",
+  "Best in the area!",
+  "Never disappoints.",
+  "Amazing experience overall.",
+  "Top notch quality!",
+  "Very impressed with everything.",
+  "Fantastic place, highly recommend.",
+  "Outstanding service from start to finish.",
+  "Love this place!",
+  "Always a pleasure coming here.",
+  "Exceeded all expectations.",
+  "Five stars all the way!",
+  "Would recommend to friends and family."
+];
+
+// Pool of negative comments
+const NEGATIVE_COMMENTS = [
+  "Could be better.",
+  "Long wait times.",
+  "Not worth the price.",
+  "Staff seemed disinterested.",
+  "Place could use some cleaning.",
+  "Wouldn't recommend.",
+  "Very disappointing experience.",
+  "Expected more based on reviews.",
+  "Not my favorite place.",
+  "Had better experiences elsewhere."
+];
+
+// Generate a random rating with realistic distribution (3.5-4.5 average, 10-15% low ratings)
+function generateRealisticRating() {
+  const rand = Math.random();
+
+  // 10-15% chance of low rating (1-2 stars)
+  if (rand < 0.12) {
+    return Math.random() < 0.4 ? 1 : 2;
+  }
+  // 15% chance of 3 stars
+  if (rand < 0.27) {
+    return 3;
+  }
+  // 40% chance of 4 stars
+  if (rand < 0.67) {
+    return 4;
+  }
+  // 33% chance of 5 stars
+  return 5;
+}
+
+// Generate category rating that correlates with overall rating but with variance
+function generateCategoryRating(overallRating) {
+  // Base on overall rating with +/- 1 variance
+  const variance = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
+  const rating = overallRating + variance;
+  return Math.max(1, Math.min(5, rating)); // Clamp between 1 and 5
+}
+
+// Generate a random date within the last 2 years
+function generateRandomDate() {
+  const now = new Date();
+  const twoYearsAgo = new Date(now.getFullYear() - 2, now.getMonth(), now.getDate());
+  const randomTime = twoYearsAgo.getTime() + Math.random() * (now.getTime() - twoYearsAgo.getTime());
+  return new Date(randomTime).toISOString();
+}
+
+// Select a comment based on rating (40% none, 45% positive, 15% negative for low ratings)
+function selectComment(rating) {
+  const rand = Math.random();
+
+  // 40% chance of no comment
+  if (rand < 0.40) {
+    return "";
+  }
+
+  // For low ratings (1-2), mostly negative comments
+  if (rating <= 2) {
+    if (rand < 0.85) {
+      return NEGATIVE_COMMENTS[Math.floor(Math.random() * NEGATIVE_COMMENTS.length)];
+    } else {
+      return POSITIVE_COMMENTS[Math.floor(Math.random() * POSITIVE_COMMENTS.length)];
+    }
+  }
+
+  // For medium-high ratings (3-5), mostly positive comments
+  if (rand < 0.95) {
+    return POSITIVE_COMMENTS[Math.floor(Math.random() * POSITIVE_COMMENTS.length)];
+  } else {
+    return NEGATIVE_COMMENTS[Math.floor(Math.random() * NEGATIVE_COMMENTS.length)];
+  }
+}
+
+// Generate reviews for a single business
+function generateReviewsForBusiness(businessId, count) {
+  const reviews = [];
+
+  for (let i = 0; i < count; i++) {
+    const rating = generateRealisticRating();
+    const isAnonymous = Math.random() < 0.15; // 15% anonymous
+    const author = isAnonymous ? "Anonymous" : FAKE_USERNAMES[Math.floor(Math.random() * FAKE_USERNAMES.length)];
+
+    reviews.push({
+      id: crypto.randomUUID(),
+      userId: `seed-user-${Math.floor(Math.random() * 1000)}`,
+      author,
+      isAnonymous,
+      rating,
+      comment: selectComment(rating),
+      date: generateRandomDate(),
+      helpful: Math.floor(Math.random() * 20), // 0-19 helpful votes
+      upvotedBy: [],
+      source: 'seed',
+      // Category ratings (renamed from foodQuality to quality)
+      quality: generateCategoryRating(rating),
+      service: generateCategoryRating(rating),
+      cleanliness: generateCategoryRating(rating),
+      atmosphere: generateCategoryRating(rating)
+    });
+  }
+
+  // Sort by date (newest first)
+  reviews.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  return reviews;
+}
+
+// Seed reviews for all businesses (runs once if reviews are empty)
+async function seedReviewsIfEmpty() {
+  // Wait for blob to load first
+  if (blobLoadPromise) {
+    await blobLoadPromise;
+  }
+
+  // Check if reviews already exist
+  if (localReviews.size > 0) {
+    console.log(`[SEED] Reviews already exist (${localReviews.size} businesses have reviews), skipping seed`);
+    return false;
+  }
+
+  console.log('[SEED] No reviews found, starting review seeding...');
+
+  // Wait for businesses to load
+  if (businessBlobLoadPromise) {
+    await businessBlobLoadPromise;
+  }
+
+  // Get all businesses
+  let businessIds = Array.from(persistentBusinesses.keys());
+
+  // If no persistent businesses yet, try to fetch from Yelp
+  if (businessIds.length === 0) {
+    console.log('[SEED] No persistent businesses found, fetching from Yelp...');
+    try {
+      const businesses = await fetchYelpBusinesses();
+      businessIds = businesses.map(b => b.id);
+    } catch (err) {
+      console.error('[SEED] Failed to fetch businesses:', err.message);
+      return false;
+    }
+  }
+
+  if (businessIds.length === 0) {
+    console.log('[SEED] No businesses available for seeding');
+    return false;
+  }
+
+  console.log(`[SEED] Seeding reviews for ${businessIds.length} businesses...`);
+
+  let totalReviews = 0;
+
+  for (const businessId of businessIds) {
+    // Generate 20-50 reviews per business
+    const reviewCount = 20 + Math.floor(Math.random() * 31); // 20-50
+    const reviews = generateReviewsForBusiness(businessId, reviewCount);
+    localReviews.set(businessId, reviews);
+    totalReviews += reviewCount;
+  }
+
+  console.log(`[SEED] Generated ${totalReviews} reviews for ${businessIds.length} businesses`);
+
+  // Save to blob
+  const saved = await saveReviewsAsync();
+  if (saved) {
+    console.log('[SEED] Reviews saved to storage successfully');
+  } else {
+    console.error('[SEED] Warning: Reviews may not have persisted to storage');
+  }
+
+  return true;
+}
+
+// Track seeding state
+let seedingPromise = null;
+let seedingComplete = false;
+
 // Store verification challenges in memory
 const verificationChallenges = new Map();
 
@@ -823,23 +1042,26 @@ function getLocalReviewSummary(id) {
   // Calculate aggregate category ratings (only if 10+ reviews)
   let categoryRatings = null;
   if (reviewCount >= 10) {
+    // Support both old 'foodQuality' and new 'quality' field names
     const reviewsWithCategories = visibleReviews.filter(r =>
-      r.foodQuality || r.service || r.cleanliness || r.atmosphere
+      r.quality || r.foodQuality || r.service || r.cleanliness || r.atmosphere
     );
 
     if (reviewsWithCategories.length >= 5) {
-      const totals = { foodQuality: 0, service: 0, cleanliness: 0, atmosphere: 0 };
-      const counts = { foodQuality: 0, service: 0, cleanliness: 0, atmosphere: 0 };
+      const totals = { quality: 0, service: 0, cleanliness: 0, atmosphere: 0 };
+      const counts = { quality: 0, service: 0, cleanliness: 0, atmosphere: 0 };
 
       reviewsWithCategories.forEach(r => {
-        if (r.foodQuality) { totals.foodQuality += r.foodQuality; counts.foodQuality++; }
+        // Support both old 'foodQuality' and new 'quality' field
+        const qualityRating = r.quality || r.foodQuality;
+        if (qualityRating) { totals.quality += qualityRating; counts.quality++; }
         if (r.service) { totals.service += r.service; counts.service++; }
         if (r.cleanliness) { totals.cleanliness += r.cleanliness; counts.cleanliness++; }
         if (r.atmosphere) { totals.atmosphere += r.atmosphere; counts.atmosphere++; }
       });
 
       categoryRatings = {
-        foodQuality: counts.foodQuality > 0 ? Math.round((totals.foodQuality / counts.foodQuality) * 10) / 10 : null,
+        quality: counts.quality > 0 ? Math.round((totals.quality / counts.quality) * 10) / 10 : null,
         service: counts.service > 0 ? Math.round((totals.service / counts.service) * 10) / 10 : null,
         cleanliness: counts.cleanliness > 0 ? Math.round((totals.cleanliness / counts.cleanliness) * 10) / 10 : null,
         atmosphere: counts.atmosphere > 0 ? Math.round((totals.atmosphere / counts.atmosphere) * 10) / 10 : null,
@@ -1567,6 +1789,9 @@ app.get("/api/verification/challenge", (req, res) => {
 // Get all businesses
 app.get("/api/businesses", async (req, res) => {
   try {
+    // Trigger review seeding on first request if needed (for Vercel)
+    await ensureSeeded();
+
     const { category, tag, search, minRating, hasDeals, sort, limit } = req.query;
 
     let businesses = await fetchBusinesses();
@@ -1814,7 +2039,8 @@ app.post("/api/businesses/:id/reviews", requireAuth, async (req, res) => {
     const {
       rating,
       comment,
-      // Category ratings
+      // Category ratings (support both 'quality' and legacy 'foodQuality')
+      quality,
       foodQuality,
       service,
       cleanliness,
@@ -1833,6 +2059,9 @@ app.post("/api/businesses/:id/reviews", requireAuth, async (req, res) => {
     // Comment is optional - validate only if provided
     const reviewComment = (comment && typeof comment === "string") ? comment.trim() : "";
 
+    // Support both 'quality' and legacy 'foodQuality'
+    const qualityRating = quality !== undefined ? quality : foodQuality;
+
     // Validate category ratings (required, must be 1-5)
     const validateCategoryRating = (val, name) => {
       if (val === undefined || val === null) {
@@ -1845,7 +2074,7 @@ app.post("/api/businesses/:id/reviews", requireAuth, async (req, res) => {
     };
 
     const categoryErrors = [
-      validateCategoryRating(foodQuality, "Food quality"),
+      validateCategoryRating(qualityRating, "Quality"),
       validateCategoryRating(service, "Service"),
       validateCategoryRating(cleanliness, "Cleanliness"),
       validateCategoryRating(atmosphere, "Atmosphere")
@@ -1873,8 +2102,8 @@ app.post("/api/businesses/:id/reviews", requireAuth, async (req, res) => {
       helpful: 0,
       upvotedBy: [], // Track which users have upvoted
       source: 'local',
-      // Category ratings
-      foodQuality,
+      // Category ratings (use 'quality' as standard field name)
+      quality: qualityRating,
       service,
       cleanliness,
       atmosphere
@@ -2040,7 +2269,8 @@ app.put("/api/businesses/:businessId/reviews/:reviewId", requireAuth, async (req
     const {
       rating,
       comment,
-      foodQuality,
+      quality,
+      foodQuality, // Legacy support
       service,
       cleanliness,
       atmosphere,
@@ -2086,11 +2316,13 @@ app.put("/api/businesses/:businessId/reviews/:reviewId", requireAuth, async (req
       return val !== undefined && (typeof val !== "number" || val < 1 || val > 5);
     };
 
-    if (foodQuality !== undefined) {
-      if (validateCategoryRating(foodQuality)) {
-        return res.status(400).json({ error: "Food quality rating must be between 1 and 5" });
+    // Support both 'quality' and legacy 'foodQuality'
+    const qualityRating = quality !== undefined ? quality : foodQuality;
+    if (qualityRating !== undefined) {
+      if (validateCategoryRating(qualityRating)) {
+        return res.status(400).json({ error: "Quality rating must be between 1 and 5" });
       }
-      review.foodQuality = foodQuality;
+      review.quality = qualityRating;
     }
 
     if (service !== undefined) {
@@ -2503,7 +2735,7 @@ const isMainModule = import.meta.url.endsWith(process.argv[1]) ||
 
 if (isMainModule && !process.env.VERCEL) {
   const PORT = 3001;
-  app.listen(PORT, () => {
+  app.listen(PORT, async () => {
     console.log(`🚀 LocalLink API running on http://localhost:${PORT}`);
     if (OFFLINE_MODE) {
       console.log(`📴 Mode: OFFLINE (Demo Mode)`);
@@ -2517,5 +2749,41 @@ if (isMainModule && !process.env.VERCEL) {
     console.log(`📍 Location: Cumming, Georgia`);
     console.log(`📏 Search radius: 10 miles`);
     console.log(`🔐 reCAPTCHA: ${RECAPTCHA_ENABLED ? "enabled" : "disabled"}`);
+
+    // Trigger review seeding if empty (runs once)
+    if (!OFFLINE_MODE && !seedingComplete) {
+      seedingPromise = seedReviewsIfEmpty()
+        .then(seeded => {
+          seedingComplete = true;
+          if (seeded) {
+            console.log('[SEED] Review seeding completed successfully');
+          }
+        })
+        .catch(err => {
+          seedingComplete = true;
+          console.error('[SEED] Error during seeding:', err.message);
+        });
+    }
   });
+}
+
+// For Vercel: trigger seeding on first request if needed
+async function ensureSeeded() {
+  if (seedingComplete || OFFLINE_MODE) return;
+
+  if (!seedingPromise) {
+    seedingPromise = seedReviewsIfEmpty()
+      .then(seeded => {
+        seedingComplete = true;
+        if (seeded) {
+          console.log('[SEED] Review seeding completed successfully');
+        }
+      })
+      .catch(err => {
+        seedingComplete = true;
+        console.error('[SEED] Error during seeding:', err.message);
+      });
+  }
+
+  await seedingPromise;
 }
