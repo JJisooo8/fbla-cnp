@@ -592,32 +592,78 @@ const NEGATIVE_COMMENTS = [
   "Had better experiences elsewhere."
 ];
 
-// Generate a random rating with realistic distribution (3.5-4.5 average, 10-15% low ratings)
-function generateRealisticRating() {
-  const rand = Math.random();
+// Determine the quality tier for a business (determines overall rating distribution)
+// This creates a more realistic distribution:
+// - 18% standouts (4.5+ avg rating)
+// - 67% average (3.5-4.5 avg rating)
+// - 15% underperformers (below 3.5 avg rating)
+function determineBusinessQualityTier(businessId) {
+  // Use business ID hash for consistent tier assignment
+  const hash = businessId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const tierRoll = (hash % 100) / 100;
 
-  // 10-15% chance of low rating (1-2 stars)
-  if (rand < 0.12) {
-    return Math.random() < 0.4 ? 1 : 2;
+  if (tierRoll < 0.15) {
+    return 'underperformer'; // 15% - avg rating will be 2.5-3.4
+  } else if (tierRoll < 0.82) {
+    return 'average'; // 67% - avg rating will be 3.5-4.4
+  } else {
+    return 'standout'; // 18% - avg rating will be 4.5-5.0
   }
-  // 15% chance of 3 stars
-  if (rand < 0.27) {
-    return 3;
-  }
-  // 40% chance of 4 stars
-  if (rand < 0.67) {
-    return 4;
-  }
-  // 33% chance of 5 stars
-  return 5;
 }
 
-// Generate category rating that correlates with overall rating but with variance
-function generateCategoryRating(overallRating) {
-  // Base on overall rating with +/- 1 variance
-  const variance = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
-  const rating = overallRating + variance;
-  return Math.max(1, Math.min(5, rating)); // Clamp between 1 and 5
+// Generate a rating for a review based on business quality tier
+function generateRatingForTier(tier) {
+  const rand = Math.random();
+
+  if (tier === 'standout') {
+    // Standout businesses: mostly 4-5 stars
+    if (rand < 0.05) return 3; // 5% get 3 stars
+    if (rand < 0.30) return 4; // 25% get 4 stars
+    return 5; // 70% get 5 stars
+  } else if (tier === 'underperformer') {
+    // Underperforming businesses: mostly 1-3 stars
+    if (rand < 0.25) return 1; // 25% get 1 star
+    if (rand < 0.50) return 2; // 25% get 2 stars
+    if (rand < 0.80) return 3; // 30% get 3 stars
+    if (rand < 0.95) return 4; // 15% get 4 stars
+    return 5; // 5% get 5 stars
+  } else {
+    // Average businesses: bell curve around 3.5-4
+    if (rand < 0.08) return 2; // 8% get 2 stars
+    if (rand < 0.25) return 3; // 17% get 3 stars
+    if (rand < 0.70) return 4; // 45% get 4 stars
+    return 5; // 30% get 5 stars
+  }
+}
+
+// Generate category ratings with more natural variance
+// Different categories can have different strengths/weaknesses
+function generateCategoryRatings(overallRating, businessId) {
+  // Use business ID to create consistent category "personality"
+  const hash = businessId.split('').reduce((acc, char, idx) => acc + char.charCodeAt(0) * (idx + 1), 0);
+
+  // Determine which categories this business excels at or struggles with
+  const categoryOffsets = {
+    quality: ((hash % 7) - 3) * 0.3, // -0.9 to +0.9 offset
+    service: (((hash * 3) % 7) - 3) * 0.3,
+    cleanliness: (((hash * 7) % 7) - 3) * 0.3,
+    atmosphere: (((hash * 11) % 7) - 3) * 0.3
+  };
+
+  // Generate each category with variance and business personality
+  const generateCategory = (offset) => {
+    const base = overallRating + offset;
+    const variance = (Math.random() - 0.5) * 1.5; // +/- 0.75 random variance
+    const rating = Math.round(base + variance);
+    return Math.max(1, Math.min(5, rating));
+  };
+
+  return {
+    quality: generateCategory(categoryOffsets.quality),
+    service: generateCategory(categoryOffsets.service),
+    cleanliness: generateCategory(categoryOffsets.cleanliness),
+    atmosphere: generateCategory(categoryOffsets.atmosphere)
+  };
 }
 
 // Generate a random date within the last 2 years
@@ -654,14 +700,16 @@ function selectComment(rating) {
   }
 }
 
-// Generate reviews for a single business
+// Generate reviews for a single business with tier-based rating distribution
 function generateReviewsForBusiness(businessId, count) {
   const reviews = [];
+  const tier = determineBusinessQualityTier(businessId);
 
   for (let i = 0; i < count; i++) {
-    const rating = generateRealisticRating();
+    const rating = generateRatingForTier(tier);
     const isAnonymous = Math.random() < 0.15; // 15% anonymous
     const author = isAnonymous ? "Anonymous" : FAKE_USERNAMES[Math.floor(Math.random() * FAKE_USERNAMES.length)];
+    const categoryRatings = generateCategoryRatings(rating, businessId);
 
     reviews.push({
       id: crypto.randomUUID(),
@@ -674,11 +722,11 @@ function generateReviewsForBusiness(businessId, count) {
       helpful: Math.floor(Math.random() * 20), // 0-19 helpful votes
       upvotedBy: [],
       source: 'seed',
-      // Category ratings (renamed from foodQuality to quality)
-      quality: generateCategoryRating(rating),
-      service: generateCategoryRating(rating),
-      cleanliness: generateCategoryRating(rating),
-      atmosphere: generateCategoryRating(rating)
+      // Category ratings with natural variance per business
+      quality: categoryRatings.quality,
+      service: categoryRatings.service,
+      cleanliness: categoryRatings.cleanliness,
+      atmosphere: categoryRatings.atmosphere
     });
   }
 
@@ -1155,7 +1203,7 @@ async function fetchGoogleImage(query) {
   }
 }
 
-// Build a meaningful description from available Yelp data
+// Build a meaningful, natural-sounding description from available Yelp data
 function buildBusinessDescription(yelpBusiness, category) {
   const categoryLabels = (yelpBusiness.categories || [])
     .map(c => c.title)
@@ -1166,25 +1214,95 @@ function buildBusinessDescription(yelpBusiness, category) {
     return null; // No description available
   }
 
-  const categoryText = categoryLabels.join(", ");
-  const priceText = yelpBusiness.price ? ` (${yelpBusiness.price})` : "";
-  const ratingText = yelpBusiness.rating ? ` Rated ${yelpBusiness.rating} stars on Yelp.` : "";
+  const name = yelpBusiness.name || "This business";
   const locationText = yelpBusiness.location?.city || "Cumming";
-
-  // Build transactions info (delivery, pickup, etc.)
   const transactions = yelpBusiness.transactions || [];
-  let transactionText = "";
-  if (transactions.length > 0) {
-    const transactionLabels = transactions.map(t => {
-      if (t === "delivery") return "delivery";
-      if (t === "pickup") return "pickup";
-      if (t === "restaurant_reservation") return "reservations";
-      return t;
-    });
-    transactionText = ` Offers ${transactionLabels.join(", ")}.`;
+  const rating = yelpBusiness.rating;
+  const price = yelpBusiness.price;
+
+  // Determine business type descriptor
+  const primaryCategory = categoryLabels[0].toLowerCase();
+  let businessType = "establishment";
+  if (primaryCategory.includes("restaurant") || primaryCategory.includes("food") ||
+      primaryCategory.includes("cuisine") || primaryCategory.includes("grill") ||
+      primaryCategory.includes("café") || primaryCategory.includes("cafe")) {
+    businessType = "restaurant";
+  } else if (primaryCategory.includes("bar") || primaryCategory.includes("pub") ||
+             primaryCategory.includes("brewery") || primaryCategory.includes("lounge")) {
+    businessType = "bar";
+  } else if (primaryCategory.includes("coffee") || primaryCategory.includes("tea") ||
+             primaryCategory.includes("bakery") || primaryCategory.includes("dessert")) {
+    businessType = "café";
+  } else if (primaryCategory.includes("salon") || primaryCategory.includes("spa") ||
+             primaryCategory.includes("beauty") || primaryCategory.includes("nail")) {
+    businessType = "salon";
+  } else if (primaryCategory.includes("auto") || primaryCategory.includes("car") ||
+             primaryCategory.includes("mechanic") || primaryCategory.includes("tire")) {
+    businessType = "auto service center";
+  } else if (primaryCategory.includes("gym") || primaryCategory.includes("fitness") ||
+             primaryCategory.includes("yoga") || primaryCategory.includes("crossfit")) {
+    businessType = "fitness center";
+  } else if (primaryCategory.includes("clean") || primaryCategory.includes("laundry") ||
+             primaryCategory.includes("dry")) {
+    businessType = "cleaning service";
   }
 
-  return `${categoryText}${priceText} serving the ${locationText} area.${ratingText}${transactionText}`;
+  // Build specialty text from categories
+  const specialties = categoryLabels.slice(0, 2).join(" and ");
+
+  // Price level description
+  let priceDesc = "";
+  if (price === "$") priceDesc = "budget-friendly";
+  else if (price === "$$") priceDesc = "moderately priced";
+  else if (price === "$$$") priceDesc = "upscale";
+  else if (price === "$$$$") priceDesc = "fine dining";
+
+  // Service options
+  let serviceOptions = [];
+  if (transactions.includes("delivery")) serviceOptions.push("delivery");
+  if (transactions.includes("pickup")) serviceOptions.push("pickup");
+  if (transactions.includes("restaurant_reservation")) serviceOptions.push("reservations");
+
+  // Rating-based quality phrases
+  let qualityPhrase = "";
+  if (rating >= 4.5) qualityPhrase = "highly acclaimed";
+  else if (rating >= 4.0) qualityPhrase = "well-regarded";
+  else if (rating >= 3.5) qualityPhrase = "popular";
+  else qualityPhrase = "local";
+
+  // Build the natural description
+  let description = "";
+
+  // Opening sentence - introduce the business
+  if (businessType === "restaurant" || businessType === "café" || businessType === "bar") {
+    description = `A ${qualityPhrase} ${specialties} ${businessType} serving the ${locationText} community`;
+  } else {
+    description = `A ${qualityPhrase} ${businessType} specializing in ${specialties} in the ${locationText} area`;
+  }
+
+  // Add price context if available
+  if (priceDesc) {
+    description += `, offering ${priceDesc} options`;
+  }
+  description += ". ";
+
+  // Second sentence - services and reputation
+  if (serviceOptions.length > 0) {
+    description += `Convenient ${serviceOptions.join(" and ")} ${serviceOptions.length > 1 ? "are" : "is"} available. `;
+  }
+
+  // Closing touch based on rating
+  if (rating >= 4.5) {
+    description += "Known for exceptional quality and customer satisfaction.";
+  } else if (rating >= 4.0) {
+    description += "Customers appreciate the consistent quality and friendly service.";
+  } else if (rating >= 3.5) {
+    description += "A trusted choice for locals in the community.";
+  } else {
+    description += "Serving the local community with dedication.";
+  }
+
+  return description;
 }
 
 // Transform Yelp business to our format
@@ -1971,6 +2089,49 @@ app.get("/api/verification/challenge", (req, res) => {
     res.json(challenge);
   } catch (error) {
     res.status(500).json({ error: "Failed to generate challenge" });
+  }
+});
+
+// Get diagnostic info about current business distribution
+// GET /api/admin/business-stats - shows category breakdown
+app.get("/api/admin/business-stats", async (req, res) => {
+  try {
+    // Wait for businesses to load
+    if (businessBlobLoadPromise && !businessBlobLoaded) {
+      await businessBlobLoadPromise;
+    }
+
+    const businesses = Array.from(persistentBusinesses.values());
+    const categoryCount = { Food: 0, Retail: 0, Services: 0, Other: 0 };
+    const tagCount = {};
+
+    for (const biz of businesses) {
+      categoryCount[biz.category] = (categoryCount[biz.category] || 0) + 1;
+      for (const tag of (biz.tags || [])) {
+        tagCount[tag] = (tagCount[tag] || 0) + 1;
+      }
+    }
+
+    // Sort tags by count
+    const topTags = Object.entries(tagCount)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 30)
+      .map(([tag, count]) => ({ tag, count }));
+
+    res.json({
+      total: businesses.length,
+      categories: categoryCount,
+      percentages: {
+        Food: ((categoryCount.Food / businesses.length) * 100).toFixed(1) + '%',
+        Retail: ((categoryCount.Retail / businesses.length) * 100).toFixed(1) + '%',
+        Services: ((categoryCount.Services / businesses.length) * 100).toFixed(1) + '%'
+      },
+      topTags,
+      note: "Business storage is additive-only. Businesses are NEVER deleted, only added or updated."
+    });
+  } catch (error) {
+    console.error('[ADMIN] Error getting business stats:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -2865,6 +3026,58 @@ app.get("/api/trending", async (req, res) => {
   } catch (error) {
     console.error('Error fetching trending businesses:', error);
     res.status(500).json({ error: "Failed to fetch trending businesses" });
+  }
+});
+
+// Admin: Regenerate all reviews with the new algorithm
+app.post("/api/admin/regenerate-reviews", async (req, res) => {
+  try {
+    console.log('[ADMIN] Starting review regeneration...');
+
+    // Wait for businesses to load
+    if (businessBlobLoadPromise) {
+      await businessBlobLoadPromise;
+    }
+
+    const businessIds = Array.from(persistentBusinesses.keys());
+
+    if (businessIds.length === 0) {
+      return res.status(400).json({ error: 'No businesses found to generate reviews for' });
+    }
+
+    // Clear existing reviews
+    localReviews.clear();
+
+    let totalReviews = 0;
+    const tierStats = { standout: 0, average: 0, underperformer: 0 };
+
+    for (const businessId of businessIds) {
+      // Determine tier for stats
+      const tier = determineBusinessQualityTier(businessId);
+      tierStats[tier]++;
+
+      // Generate 20-50 reviews per business
+      const reviewCount = 20 + Math.floor(Math.random() * 31);
+      const reviews = generateReviewsForBusiness(businessId, reviewCount);
+      localReviews.set(businessId, reviews);
+      totalReviews += reviewCount;
+    }
+
+    // Save to blob
+    const saved = await saveReviewsAsync();
+
+    console.log(`[ADMIN] Regenerated ${totalReviews} reviews for ${businessIds.length} businesses`);
+    console.log(`[ADMIN] Tier distribution: ${JSON.stringify(tierStats)}`);
+
+    res.json({
+      success: true,
+      message: `Regenerated ${totalReviews} reviews for ${businessIds.length} businesses`,
+      tierDistribution: tierStats,
+      saved
+    });
+  } catch (error) {
+    console.error('[ADMIN] Error regenerating reviews:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
