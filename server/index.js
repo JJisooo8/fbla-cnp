@@ -16,6 +16,28 @@
  * 1. Business data fetched from Yelp API and cached for performance
  * 2. User reviews stored in Vercel Blob with local file fallback
  * 3. Recommendations generated based on user favorites and ratings
+ *
+ * ============================================================================
+ * VERCEL BLOB WRITE OPERATIONS - SAFEGUARD NOTICE
+ * ============================================================================
+ * To conserve Vercel Blob usage limits, ONLY the following blob writes are ACTIVE:
+ *
+ * ACTIVE (User-initiated actions only):
+ * - saveUsersAsync(): Called during user signup
+ * - saveReviewsAsync(): Called for review CRUD operations (create, edit, delete, upvote)
+ *
+ * DISABLED (Seeding/automated operations):
+ * - ensureSeeded(): Disabled - returns immediately
+ * - seedReviewsIfEmpty(): Disabled - returns immediately
+ * - seedReviewsForNewBusinesses(): Disabled - returns immediately
+ * - /api/import-businesses: Disabled - returns 403
+ * - /api/admin/regenerate-reviews: Disabled - returns 403
+ * - saveBusinessesToBlob() in fetchYelpBusinesses(): Commented out
+ * - saveBusinessesToBlob() in recover-favorites: Commented out
+ * - saveBusinessesToBlob() in single business recovery: Commented out
+ *
+ * DO NOT re-enable seeding functions without understanding blob usage implications.
+ * ============================================================================
  */
 
 import express from "express";
@@ -736,69 +758,14 @@ function generateReviewsForBusiness(businessId, count) {
   return reviews;
 }
 
-// Seed reviews for all businesses (runs once if reviews are empty)
+// SEEDING DISABLED - Review seeding function preserved but disabled
+// This function is kept for reference but will not execute to preserve blob usage limits
 async function seedReviewsIfEmpty() {
-  // Wait for blob to load first
-  if (blobLoadPromise) {
-    await blobLoadPromise;
-  }
-
-  // Check if reviews already exist
-  if (localReviews.size > 0) {
-    console.log(`[SEED] Reviews already exist (${localReviews.size} businesses have reviews), skipping seed`);
-    return false;
-  }
-
-  console.log('[SEED] No reviews found, starting review seeding...');
-
-  // Wait for businesses to load
-  if (businessBlobLoadPromise) {
-    await businessBlobLoadPromise;
-  }
-
-  // Get all businesses
-  let businessIds = Array.from(persistentBusinesses.keys());
-
-  // If no persistent businesses yet, try to fetch from Yelp
-  if (businessIds.length === 0) {
-    console.log('[SEED] No persistent businesses found, fetching from Yelp...');
-    try {
-      const businesses = await fetchYelpBusinesses();
-      businessIds = businesses.map(b => b.id);
-    } catch (err) {
-      console.error('[SEED] Failed to fetch businesses:', err.message);
-      return false;
-    }
-  }
-
-  if (businessIds.length === 0) {
-    console.log('[SEED] No businesses available for seeding');
-    return false;
-  }
-
-  console.log(`[SEED] Seeding reviews for ${businessIds.length} businesses...`);
-
-  let totalReviews = 0;
-
-  for (const businessId of businessIds) {
-    // Generate 20-50 reviews per business
-    const reviewCount = 20 + Math.floor(Math.random() * 31); // 20-50
-    const reviews = generateReviewsForBusiness(businessId, reviewCount);
-    localReviews.set(businessId, reviews);
-    totalReviews += reviewCount;
-  }
-
-  console.log(`[SEED] Generated ${totalReviews} reviews for ${businessIds.length} businesses`);
-
-  // Save to blob
-  const saved = await saveReviewsAsync();
-  if (saved) {
-    console.log('[SEED] Reviews saved to storage successfully');
-  } else {
-    console.error('[SEED] Warning: Reviews may not have persisted to storage');
-  }
-
-  return true;
+  // SEEDING PERMANENTLY DISABLED
+  // Existing review data is already in Vercel Blob storage
+  // To prevent accidental writes, this function now returns immediately
+  console.log('[SEED] seedReviewsIfEmpty called but SEEDING IS DISABLED - no action taken');
+  return false;
 }
 
 // Track seeding state
@@ -1434,12 +1401,13 @@ async function fetchYelpBusinesses() {
 
     console.log(`[YELP] Merged: ${newCount} new, ${updatedCount} updated, ${persistentBusinesses.size} total (was ${previousSize})`);
 
-    // Save to persistent storage (async, don't block response)
-    if (newCount > 0 || previousSize === 0) {
-      saveBusinessesToBlob().catch(err => {
-        console.error('[YELP] Failed to save businesses:', err.message);
-      });
-    }
+    // BLOB WRITES DISABLED - Business saves disabled to conserve Vercel Blob usage limits
+    // Businesses already exist in blob storage - no need to save automatically
+    // if (newCount > 0 || previousSize === 0) {
+    //   saveBusinessesToBlob().catch(err => {
+    //     console.error('[YELP] Failed to save businesses:', err.message);
+    //   });
+    // }
 
     // Return ALL persistent businesses (ensures favorites always included)
     const allBusinesses = Array.from(persistentBusinesses.values());
@@ -1582,49 +1550,10 @@ async function importBusinessesByCategory(categories = IMPORT_CATEGORIES) {
   };
 }
 
-// Seed reviews for businesses that don't have any
+// SEEDING DISABLED - Function preserved but disabled to conserve Vercel Blob usage
 async function seedReviewsForNewBusinesses() {
-  // Wait for reviews to load first
-  if (blobLoadPromise) {
-    await blobLoadPromise;
-  }
-
-  // Wait for businesses to load
-  if (businessBlobLoadPromise) {
-    await businessBlobLoadPromise;
-  }
-
-  const businessIds = Array.from(persistentBusinesses.keys());
-  const businessesWithoutReviews = businessIds.filter(id => !localReviews.has(id));
-
-  if (businessesWithoutReviews.length === 0) {
-    console.log('[SEED] All businesses already have reviews');
-    return { seeded: 0, total: businessIds.length };
-  }
-
-  console.log(`[SEED] Seeding reviews for ${businessesWithoutReviews.length} businesses without reviews...`);
-
-  let totalReviews = 0;
-  for (const businessId of businessesWithoutReviews) {
-    const reviewCount = 20 + Math.floor(Math.random() * 31); // 20-50
-    const reviews = generateReviewsForBusiness(businessId, reviewCount);
-    localReviews.set(businessId, reviews);
-    totalReviews += reviewCount;
-  }
-
-  console.log(`[SEED] Generated ${totalReviews} reviews for ${businessesWithoutReviews.length} businesses`);
-
-  // Save to blob
-  const saved = await saveReviewsAsync();
-  if (saved) {
-    console.log('[SEED] Reviews saved to storage successfully');
-  }
-
-  return {
-    seeded: businessesWithoutReviews.length,
-    reviews: totalReviews,
-    total: businessIds.length
-  };
+  console.log('[SEED] seedReviewsForNewBusinesses called but SEEDING IS DISABLED - no action taken');
+  return { seeded: 0, reviews: 0, total: 0, disabled: true };
 }
 
 // Format Yelp hours
@@ -2135,31 +2064,15 @@ app.get("/api/admin/business-stats", async (req, res) => {
   }
 });
 
-// Import additional businesses by category (for diversifying the database)
+// DISABLED - Import additional businesses by category (for diversifying the database)
 // POST /api/import-businesses - imports service and retail businesses
+// BLOB WRITES DISABLED to conserve Vercel Blob usage limits
 app.post("/api/import-businesses", async (req, res) => {
-  try {
-    console.log('[IMPORT] Starting business import...');
-
-    // Import businesses from all categories
-    const importResult = await importBusinessesByCategory();
-
-    // Seed reviews for new businesses
-    const seedResult = await seedReviewsForNewBusinesses();
-
-    // Clear cache so new businesses appear
-    cache.flushAll();
-
-    res.json({
-      success: true,
-      message: `Imported ${importResult.imported} new businesses and seeded ${seedResult.seeded} with reviews`,
-      import: importResult,
-      seed: seedResult
-    });
-  } catch (error) {
-    console.error('[IMPORT] Error:', error);
-    res.status(500).json({ error: "Failed to import businesses" });
-  }
+  console.log('[IMPORT] Import endpoint called but BLOB WRITES ARE DISABLED');
+  res.status(403).json({
+    error: "Business import is currently disabled to conserve Vercel Blob usage limits",
+    disabled: true
+  });
 });
 
 // Get all businesses
@@ -2300,11 +2213,11 @@ app.post("/api/businesses/recover-favorites", async (req, res) => {
       }
     }
 
-    // Save recovered businesses
-    if (recovered.length > 0) {
-      await saveBusinessesToBlob();
-      console.log(`[RECOVER] Saved ${recovered.length} recovered businesses`);
-    }
+    // BLOB WRITES DISABLED - Business saves disabled to conserve Vercel Blob usage limits
+    // if (recovered.length > 0) {
+    //   await saveBusinessesToBlob();
+    //   console.log(`[RECOVER] Saved ${recovered.length} recovered businesses`);
+    // }
 
     res.json({
       recovered,
@@ -2355,12 +2268,13 @@ app.get("/api/businesses/:id", async (req, res) => {
         // Transform the Yelp data to our format
         business = transformYelpToBusiness(yelpData);
         if (business) {
-          // Add to persistent storage so it won't be lost again
+          // Add to in-memory storage for this request (blob writes disabled)
           persistentBusinesses.set(business.id, business);
-          saveBusinessesToBlob().catch(err => {
-            console.error('[YELP] Failed to save recovered business:', err.message);
-          });
-          console.log(`[YELP] Recovered and saved business: ${business.name}`);
+          // BLOB WRITES DISABLED - Business saves disabled to conserve Vercel Blob usage limits
+          // saveBusinessesToBlob().catch(err => {
+          //   console.error('[YELP] Failed to save recovered business:', err.message);
+          // });
+          console.log(`[YELP] Recovered business (in memory only): ${business.name}`);
         }
       }
     }
@@ -3029,56 +2943,14 @@ app.get("/api/trending", async (req, res) => {
   }
 });
 
-// Admin: Regenerate all reviews with the new algorithm
+// DISABLED - Admin: Regenerate all reviews with the new algorithm
+// BLOB WRITES DISABLED to conserve Vercel Blob usage limits
 app.post("/api/admin/regenerate-reviews", async (req, res) => {
-  try {
-    console.log('[ADMIN] Starting review regeneration...');
-
-    // Wait for businesses to load
-    if (businessBlobLoadPromise) {
-      await businessBlobLoadPromise;
-    }
-
-    const businessIds = Array.from(persistentBusinesses.keys());
-
-    if (businessIds.length === 0) {
-      return res.status(400).json({ error: 'No businesses found to generate reviews for' });
-    }
-
-    // Clear existing reviews
-    localReviews.clear();
-
-    let totalReviews = 0;
-    const tierStats = { standout: 0, average: 0, underperformer: 0 };
-
-    for (const businessId of businessIds) {
-      // Determine tier for stats
-      const tier = determineBusinessQualityTier(businessId);
-      tierStats[tier]++;
-
-      // Generate 20-50 reviews per business
-      const reviewCount = 20 + Math.floor(Math.random() * 31);
-      const reviews = generateReviewsForBusiness(businessId, reviewCount);
-      localReviews.set(businessId, reviews);
-      totalReviews += reviewCount;
-    }
-
-    // Save to blob
-    const saved = await saveReviewsAsync();
-
-    console.log(`[ADMIN] Regenerated ${totalReviews} reviews for ${businessIds.length} businesses`);
-    console.log(`[ADMIN] Tier distribution: ${JSON.stringify(tierStats)}`);
-
-    res.json({
-      success: true,
-      message: `Regenerated ${totalReviews} reviews for ${businessIds.length} businesses`,
-      tierDistribution: tierStats,
-      saved
-    });
-  } catch (error) {
-    console.error('[ADMIN] Error regenerating reviews:', error);
-    res.status(500).json({ error: error.message });
-  }
+  console.log('[ADMIN] Regenerate reviews endpoint called but BLOB WRITES ARE DISABLED');
+  res.status(403).json({
+    error: "Review regeneration is currently disabled to conserve Vercel Blob usage limits",
+    disabled: true
+  });
 });
 
 // Tags
@@ -3180,40 +3052,17 @@ if (isMainModule && !process.env.VERCEL) {
     console.log(`Search radius: 10 miles`);
     console.log(`reCAPTCHA: ${RECAPTCHA_ENABLED ? "enabled" : "disabled"}`);
 
-    // Trigger review seeding if empty (runs once)
-    if (!OFFLINE_MODE && !seedingComplete) {
-      seedingPromise = seedReviewsIfEmpty()
-        .then(seeded => {
-          seedingComplete = true;
-          if (seeded) {
-            console.log('[SEED] Review seeding completed successfully');
-          }
-        })
-        .catch(err => {
-          seedingComplete = true;
-          console.error('[SEED] Error during seeding:', err.message);
-        });
-    }
+    // SEEDING DISABLED - preserving existing blob data to stay within usage limits
+    // Reviews are already seeded and stored in Vercel Blob
+    seedingComplete = true;
+    console.log('[SEED] Seeding disabled - using existing review data');
   });
 }
 
-// For Vercel: trigger seeding on first request if needed
+// For Vercel: seeding disabled to preserve blob usage limits
 async function ensureSeeded() {
-  if (seedingComplete || OFFLINE_MODE) return;
-
-  if (!seedingPromise) {
-    seedingPromise = seedReviewsIfEmpty()
-      .then(seeded => {
-        seedingComplete = true;
-        if (seeded) {
-          console.log('[SEED] Review seeding completed successfully');
-        }
-      })
-      .catch(err => {
-        seedingComplete = true;
-        console.error('[SEED] Error during seeding:', err.message);
-      });
-  }
-
-  await seedingPromise;
+  // SEEDING DISABLED - data already exists in blob storage
+  // This function is now a no-op to prevent any automatic writes
+  seedingComplete = true;
+  return;
 }
