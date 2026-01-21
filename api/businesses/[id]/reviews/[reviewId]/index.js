@@ -7,7 +7,7 @@ import { put, list } from '@vercel/blob';
 const REVIEWS_BLOB_NAME = "reviews.json";
 const JWT_SECRET = process.env.JWT_SECRET || 'locallink-dev-secret-change-in-production';
 
-// Load reviews from Vercel Blob
+// Load reviews from Vercel Blob with cache-busting
 async function loadReviews() {
   try {
     const { blobs } = await list({ prefix: REVIEWS_BLOB_NAME });
@@ -17,7 +17,15 @@ async function loadReviews() {
     }
 
     if (reviewsBlob) {
-      const response = await fetch(reviewsBlob.url);
+      // Add cache-busting query param and headers to avoid stale data
+      const cacheBustUrl = `${reviewsBlob.url}${reviewsBlob.url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+      const response = await fetch(cacheBustUrl, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
       if (response.ok) {
         const text = await response.text();
         if (text.trim()) {

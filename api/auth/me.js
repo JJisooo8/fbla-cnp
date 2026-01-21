@@ -2,8 +2,43 @@
 // Returns current user info from JWT token
 
 import jwt from 'jsonwebtoken';
+import { list } from '@vercel/blob';
 
+const USERS_BLOB_NAME = "users.json";
 const JWT_SECRET = process.env.JWT_SECRET || 'locallink-dev-secret-change-in-production';
+
+// Load users from Vercel Blob
+async function loadUsers() {
+  try {
+    const { blobs } = await list({ prefix: USERS_BLOB_NAME });
+    let usersBlob = blobs.find(b => b.pathname === USERS_BLOB_NAME);
+    if (!usersBlob && blobs.length > 0) {
+      usersBlob = blobs.find(b => b.pathname.includes(USERS_BLOB_NAME));
+    }
+
+    if (usersBlob) {
+      // Add cache-busting to avoid stale data
+      const cacheBustUrl = `${usersBlob.url}${usersBlob.url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+      const response = await fetch(cacheBustUrl, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      if (response.ok) {
+        const text = await response.text();
+        if (text.trim()) {
+          return JSON.parse(text);
+        }
+      }
+    }
+    return [];
+  } catch (error) {
+    console.error('[AUTH] Error loading users:', error.message);
+    return [];
+  }
+}
 
 export default async function handler(req, res) {
   // Handle CORS
@@ -33,10 +68,15 @@ export default async function handler(req, res) {
     // Verify token
     const decoded = jwt.verify(token, JWT_SECRET);
 
+    // Look up user to get createdAt
+    const users = await loadUsers();
+    const user = users.find(u => u.id === decoded.id);
+
     res.status(200).json({
       user: {
         id: decoded.id,
-        username: decoded.username
+        username: decoded.username,
+        createdAt: user?.createdAt || null
       }
     });
   } catch (error) {

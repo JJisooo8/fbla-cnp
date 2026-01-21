@@ -49,7 +49,15 @@ async function loadUsers() {
 
     if (usersBlob) {
       console.log(`[AUTH] Found users blob at ${usersBlob.url}`);
-      const response = await fetch(usersBlob.url);
+      // Add cache-busting to avoid stale data
+      const cacheBustUrl = `${usersBlob.url}${usersBlob.url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+      const response = await fetch(cacheBustUrl, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
       if (response.ok) {
         const text = await response.text();
         if (text.trim()) {
