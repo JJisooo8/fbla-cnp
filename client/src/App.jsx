@@ -203,6 +203,10 @@ function App() {
   // Track if initial URL has been processed
   const [urlInitialized, setUrlInitialized] = useState(false);
 
+  // Modal states
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showAccountDetails, setShowAccountDetails] = useState(false);
+
   // Helper to get auth headers
   const getAuthHeaders = () => {
     if (!authToken) return {};
@@ -372,9 +376,15 @@ function App() {
     }
   };
 
-  // Handle logout - refresh page to reset all personalized content
+  // Handle logout - show confirmation dialog first
   const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  // Confirm logout - actually perform the logout
+  const confirmLogout = () => {
     localStorage.removeItem("locallink_auth_token");
+    setShowLogoutConfirm(false);
     // Refresh the page to fully reset all state and show anonymous view
     window.location.href = '/';
   };
@@ -386,7 +396,7 @@ function App() {
       const params = new URLSearchParams(window.location.search);
 
       if (path.startsWith('/business/')) {
-        const businessId = path.split('/business/')[1];
+        const businessId = extractBusinessIdFromUrl(path);
         if (businessId) {
           // Will be handled after businesses load
           return { view: 'business', businessId };
@@ -418,7 +428,7 @@ function App() {
     if (view === 'favorites') {
       newPath = '/favorites';
     } else if (view === 'business' && selectedBusiness) {
-      newPath = `/business/${selectedBusiness.id}`;
+      newPath = getBusinessUrl(selectedBusiness);
     }
 
     // Only push state if path actually changed
@@ -442,7 +452,7 @@ function App() {
       const state = event.state || {};
 
       if (path.startsWith('/business/')) {
-        const businessId = path.split('/business/')[1];
+        const businessId = extractBusinessIdFromUrl(path);
         if (businessId && businesses.length > 0) {
           const business = businesses.find(b => b.id === businessId);
           if (business) {
@@ -736,6 +746,45 @@ function App() {
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
   );
+
+  // Clickable Star Rating Input Component
+  const StarRatingInput = ({ value, onChange, label, size = 24 }) => {
+    const [hoverValue, setHoverValue] = useState(0);
+
+    return (
+      <div className={styles.starRatingInput}>
+        <span className={styles.starRatingLabel}>{label}</span>
+        <div
+          className={styles.starRatingStars}
+          onMouseLeave={() => setHoverValue(0)}
+        >
+          {[1, 2, 3, 4, 5].map(star => (
+            <button
+              key={star}
+              type="button"
+              className={styles.starRatingButton}
+              onClick={() => onChange(star)}
+              onMouseEnter={() => setHoverValue(star)}
+              aria-label={`Rate ${star} out of 5 stars`}
+            >
+              <svg
+                width={size}
+                height={size}
+                viewBox="0 0 24 24"
+                fill={(hoverValue || value) >= star ? "#F9B233" : "none"}
+                stroke={(hoverValue || value) >= star ? "#F9B233" : "#CBD5E0"}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+              </svg>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   // Gift icon for deals/promotions
   const GiftIcon = ({ size = 20 }) => (
@@ -1224,6 +1273,41 @@ function App() {
     });
   };
 
+  // Helper: Convert 24-hour time to 12-hour AM/PM format
+  const convertTo12Hour = (time24) => {
+    // Handle times like "09:00" or "17:30"
+    const match = time24.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return time24; // Return as-is if not recognized
+
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2];
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+
+    if (hours === 0) {
+      hours = 12;
+    } else if (hours > 12) {
+      hours = hours - 12;
+    }
+
+    return `${hours}:${minutes} ${ampm}`;
+  };
+
+  // Helper: Convert time range from 24-hour to 12-hour format
+  const convertTimeRange = (timeRange) => {
+    // Already has AM/PM, return as-is
+    if (/AM|PM/i.test(timeRange)) return timeRange;
+
+    // Handle range like "09:00-17:00" or "09:00 - 17:00"
+    const rangeMatch = timeRange.match(/^(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})$/);
+    if (rangeMatch) {
+      const start = convertTo12Hour(rangeMatch[1]);
+      const end = convertTo12Hour(rangeMatch[2]);
+      return `${start} - ${end}`;
+    }
+
+    return timeRange;
+  };
+
   // Helper: Parse hours string into structured array
   const parseHours = (hoursString) => {
     if (!hoursString) return null;
@@ -1244,12 +1328,14 @@ function App() {
         const [, startDay, endDay, time] = rangeMatch;
         const startIdx = dayNames.findIndex(d => d === startDay);
         const endIdx = dayNames.findIndex(d => d === endDay);
+        // Convert time to 12-hour format
+        const formattedTime = convertTimeRange(time);
 
         if (startIdx !== -1 && endIdx !== -1) {
           for (let i = startIdx; i <= endIdx; i++) {
             // Only add if not already present (first entry wins)
             if (!hoursMap.has(dayNames[i])) {
-              hoursMap.set(dayNames[i], { day: dayNames[i], time, isToday: i === today });
+              hoursMap.set(dayNames[i], { day: dayNames[i], time: formattedTime, isToday: i === today });
             }
           }
         }
@@ -1259,9 +1345,11 @@ function App() {
         if (singleMatch) {
           const [, day, time] = singleMatch;
           const dayIdx = dayNames.findIndex(d => d === day);
+          // Convert time to 12-hour format
+          const formattedTime = convertTimeRange(time);
           // Only add if not already present (first entry wins)
           if (dayIdx !== -1 && !hoursMap.has(day)) {
-            hoursMap.set(day, { day, time, isToday: dayIdx === today });
+            hoursMap.set(day, { day, time: formattedTime, isToday: dayIdx === today });
           }
         }
       }
@@ -1308,6 +1396,57 @@ function App() {
         ? prev.filter(t => t !== tag)
         : [...prev, tag]
     );
+  };
+
+  // Helper: Change business page and scroll to top of listing
+  const changeBusinessPage = (newPage) => {
+    const page = typeof newPage === 'function' ? newPage(businessPage) : newPage;
+    setBusinessPage(page);
+    // Scroll to the filters section after a brief delay to allow state update
+    setTimeout(() => {
+      const filtersSection = document.querySelector('[data-section="filters"]');
+      if (filtersSection) {
+        filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 50);
+  };
+
+  // Helper: Create URL-friendly slug from business name
+  const slugify = (text) => {
+    return text
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-') // Replace multiple hyphens with single
+      .trim()
+      .substring(0, 50); // Limit length
+  };
+
+  // Helper: Create business URL with name slug
+  const getBusinessUrl = (business) => {
+    const slug = slugify(business.name);
+    return `/business/${slug}-${business.id}`;
+  };
+
+  // Helper: Extract business ID from URL (handles both old and new format)
+  const extractBusinessIdFromUrl = (path) => {
+    if (!path.startsWith('/business/')) return null;
+    const segment = path.split('/business/')[1];
+    if (!segment) return null;
+
+    // Check if it's the new format with slug (slug-businessId)
+    // Business IDs typically start with 'yelp-' or are UUIDs
+    const yelpMatch = segment.match(/-(yelp-[^/]+)$/);
+    if (yelpMatch) return yelpMatch[1];
+
+    // For simple IDs without yelp prefix, take the last segment after the last hyphen
+    // But only if the segment contains a hyphen (indicating slug-id format)
+    if (segment.includes('-yelp-')) {
+      return segment.substring(segment.indexOf('-yelp-') + 1);
+    }
+
+    // Fallback: assume the whole segment is the ID (old format)
+    return segment;
   };
 
   // Helper: Extract domain from URL
@@ -1469,7 +1608,12 @@ function App() {
                 >
                   Log Out
                 </button>
-                <div className={styles.profileIndicator} aria-label={`Logged in as ${user.username}`}>
+                <button
+                  className={styles.profileIndicator}
+                  onClick={() => setShowAccountDetails(true)}
+                  aria-label={`View account details for ${user.username}`}
+                  title="View account details"
+                >
                   <svg
                     className={styles.profileIcon}
                     viewBox="0 0 24 24"
@@ -1484,7 +1628,7 @@ function App() {
                     <circle cx="12" cy="7" r="4" />
                   </svg>
                   <span className={styles.profileUsername}>{user.username}</span>
-                </div>
+                </button>
               </div>
             ) : (
               <div className={styles.authButtons}>
@@ -1917,7 +2061,7 @@ function App() {
           {filteredBusinesses.length > BUSINESSES_PER_PAGE && (
             <div className={styles.paginationControls} style={{ marginTop: 'var(--space-6)', marginBottom: 'var(--space-6)' }}>
               <button
-                onClick={() => setBusinessPage(p => Math.max(1, p - 1))}
+                onClick={() => changeBusinessPage(p => Math.max(1, p - 1))}
                 disabled={businessPage === 1}
                 className={styles.paginationBtn}
               >
@@ -1969,7 +2113,7 @@ function App() {
                     ) : (
                       <button
                         key={page}
-                        onClick={() => setBusinessPage(page)}
+                        onClick={() => changeBusinessPage(page)}
                         className={businessPage === page ? styles.paginationBtnActive : styles.paginationBtn}
                       >
                         {page}
@@ -1979,7 +2123,7 @@ function App() {
                 })()}
               </div>
               <button
-                onClick={() => setBusinessPage(p => Math.min(Math.ceil(deduplicateChains(filteredBusinesses).length / BUSINESSES_PER_PAGE), p + 1))}
+                onClick={() => changeBusinessPage(p => Math.min(Math.ceil(deduplicateChains(filteredBusinesses).length / BUSINESSES_PER_PAGE), p + 1))}
                 disabled={businessPage >= Math.ceil(deduplicateChains(filteredBusinesses).length / BUSINESSES_PER_PAGE)}
                 className={styles.paginationBtn}
               >
@@ -2043,13 +2187,6 @@ function App() {
           )}
 
           <div className={styles.detailCard} style={{ maxWidth: '1400px', margin: '0 auto' }}>
-            {/* Controlled Aspect-Ratio Banner */}
-            <img
-              src={selectedBusiness.image}
-              alt={selectedBusiness.name}
-              className={styles.detailBanner}
-            />
-
             {/* Compact Identity Header */}
             <div className={styles.detailHeaderNew}>
               <div className={styles.detailHeaderTop}>
@@ -2166,6 +2303,25 @@ function App() {
               </div>
             </div>
 
+            {/* Photo Gallery */}
+            {((selectedBusiness.photos && selectedBusiness.photos.length > 0) || selectedBusiness.image) && (
+              <div className={styles.photoGallery}>
+                <div className={styles.photoGalleryScroll}>
+                  {(selectedBusiness.photos && selectedBusiness.photos.length > 0
+                    ? selectedBusiness.photos
+                    : [selectedBusiness.image]
+                  ).map((photo, idx) => (
+                    <img
+                      key={idx}
+                      src={photo}
+                      alt={`${selectedBusiness.name} photo ${idx + 1}`}
+                      className={styles.photoGalleryImage}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Two-Column Layout: Main Content + Sidebar */}
             <div className={styles.detailLayout}>
               {/* Left Column: Main Content */}
@@ -2256,78 +2412,41 @@ function App() {
                         <span>Post anonymously (hide your username)</span>
                       </label>
 
-                      <div className={styles.formGroup}>
-                        <label className={styles.label} htmlFor="rating-slider">
-                          Overall Rating: {reviewForm.rating}/5
-                        </label>
-                        <input
-                          id="rating-slider"
-                          type="range"
-                          min="1"
-                          max="5"
-                          value={reviewForm.rating}
-                          onChange={e => setReviewForm(prev => ({ ...prev, rating: parseInt(e.target.value) }))}
-                          className={styles.slider}
-                          aria-label={`Rating: ${reviewForm.rating} out of 5 stars`}
-                        />
-                      </div>
+                      <StarRatingInput
+                        label="Overall Rating"
+                        value={reviewForm.rating}
+                        onChange={val => setReviewForm(prev => ({ ...prev, rating: val }))}
+                        size={28}
+                      />
 
                       {/* Category Ratings Section */}
                       <div className={styles.categoryRatingsForm}>
                         <h5 className={styles.categoryRatingsTitle}>Rate by Category</h5>
                         <div className={styles.categoryRatingsGrid}>
-                          <div className={styles.categoryRatingItem}>
-                            <label className={styles.categoryLabel}>
-                              Quality: {reviewForm.quality}/5
-                            </label>
-                            <input
-                              type="range"
-                              min="1"
-                              max="5"
-                              value={reviewForm.quality}
-                              onChange={e => setReviewForm(prev => ({ ...prev, quality: parseInt(e.target.value) }))}
-                              className={styles.categorySlider}
-                            />
-                          </div>
-                          <div className={styles.categoryRatingItem}>
-                            <label className={styles.categoryLabel}>
-                              Service: {reviewForm.service}/5
-                            </label>
-                            <input
-                              type="range"
-                              min="1"
-                              max="5"
-                              value={reviewForm.service}
-                              onChange={e => setReviewForm(prev => ({ ...prev, service: parseInt(e.target.value) }))}
-                              className={styles.categorySlider}
-                            />
-                          </div>
-                          <div className={styles.categoryRatingItem}>
-                            <label className={styles.categoryLabel}>
-                              Cleanliness: {reviewForm.cleanliness}/5
-                            </label>
-                            <input
-                              type="range"
-                              min="1"
-                              max="5"
-                              value={reviewForm.cleanliness}
-                              onChange={e => setReviewForm(prev => ({ ...prev, cleanliness: parseInt(e.target.value) }))}
-                              className={styles.categorySlider}
-                            />
-                          </div>
-                          <div className={styles.categoryRatingItem}>
-                            <label className={styles.categoryLabel}>
-                              Atmosphere: {reviewForm.atmosphere}/5
-                            </label>
-                            <input
-                              type="range"
-                              min="1"
-                              max="5"
-                              value={reviewForm.atmosphere}
-                              onChange={e => setReviewForm(prev => ({ ...prev, atmosphere: parseInt(e.target.value) }))}
-                              className={styles.categorySlider}
-                            />
-                          </div>
+                          <StarRatingInput
+                            label="Quality"
+                            value={reviewForm.quality}
+                            onChange={val => setReviewForm(prev => ({ ...prev, quality: val }))}
+                            size={20}
+                          />
+                          <StarRatingInput
+                            label="Service"
+                            value={reviewForm.service}
+                            onChange={val => setReviewForm(prev => ({ ...prev, service: val }))}
+                            size={20}
+                          />
+                          <StarRatingInput
+                            label="Cleanliness"
+                            value={reviewForm.cleanliness}
+                            onChange={val => setReviewForm(prev => ({ ...prev, cleanliness: val }))}
+                            size={20}
+                          />
+                          <StarRatingInput
+                            label="Atmosphere"
+                            value={reviewForm.atmosphere}
+                            onChange={val => setReviewForm(prev => ({ ...prev, atmosphere: val }))}
+                            size={20}
+                          />
                         </div>
                       </div>
 
@@ -2452,66 +2571,39 @@ function App() {
                             <form onSubmit={submitEditReview} className={styles.editReviewForm}>
                               <h4 className={styles.editFormTitle}>Edit Your Review</h4>
 
-                              <div className={styles.formGroup}>
-                                <label className={styles.label}>
-                                  Overall Rating: {editForm.rating}/5
-                                </label>
-                                <input
-                                  type="range"
-                                  min="1"
-                                  max="5"
-                                  value={editForm.rating}
-                                  onChange={(e) => setEditForm(prev => ({ ...prev, rating: parseInt(e.target.value) }))}
-                                  className={styles.slider}
-                                />
-                              </div>
+                              <StarRatingInput
+                                label="Overall Rating"
+                                value={editForm.rating}
+                                onChange={val => setEditForm(prev => ({ ...prev, rating: val }))}
+                                size={24}
+                              />
 
                               <div className={styles.categoryRatingsForm}>
                                 <div className={styles.categoryRatingsGrid}>
-                                  <div className={styles.categoryRatingItem}>
-                                    <label className={styles.categoryLabel}>Quality: {editForm.quality}/5</label>
-                                    <input
-                                      type="range"
-                                      min="1"
-                                      max="5"
-                                      value={editForm.quality}
-                                      onChange={(e) => setEditForm(prev => ({ ...prev, quality: parseInt(e.target.value) }))}
-                                      className={styles.categorySlider}
-                                    />
-                                  </div>
-                                  <div className={styles.categoryRatingItem}>
-                                    <label className={styles.categoryLabel}>Service: {editForm.service}/5</label>
-                                    <input
-                                      type="range"
-                                      min="1"
-                                      max="5"
-                                      value={editForm.service}
-                                      onChange={(e) => setEditForm(prev => ({ ...prev, service: parseInt(e.target.value) }))}
-                                      className={styles.categorySlider}
-                                    />
-                                  </div>
-                                  <div className={styles.categoryRatingItem}>
-                                    <label className={styles.categoryLabel}>Cleanliness: {editForm.cleanliness}/5</label>
-                                    <input
-                                      type="range"
-                                      min="1"
-                                      max="5"
-                                      value={editForm.cleanliness}
-                                      onChange={(e) => setEditForm(prev => ({ ...prev, cleanliness: parseInt(e.target.value) }))}
-                                      className={styles.categorySlider}
-                                    />
-                                  </div>
-                                  <div className={styles.categoryRatingItem}>
-                                    <label className={styles.categoryLabel}>Atmosphere: {editForm.atmosphere}/5</label>
-                                    <input
-                                      type="range"
-                                      min="1"
-                                      max="5"
-                                      value={editForm.atmosphere}
-                                      onChange={(e) => setEditForm(prev => ({ ...prev, atmosphere: parseInt(e.target.value) }))}
-                                      className={styles.categorySlider}
-                                    />
-                                  </div>
+                                  <StarRatingInput
+                                    label="Quality"
+                                    value={editForm.quality}
+                                    onChange={val => setEditForm(prev => ({ ...prev, quality: val }))}
+                                    size={18}
+                                  />
+                                  <StarRatingInput
+                                    label="Service"
+                                    value={editForm.service}
+                                    onChange={val => setEditForm(prev => ({ ...prev, service: val }))}
+                                    size={18}
+                                  />
+                                  <StarRatingInput
+                                    label="Cleanliness"
+                                    value={editForm.cleanliness}
+                                    onChange={val => setEditForm(prev => ({ ...prev, cleanliness: val }))}
+                                    size={18}
+                                  />
+                                  <StarRatingInput
+                                    label="Atmosphere"
+                                    value={editForm.atmosphere}
+                                    onChange={val => setEditForm(prev => ({ ...prev, atmosphere: val }))}
+                                    size={18}
+                                  />
                                 </div>
                               </div>
 
@@ -3138,25 +3230,43 @@ function App() {
           <div className={styles.footerSection}>
             <h4 className={styles.footerSectionTitle}>Categories</h4>
             <button className={styles.footerLink} onClick={() => {
-              setSelectedTags(["Food & Dining"]);
+              setSearchTerm("restaurant");
+              setSelectedTags([]);
               setView("home");
-              window.scrollTo({ top: 0, behavior: "smooth" });
+              setTimeout(() => {
+                const filtersSection = document.querySelector('[data-section="filters"]');
+                if (filtersSection) {
+                  filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }, 100);
             }}>
               Food & Dining
             </button>
             <button className={styles.footerLink} onClick={() => {
-              setSelectedTags(["Retail"]);
+              setSearchTerm("coffee bakery");
+              setSelectedTags([]);
               setView("home");
-              window.scrollTo({ top: 0, behavior: "smooth" });
+              setTimeout(() => {
+                const filtersSection = document.querySelector('[data-section="filters"]');
+                if (filtersSection) {
+                  filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }, 100);
             }}>
-              Retail & Shopping
+              Coffee & Bakeries
             </button>
             <button className={styles.footerLink} onClick={() => {
-              setSelectedTags(["Services"]);
+              setSearchTerm("");
+              setSelectedTags([]);
               setView("home");
-              window.scrollTo({ top: 0, behavior: "smooth" });
+              setTimeout(() => {
+                const filtersSection = document.querySelector('[data-section="filters"]');
+                if (filtersSection) {
+                  filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }, 100);
             }}>
-              Local Services
+              All Businesses
             </button>
           </div>
         </div>
@@ -3169,6 +3279,52 @@ function App() {
           </span>
         </div>
       </footer>
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className={styles.modalOverlay} onClick={() => setShowLogoutConfirm(false)}>
+          <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+            <h3 className={styles.modalTitle}>Confirm Logout</h3>
+            <p className={styles.modalText}>Are you sure you want to log out?</p>
+            <div className={styles.modalButtons}>
+              <button onClick={confirmLogout} className={styles.modalBtnPrimary}>
+                Yes, Log Out
+              </button>
+              <button onClick={() => setShowLogoutConfirm(false)} className={styles.modalBtnSecondary}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Account Details Modal */}
+      {showAccountDetails && user && (
+        <div className={styles.modalOverlay} onClick={() => setShowAccountDetails(false)}>
+          <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+            <h3 className={styles.modalTitle}>Account Details</h3>
+            <div className={styles.accountDetailsContent}>
+              <div className={styles.accountDetailRow}>
+                <span className={styles.accountDetailLabel}>Username</span>
+                <span className={styles.accountDetailValue}>{user.username}</span>
+              </div>
+              <div className={styles.accountDetailRow}>
+                <span className={styles.accountDetailLabel}>Member since</span>
+                <span className={styles.accountDetailValue}>
+                  {user.createdAt
+                    ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                    : 'N/A'}
+                </span>
+              </div>
+            </div>
+            <div className={styles.modalButtons}>
+              <button onClick={() => setShowAccountDetails(false)} className={styles.modalBtnPrimary}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

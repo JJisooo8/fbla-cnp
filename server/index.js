@@ -143,7 +143,15 @@ async function loadUsersAsync() {
       if (usersBlob) {
         usersBlobUrl = usersBlob.url;
         console.log(`[BLOB] Found users blob at ${usersBlob.url}`);
-        const response = await fetch(usersBlob.url);
+        // Add cache-busting to avoid stale data
+        const cacheBustUrl = `${usersBlob.url}${usersBlob.url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+        const response = await fetch(cacheBustUrl, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
         if (response.ok) {
           const text = await response.text();
           if (text.trim()) {
@@ -348,8 +356,15 @@ async function loadReviewsAsync() {
       if (reviewsBlob) {
         reviewsBlobUrl = reviewsBlob.url;
         console.log(`[BLOB] Found reviews blob at ${reviewsBlob.url}`);
-        // Fetch the blob content
-        const response = await fetch(reviewsBlob.url);
+        // Fetch the blob content with cache-busting to avoid stale data
+        const cacheBustUrl = `${reviewsBlob.url}${reviewsBlob.url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+        const response = await fetch(cacheBustUrl, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
         if (response.ok) {
           const text = await response.text();
           console.log(`[BLOB] Fetched content (${text.length} chars)`);
@@ -436,7 +451,15 @@ async function refreshReviewsFromBlob() {
 
     if (reviewsBlob) {
       console.log(`[BLOB] Fetching from ${reviewsBlob.url}`);
-      const response = await fetch(reviewsBlob.url);
+      // Add cache-busting to avoid stale data
+      const cacheBustUrl = `${reviewsBlob.url}${reviewsBlob.url.includes('?') ? '&' : '?'}_t=${Date.now()}`;
+      const response = await fetch(cacheBustUrl, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
       if (response.ok) {
         const text = await response.text();
         if (text.trim()) {
@@ -1557,6 +1580,8 @@ function getOfflineBusinessById(id) {
   const localReviewSummary = getLocalReviewSummary(id);
   return {
     ...business,
+    // Include photos array for gallery display (use image as fallback)
+    photos: business.photos || (business.image ? [business.image] : []),
     rating: localReviewSummary.rating,
     reviewCount: localReviewSummary.reviewCount,
     reviews: localReviewSummary.reviews
@@ -2189,6 +2214,8 @@ app.get("/api/businesses/:id", async (req, res) => {
       if (details) {
         business.hours = formatYelpHours(details.hours);
         business.image = details.photos?.[0] || business.image;
+        // Include all photos for gallery display
+        business.photos = details.photos || (business.image ? [business.image] : []);
         business.website = business.website || details.url;
       }
     }
