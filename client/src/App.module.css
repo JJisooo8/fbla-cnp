@@ -9,7 +9,7 @@
 
 .container {
   min-height: 100vh;
-  background-color: #e9ecf0;
+  background: var(--color-gray-100);
   background-image: var(--gradient-mesh-bg);
   font-family: var(--font-primary);
   position: relative;
@@ -182,8 +182,6 @@
   max-width: var(--max-width-content);
   margin: 0 auto;
   padding: var(--space-8);
-  background-color: var(--color-white);
-  box-shadow: 0 0 40px rgba(0, 0, 0, 0.04);
 }
 
 /* ========================================
