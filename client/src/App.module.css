@@ -9,8 +9,10 @@
 
 .container {
   min-height: 100vh;
-  background: var(--color-gray-100);
-  background-image: var(--gradient-mesh-bg);
+  background-color: #f0f2f5;
+  background-image:
+    var(--gradient-mesh-bg),
+    linear-gradient(to right, #e8eaed 0%, #f5f5f5 15%, #f5f5f5 85%, #e8eaed 100%);
   font-family: var(--font-primary);
   position: relative;
 }
