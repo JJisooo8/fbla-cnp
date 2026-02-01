@@ -173,6 +173,15 @@ a:hover {
   background: linear-gradient(180deg, var(--color-primary-900) 0%, var(--color-primary-700) 100%);
 }
 
+/* Dark mode global overrides */
+[data-theme="dark"] img {
+  opacity: 0.92;
+}
+
+[data-theme="dark"] a:hover {
+  color: var(--color-secondary-500) !important;
+}
+
 /* Smooth fade-in for sections (removed parallax for mobile performance) */
 [style*="section"] {
   animation: fadeIn 0.8s ease-out;

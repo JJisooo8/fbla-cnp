@@ -207,6 +207,18 @@ function App() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showAccountDetails, setShowAccountDetails] = useState(false);
 
+  // Dark mode state
+  const [darkMode, setDarkMode] = useState(() => {
+    return localStorage.getItem("locallink_dark_mode") === "true";
+  });
+  const [showDarkModeConfirm, setShowDarkModeConfirm] = useState(false);
+
+  // Apply dark mode class to document
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
+    localStorage.setItem("locallink_dark_mode", darkMode);
+  }, [darkMode]);
+
   // Helper to get auth headers
   const getAuthHeaders = () => {
     if (!authToken) return {};
@@ -295,8 +307,17 @@ function App() {
       setAuthError("Username must be at least 3 characters long.");
       return;
     }
-    if (signupForm.password.length < 6) {
-      setAuthError("Password must be at least 6 characters long.");
+    // Validate all password requirements
+    const pw = signupForm.password;
+    const pwReqs = [
+      pw.length >= 8,
+      /[A-Z]/.test(pw),
+      /[a-z]/.test(pw),
+      /[0-9]/.test(pw),
+      /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(pw)
+    ];
+    if (!pwReqs.every(Boolean)) {
+      setAuthError("Password does not meet all requirements.");
       return;
     }
     if (signupForm.password !== signupForm.confirmPassword) {
@@ -1646,9 +1667,57 @@ function App() {
                 </button>
               </div>
             )}
+            {/* Dark Mode Toggle */}
+            <button
+              className={styles.darkModeToggle}
+              onClick={() => setShowDarkModeConfirm(true)}
+              aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+              title={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {darkMode ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="5" />
+                  <line x1="12" y1="1" x2="12" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="23" />
+                  <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                  <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                  <line x1="1" y1="12" x2="3" y2="12" />
+                  <line x1="21" y1="12" x2="23" y2="12" />
+                  <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                  <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              )}
+            </button>
           </nav>
         </div>
       </header>
+
+      {/* Dark Mode Confirmation Modal */}
+      {showDarkModeConfirm && (
+        <div className={styles.modalOverlay} onClick={() => setShowDarkModeConfirm(false)}>
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.modalText}>{darkMode ? "Disable dark mode?" : "Enable dark mode?"}</p>
+            <div className={styles.modalButtons}>
+              <button
+                className={styles.modalBtnPrimary}
+                onClick={() => { setDarkMode(!darkMode); setShowDarkModeConfirm(false); }}
+              >
+                Yes
+              </button>
+              <button
+                className={styles.modalBtnSecondary}
+                onClick={() => setShowDarkModeConfirm(false)}
+              >
+                No
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Home View */}
       {view === "home" && (
@@ -2041,7 +2110,17 @@ function App() {
                     ) : biz.tags && biz.tags.length > 0 ? (
                       <div className={styles.cardTagRow}>
                         {biz.tags.slice(0, 3).map((tag, i) => (
-                          <span key={i} className={styles.cardTagPill}>{tag}</span>
+                          <button
+                            key={i}
+                            className={styles.cardTagPill}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              applyFilter("tag", tag);
+                            }}
+                            aria-label={`Filter by ${tag}`}
+                          >
+                            {tag}
+                          </button>
                         ))}
                       </div>
                     ) : null}
@@ -3125,12 +3204,44 @@ function App() {
                     value={signupForm.password}
                     onChange={(e) => setSignupForm(prev => ({ ...prev, password: e.target.value }))}
                     className={styles.input}
-                    placeholder="Create a password (min 6 characters)"
+                    placeholder="Create a strong password"
                     required
-                    minLength={6}
                     autoComplete="new-password"
                   />
-                  <p className={styles.inputHint}>Must be at least 6 characters</p>
+                  {/* Password Strength Indicator */}
+                  {signupForm.password.length > 0 && (() => {
+                    const pw = signupForm.password;
+                    const checks = [
+                      { label: "At least 8 characters", met: pw.length >= 8 },
+                      { label: "Includes an uppercase letter", met: /[A-Z]/.test(pw) },
+                      { label: "Includes a lowercase letter", met: /[a-z]/.test(pw) },
+                      { label: "Includes a number", met: /[0-9]/.test(pw) },
+                      { label: "Includes a special symbol (!@#$%^&* etc.)", met: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(pw) }
+                    ];
+                    const metCount = checks.filter(c => c.met).length;
+                    const strengthPercent = (metCount / checks.length) * 100;
+                    const strengthLabel = metCount <= 2 ? "Weak" : metCount <= 4 ? "Medium" : "Strong";
+                    const strengthColor = metCount <= 2 ? "#c62828" : metCount <= 4 ? "#f9a825" : "#2e7d32";
+                    return (
+                      <div className={styles.passwordStrength}>
+                        <div className={styles.strengthBarTrack}>
+                          <div
+                            className={styles.strengthBarFill}
+                            style={{ width: `${strengthPercent}%`, backgroundColor: strengthColor }}
+                          />
+                        </div>
+                        <span className={styles.strengthLabel} style={{ color: strengthColor }}>{strengthLabel}</span>
+                        <ul className={styles.passwordChecklist}>
+                          {checks.map((check, i) => (
+                            <li key={i} className={check.met ? styles.checkMet : styles.checkUnmet}>
+                              <span className={styles.checkIcon}>{check.met ? "✓" : "✗"}</span>
+                              {check.label}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div className={styles.formGroup}>
@@ -3145,6 +3256,15 @@ function App() {
                     required
                     autoComplete="new-password"
                   />
+                  {signupForm.confirmPassword.length > 0 && (
+                    <div className={styles.confirmMatch}>
+                      {signupForm.password === signupForm.confirmPassword ? (
+                        <span className={styles.checkMet}><span className={styles.checkIcon}>✓</span> Passwords match</span>
+                      ) : (
+                        <span className={styles.checkUnmet}><span className={styles.checkIcon}>✗</span> Passwords do not match</span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* CAPTCHA verification for signup */}
@@ -3183,7 +3303,11 @@ function App() {
                   </div>
                 )}
 
-                <button type="submit" className={styles.authSubmitBtn} disabled={!signupCaptchaReady}>
+                <button type="submit" className={styles.authSubmitBtn} disabled={!signupCaptchaReady || (() => {
+                  const pw = signupForm.password;
+                  const allMet = pw.length >= 8 && /[A-Z]/.test(pw) && /[a-z]/.test(pw) && /[0-9]/.test(pw) && /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(pw);
+                  return !allMet || signupForm.password !== signupForm.confirmPassword;
+                })()}>
                   {signupCaptchaReady ? 'Create Account' : 'Loading...'}
                 </button>
               </form>
