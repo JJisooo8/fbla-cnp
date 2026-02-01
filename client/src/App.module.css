@@ -4331,11 +4331,13 @@
 
 /* --- Back Button --- */
 :global([data-theme="dark"]) .backButton {
-  color: #d4d4d4;
+  background-color: #374151;
+  color: #f0f0f0;
 }
 
 :global([data-theme="dark"]) .backButton:hover {
-  color: #5a9ce0;
+  background-color: #4b5563;
+  color: #ffffff;
 }
 
 /* --- See More / Load More Buttons --- */
@@ -4357,10 +4359,11 @@
 }
 
 /* --- Sort Select --- */
-:global([data-theme="dark"]) .sortSelect {
+:global([data-theme="dark"]) .sortSelect,
+:global([data-theme="dark"]) .reviewSortSelect {
   background-color: #1f2937;
   border-color: #4b5563;
-  color: #d4d4d4;
+  color: #f0f0f0;
 }
 
 /* --- Input Hint --- */
