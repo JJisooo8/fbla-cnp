@@ -2034,11 +2034,17 @@ function App() {
                       {biz.deal && <span className={styles.dealBadge}>Deal</span>}
                     </div>
 
-                    {biz.deal && (
+                    {biz.deal ? (
                       <div className={styles.deal}>
                         <GiftIcon size={14} /> {biz.deal}
                       </div>
-                    )}
+                    ) : biz.tags && biz.tags.length > 0 ? (
+                      <div className={styles.cardTagRow}>
+                        {biz.tags.slice(0, 3).map((tag, i) => (
+                          <span key={i} className={styles.cardTagPill}>{tag}</span>
+                        ))}
+                      </div>
+                    ) : null}
 
                     <button
                       onClick={(e) => {
