@@ -2227,6 +2227,128 @@ app.post("/api/import-businesses", async (req, res) => {
   }
 });
 
+// Seed reviews for all businesses that currently have zero reviews
+app.post("/api/seed-missing-reviews", async (req, res) => {
+  try {
+    // Ensure reviews and businesses are loaded
+    if (businessBlobLoadPromise && !businessBlobLoaded) await businessBlobLoadPromise;
+    if (USE_VERCEL_BLOB && !blobLoaded && blobLoadPromise) await blobLoadPromise;
+
+    const businessIds = Array.from(persistentBusinesses.keys());
+    const needReviews = businessIds.filter(id => {
+      const reviews = localReviews.get(id);
+      return !reviews || reviews.length === 0;
+    });
+
+    console.log(`[SEED] ${needReviews.length} of ${businessIds.length} businesses need reviews`);
+
+    if (needReviews.length === 0) {
+      return res.json({ success: true, seeded: 0, message: "All businesses already have reviews" });
+    }
+
+    const result = await seedReviewsForNewBusinesses(needReviews);
+
+    // Clear cache
+    cache.flushAll();
+
+    res.json({
+      success: true,
+      businessesChecked: businessIds.length,
+      businessesNeededReviews: needReviews.length,
+      seeded: result.seeded,
+      totalNewReviews: result.reviews
+    });
+  } catch (error) {
+    console.error('[SEED] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Enrich businesses with real data from Yelp Business Details API
+app.post("/api/enrich-businesses", async (req, res) => {
+  if (!YELP_API_KEY) {
+    return res.status(400).json({ error: "YELP_API_KEY not set" });
+  }
+
+  try {
+    if (businessBlobLoadPromise && !businessBlobLoaded) await businessBlobLoadPromise;
+
+    const allBiz = Array.from(persistentBusinesses.values());
+    const toEnrich = allBiz.filter(b => b.yelpId && b.hours === "Hours available on business page");
+    console.log(`[ENRICH] Enriching ${toEnrich.length} of ${allBiz.length} businesses with Yelp details`);
+
+    let enriched = 0;
+    let errors = 0;
+
+    for (const biz of toEnrich) {
+      try {
+        const details = await fetchYelpBusinessDetails(biz.yelpId);
+        if (!details) { errors++; continue; }
+
+        // Update with real data from Yelp details endpoint
+        if (details.hours) {
+          biz.hours = formatYelpHours(details.hours);
+        }
+        if (details.display_phone) {
+          biz.phone = details.display_phone;
+        }
+        if (details.location?.display_address) {
+          biz.address = details.location.display_address.join(", ");
+        }
+        if (details.price) {
+          biz.priceRange = details.price;
+        }
+        if (details.categories) {
+          biz.tags = details.categories.map(c => c.title).filter(Boolean).slice(0, 5);
+        }
+        if (details.photos && details.photos.length > 0) {
+          biz.image = details.photos[0];
+          biz.photos = details.photos;
+        }
+        if (details.url) {
+          biz.website = details.url;
+        }
+        // Yelp special_hours or transactions for deal-like info
+        if (details.transactions && details.transactions.length > 0) {
+          biz.transactions = details.transactions; // e.g. ["delivery", "pickup"]
+        }
+
+        persistentBusinesses.set(biz.id, biz);
+        enriched++;
+
+        // Rate limit: 200ms between detail calls
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+      } catch (err) {
+        errors++;
+        if (err.response?.status === 429) {
+          console.log('[ENRICH] Rate limited, waiting 3s...');
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
+      }
+    }
+
+    // Save updated businesses
+    if (enriched > 0) {
+      await saveBusinessesToBlob();
+    }
+
+    cache.flushAll();
+
+    console.log(`[ENRICH] Done: ${enriched} enriched, ${errors} errors`);
+    res.json({
+      success: true,
+      total: allBiz.length,
+      enriched,
+      errors,
+      alreadyEnriched: allBiz.length - toEnrich.length
+    });
+  } catch (error) {
+    console.error('[ENRICH] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get all businesses
 app.get("/api/businesses", async (req, res) => {
   try {
