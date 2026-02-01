@@ -41,7 +41,7 @@ const YELP_API_KEY = process.env.YELP_API_KEY;
 const YELP_API_BASE_URL = "https://api.yelp.com/v3";
 const CUMMING_GA_LAT = 34.2073;
 const CUMMING_GA_LON = -84.1402;
-const SEARCH_RADIUS_METERS = 16093; // 10 miles
+const SEARCH_RADIUS_METERS = 24140; // 15 miles
 
 // Output directories
 const DATA_DIR = path.join(__dirname, "data");
@@ -65,13 +65,21 @@ const CATEGORY_ALIASES = {
   Retail: [
     "shopping", "fashion", "departmentstores", "grocery", "bookstores",
     "giftshops", "electronics", "furniture", "homeandgarden", "jewelry",
-    "sportinggoods", "toys", "pets", "flowers", "cosmetics"
+    "sportinggoods", "toys", "pets", "flowers", "cosmetics",
+    "clothingstore", "shoes", "hardware", "appliances", "electronicsrepair",
+    "thrift_stores", "antiques", "hobbyshops", "sportgoods"
   ],
   Services: [
     "localservices", "homeservices", "auto", "health", "beautysvc", "fitness",
     "education", "professional", "financialservices", "realestate", "eventservices",
     "petservices", "automotive", "hairsalons", "spas", "gyms", "yoga", "dentists",
-    "doctors", "veterinarians"
+    "doctors", "veterinarians",
+    "barbershops", "autorepair", "autoglass", "oilchange", "carwash",
+    "drycleaninglaundry", "fitnesstrainers", "massage", "nailsalons", "skincare",
+    "pet_sitting", "petgroomers", "tutoring", "testprep", "musiclessons",
+    "homecleaning", "handyman", "plumbing", "electricians", "hvac", "locksmiths",
+    "movers", "notaries", "accountants", "lawyers", "taxservices", "print",
+    "shipping_centers", "itservices", "computerrepair"
   ]
 };
 
