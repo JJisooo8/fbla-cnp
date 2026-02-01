@@ -1247,11 +1247,6 @@
   margin-bottom: var(--space-8);
   transition: background-color var(--transition-base);
   font-weight: var(--font-medium);
-  /* Make button sticky so it stays visible while scrolling - positioned below header */
-  position: sticky;
-  top: 80px; /* Below the sticky header */
-  z-index: 50; /* Lower than header z-index (100) */
-  box-shadow: var(--shadow-md);
 }
 
 .backButton:hover {
