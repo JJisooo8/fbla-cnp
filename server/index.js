@@ -1025,7 +1025,7 @@ function isExcludedYelpBusiness(categories = []) {
   return aliases.some(alias => EXCLUDED_YELP_CATEGORIES.includes(alias));
 }
 
-// Generate mock deals for demo
+// Generate mock deals for demo (~25% of businesses get a deal)
 function getMockDeal(category, name) {
   const dealsByCategory = {
     Food: [
@@ -1033,31 +1033,58 @@ function getMockDeal(category, name) {
       "Buy 1 entrée, get a dessert free",
       "Free drink with any combo meal",
       "Happy hour: 20% off appetizers",
-      "Family meal deal: $5 off"
+      "Family meal deal: $5 off orders over $25",
+      "Free side with any entrée purchase",
+      "15% off takeout orders",
+      "Kids eat free on Tuesdays",
+      "Order online: free delivery this week",
+      "Loyalty card: 10th meal free",
+      "Early bird special: 20% off before 5 PM",
+      "Weekend brunch: $2 mimosas",
+      "Catering special: 10% off orders over $100",
+      "Date night combo: 2 entrées + appetizer for $40"
     ],
     Retail: [
       "15% off your first purchase",
       "BOGO 50% off select items",
-      "Free gift wrapping today",
+      "Free gift wrapping with purchase",
       "Spend $50, get $10 off",
-      "Student discount: 10% off"
+      "Student discount: 10% off with ID",
+      "Clearance: up to 40% off select items",
+      "Loyalty members: extra 20% off sale items",
+      "Free tote bag with $75+ purchase",
+      "Seasonal sale: 25% off new arrivals",
+      "Refer a friend: both get $15 off",
+      "Buy 2, get 1 free on accessories",
+      "Flash deal: 30% off this weekend only"
     ],
     Services: [
       "First-time customer: 15% off",
       "Free consultation this week",
       "Refer a friend, both get $10 off",
       "Bundle service: save 20%",
-      "Seasonal special: $25 off"
+      "Seasonal special: $25 off",
+      "$20 off services over $100",
+      "New client package: 25% off first 3 visits",
+      "Loyalty program: every 5th visit 50% off",
+      "Book online and save 10%",
+      "Senior discount: 15% off all services",
+      "Military & first responder: 20% off",
+      "Free add-on service with any booking",
+      "Weekday special: 10% off Mon-Thu appointments",
+      "Annual membership: save $50"
     ]
   };
 
   const seed = crypto.createHash("md5").update(`${category}-${name}`).digest("hex");
-  const roll = parseInt(seed.slice(0, 2), 16);
+  // Use first 2 hex chars to decide if business gets a deal (~25%)
+  const dealChance = parseInt(seed.slice(0, 2), 16);
+  if (dealChance > 64) return null; // 65/256 ≈ 25% get a deal
 
-  if (roll % 5 !== 0) return null;
-
+  // Use different hex chars (bytes 2-4) to select which deal
+  const dealIndex = parseInt(seed.slice(2, 6), 16);
   const options = dealsByCategory[category] || dealsByCategory.Services;
-  return options[roll % options.length];
+  return options[dealIndex % options.length];
 }
 
 // Detect chain businesses
