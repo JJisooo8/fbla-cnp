@@ -890,7 +890,7 @@ if (USE_VERCEL_BLOB || !process.env.VERCEL) {
 // Cumming, Georgia coordinates and search radius
 const CUMMING_GA_LAT = 34.2073;
 const CUMMING_GA_LON = -84.1402;
-const SEARCH_RADIUS_METERS = 16093; // 10 miles in meters
+const SEARCH_RADIUS_METERS = 24140; // 15 miles in meters
 
 // API Configuration
 const YELP_API_BASE_URL = "https://api.yelp.com/v3";
@@ -971,13 +971,21 @@ const CATEGORY_ALIASES = {
   Retail: [
     "shopping", "fashion", "departmentstores", "grocery", "bookstores",
     "giftshops", "electronics", "furniture", "homeandgarden", "jewelry",
-    "sportinggoods", "toys", "pets", "flowers", "cosmetics"
+    "sportinggoods", "toys", "pets", "flowers", "cosmetics",
+    "clothingstore", "shoes", "hardware", "appliances", "electronicsrepair",
+    "thrift_stores", "antiques", "hobbyshops", "sportgoods"
   ],
   Services: [
     "localservices", "homeservices", "auto", "health", "beautysvc", "fitness",
     "education", "professional", "financialservices", "realestate", "eventservices",
     "petservices", "automotive", "hairsalons", "spas", "gyms", "yoga", "dentists",
-    "doctors", "veterinarians"
+    "doctors", "veterinarians",
+    "barbershops", "autorepair", "autoglass", "oilchange", "carwash",
+    "drycleaninglaundry", "fitnesstrainers", "massage", "nailsalons", "skincare",
+    "pet_sitting", "petgroomers", "tutoring", "testprep", "musiclessons",
+    "homecleaning", "handyman", "plumbing", "electricians", "hvac", "locksmiths",
+    "movers", "notaries", "accountants", "lawyers", "taxservices", "print",
+    "shipping_centers", "itservices", "computerrepair"
   ]
 };
 
@@ -1401,13 +1409,12 @@ async function fetchYelpBusinesses() {
 
     console.log(`[YELP] Merged: ${newCount} new, ${updatedCount} updated, ${persistentBusinesses.size} total (was ${previousSize})`);
 
-    // BLOB WRITES DISABLED - Business saves disabled to conserve Vercel Blob usage limits
-    // Businesses already exist in blob storage - no need to save automatically
-    // if (newCount > 0 || previousSize === 0) {
-    //   saveBusinessesToBlob().catch(err => {
-    //     console.error('[YELP] Failed to save businesses:', err.message);
-    //   });
-    // }
+    // Save new businesses to blob storage
+    if (newCount > 0 || previousSize === 0) {
+      saveBusinessesToBlob().catch(err => {
+        console.error('[YELP] Failed to save businesses:', err.message);
+      });
+    }
 
     // Return ALL persistent businesses (ensures favorites always included)
     const allBusinesses = Array.from(persistentBusinesses.values());
@@ -1454,30 +1461,37 @@ async function fetchYelpBusinessDetails(yelpId) {
 
 // Categories to import for better diversity (services and retail)
 const IMPORT_CATEGORIES = [
-  // Hair and Beauty
-  'hair', 'barbers', 'hairsalons', 'beautysvc', 'nail_salons', 'skincare', 'spas', 'massage',
+  // Hair and Beauty - Services
+  'hairsalons', 'barbershops', 'nailsalons', 'skincare', 'spas', 'massage',
   // Auto Services
-  'auto', 'autorepair', 'carwash', 'tires', 'oilchange', 'autoglass', 'bodyshops',
+  'autorepair', 'autoglass', 'oilchange', 'carwash',
   // Home Services
-  'homeservices', 'plumbing', 'electricians', 'hvac', 'handyman', 'painters', 'roofing',
-  'landscaping', 'locksmiths', 'homecleaning', 'carpetcleaning', 'windowwashing',
+  'homecleaning', 'handyman', 'plumbing', 'electricians', 'hvac', 'locksmiths', 'movers',
   // Professional Services
-  'professional', 'accountants', 'lawyers', 'financialservices', 'insurance', 'realestateagents',
+  'accountants', 'lawyers', 'taxservices', 'notaries', 'print', 'shipping_centers',
+  'itservices', 'computerrepair',
   // Health and Fitness
-  'gyms', 'fitness', 'yoga', 'martialarts', 'personaltrainers', 'physicaltherapy',
+  'gyms', 'fitnesstrainers', 'yoga',
   // Pet Services
-  'pets', 'petgroomers', 'veterinarians', 'petboarding', 'pettraining',
+  'pet_sitting', 'petgroomers', 'veterinarians',
   // Education
-  'education', 'tutoring', 'preschools', 'musiclessons', 'artschools', 'dancestudios',
-  // Other Services
-  'drycleaninglaundry', 'sewingalterations', 'photography', 'eventplanning', 'printing',
-  'shipping_centers', 'notaries', 'movers',
+  'tutoring', 'testprep', 'musiclessons',
+  // Laundry
+  'drycleaninglaundry',
   // Retail
-  'shopping', 'bookstores', 'clothing', 'jewelry', 'florists', 'giftshops', 'hardware',
-  'hobbyshops', 'sportgoods', 'electronics', 'furniture', 'antiques', 'thrift_stores'
+  'bookstores', 'clothingstore', 'shoes', 'jewelry', 'giftshops', 'hardware',
+  'homeandgarden', 'furniture', 'appliances', 'electronicsrepair'
 ];
 
-// Import businesses from specific Yelp categories
+// Multiple search locations to cast a wider net
+const SEARCH_LOCATIONS = [
+  { name: "Cumming, GA", latitude: 34.2073, longitude: -84.1402 },
+  { name: "Alpharetta, GA", latitude: 34.0754, longitude: -84.2941 },
+  { name: "Johns Creek, GA", latitude: 34.0289, longitude: -84.1986 },
+  { name: "Forsyth County, GA", latitude: 34.2290, longitude: -84.1158 }
+];
+
+// Import businesses from specific Yelp categories with pagination and multi-location
 async function importBusinessesByCategory(categories = IMPORT_CATEGORIES) {
   if (!YELP_API_KEY) {
     console.log("[IMPORT] API key not set. Cannot import businesses.");
@@ -1489,52 +1503,98 @@ async function importBusinessesByCategory(categories = IMPORT_CATEGORIES) {
     await businessBlobLoadPromise;
   }
 
-  console.log(`[IMPORT] Starting import for ${categories.length} categories...`);
+  // Track existing Yelp IDs for dedup
+  const existingYelpIds = new Set();
+  for (const [, biz] of persistentBusinesses) {
+    if (biz.yelpId) existingYelpIds.add(biz.yelpId);
+  }
+
+  console.log(`[IMPORT] Starting import for ${categories.length} categories across ${SEARCH_LOCATIONS.length} locations...`);
+  console.log(`[IMPORT] ${existingYelpIds.size} existing businesses (by Yelp ID) for dedup`);
   const previousSize = persistentBusinesses.size;
   let totalFetched = 0;
   let newCount = 0;
+  let duplicateCount = 0;
+  const newBusinessIds = [];
+  const categoryBreakdown = { Food: 0, Retail: 0, Services: 0 };
 
-  for (const category of categories) {
-    try {
-      console.log(`[IMPORT] Fetching category: ${category}...`);
+  for (const location of SEARCH_LOCATIONS) {
+    console.log(`\n[IMPORT] === Location: ${location.name} ===`);
 
-      // Fetch up to 50 businesses per category
-      const response = await axios.get(`${YELP_API_BASE_URL}/businesses/search`, {
-        headers: { Authorization: `Bearer ${YELP_API_KEY}` },
-        params: {
-          latitude: CUMMING_GA_LAT,
-          longitude: CUMMING_GA_LON,
-          radius: SEARCH_RADIUS_METERS,
-          categories: category,
-          limit: 50,
-          sort_by: "rating" // Get highly-rated businesses first
-        },
-        timeout: 15000
-      });
+    for (const category of categories) {
+      try {
+        // Paginate through all results for this category+location
+        const limit = 50;
+        let offset = 0;
+        let totalForCategory = 0;
 
-      const businesses = response.data.businesses || [];
-      totalFetched += businesses.length;
-      console.log(`[IMPORT] Got ${businesses.length} businesses for ${category}`);
+        while (true) {
+          const response = await axios.get(`${YELP_API_BASE_URL}/businesses/search`, {
+            headers: { Authorization: `Bearer ${YELP_API_KEY}` },
+            params: {
+              latitude: location.latitude,
+              longitude: location.longitude,
+              radius: SEARCH_RADIUS_METERS,
+              categories: category,
+              limit,
+              offset,
+              sort_by: "best_match"
+            },
+            timeout: 15000
+          });
 
-      // Transform and add to persistent storage
-      for (const biz of businesses) {
-        const transformed = transformYelpToBusiness(biz);
-        if (transformed && !persistentBusinesses.has(transformed.id)) {
-          persistentBusinesses.set(transformed.id, transformed);
-          newCount++;
+          const businesses = response.data.businesses || [];
+          totalFetched += businesses.length;
+          totalForCategory += businesses.length;
+
+          // Transform and add to persistent storage, checking for duplicates by Yelp ID
+          for (const biz of businesses) {
+            // Skip if we already have this Yelp business
+            if (existingYelpIds.has(biz.id)) {
+              duplicateCount++;
+              continue;
+            }
+
+            const transformed = transformYelpToBusiness(biz);
+            if (transformed && !persistentBusinesses.has(transformed.id)) {
+              persistentBusinesses.set(transformed.id, transformed);
+              existingYelpIds.add(biz.id);
+              newCount++;
+              newBusinessIds.push(transformed.id);
+              if (categoryBreakdown[transformed.category] !== undefined) {
+                categoryBreakdown[transformed.category]++;
+              }
+            }
+          }
+
+          // Stop if we got fewer than limit (no more results) or hit Yelp's 1000 offset cap
+          if (businesses.length < limit || offset + limit >= 1000) break;
+          offset += limit;
+
+          // Rate limiting between paginated requests
+          await new Promise(resolve => setTimeout(resolve, 250));
+        }
+
+        if (totalForCategory > 0) {
+          console.log(`[IMPORT] ${category} @ ${location.name}: ${totalForCategory} fetched`);
+        }
+
+        // Rate limiting between categories
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+      } catch (error) {
+        if (error.response?.status === 429) {
+          console.log(`[IMPORT] Rate limited on ${category}, waiting 2s...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          console.error(`[IMPORT] Error fetching ${category} @ ${location.name}:`, error.message);
         }
       }
-
-      // Small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-    } catch (error) {
-      console.error(`[IMPORT] Error fetching category ${category}:`, error.message);
-      // Continue with other categories
     }
   }
 
-  console.log(`[IMPORT] Completed: ${totalFetched} fetched, ${newCount} new businesses added`);
+  console.log(`\n[IMPORT] Completed: ${totalFetched} fetched, ${newCount} new, ${duplicateCount} duplicates skipped`);
+  console.log(`[IMPORT] New by category: Food=${categoryBreakdown.Food}, Retail=${categoryBreakdown.Retail}, Services=${categoryBreakdown.Services}`);
   console.log(`[IMPORT] Total businesses: ${persistentBusinesses.size} (was ${previousSize})`);
 
   // Save to persistent storage
@@ -1546,14 +1606,49 @@ async function importBusinessesByCategory(categories = IMPORT_CATEGORIES) {
   return {
     imported: newCount,
     total: persistentBusinesses.size,
-    categories: categories.length
+    categories: categories.length,
+    locations: SEARCH_LOCATIONS.length,
+    duplicatesSkipped: duplicateCount,
+    newBusinessIds,
+    categoryBreakdown
   };
 }
 
-// SEEDING DISABLED - Function preserved but disabled to conserve Vercel Blob usage
-async function seedReviewsForNewBusinesses() {
-  console.log('[SEED] seedReviewsForNewBusinesses called but SEEDING IS DISABLED - no action taken');
-  return { seeded: 0, reviews: 0, total: 0, disabled: true };
+// Seed reviews for specific new businesses only (does not touch existing reviews)
+async function seedReviewsForNewBusinesses(businessIds = []) {
+  if (!businessIds.length) {
+    console.log('[SEED] No new business IDs provided, skipping review seeding');
+    return { seeded: 0, reviews: 0, total: localReviews.size };
+  }
+
+  console.log(`[SEED] Seeding reviews for ${businessIds.length} new businesses...`);
+  let seededCount = 0;
+  let totalReviews = 0;
+
+  for (const bizId of businessIds) {
+    // Skip if this business already has reviews
+    const existingReviews = localReviews.get(bizId);
+    if (existingReviews && existingReviews.length > 0) {
+      continue;
+    }
+
+    // Generate 20-50 reviews per business
+    const reviewCount = 20 + Math.floor(Math.random() * 31);
+    const reviews = generateReviewsForBusiness(bizId, reviewCount);
+    localReviews.set(bizId, reviews);
+    seededCount++;
+    totalReviews += reviewCount;
+  }
+
+  console.log(`[SEED] Seeded ${seededCount} businesses with ${totalReviews} total reviews`);
+
+  // Save reviews to blob
+  if (seededCount > 0) {
+    await saveReviewsToBlob();
+    console.log(`[SEED] Saved reviews to storage`);
+  }
+
+  return { seeded: seededCount, reviews: totalReviews, total: localReviews.size };
 }
 
 // Format Yelp hours
@@ -2064,15 +2159,45 @@ app.get("/api/admin/business-stats", async (req, res) => {
   }
 });
 
-// DISABLED - Import additional businesses by category (for diversifying the database)
-// POST /api/import-businesses - imports service and retail businesses
-// BLOB WRITES DISABLED to conserve Vercel Blob usage limits
+// Import additional businesses by category (for diversifying the database)
+// POST /api/import-businesses - imports service and retail businesses with pagination
 app.post("/api/import-businesses", async (req, res) => {
-  console.log('[IMPORT] Import endpoint called but BLOB WRITES ARE DISABLED');
-  res.status(403).json({
-    error: "Business import is currently disabled to conserve Vercel Blob usage limits",
-    disabled: true
-  });
+  try {
+    console.log('[IMPORT] Import endpoint called');
+    const categories = req.body?.categories || IMPORT_CATEGORIES;
+    const importResult = await importBusinessesByCategory(categories);
+
+    // Seed reviews for newly imported businesses
+    let reviewResult = { seeded: 0, reviews: 0 };
+    if (importResult.newBusinessIds && importResult.newBusinessIds.length > 0) {
+      reviewResult = await seedReviewsForNewBusinesses(importResult.newBusinessIds);
+    }
+
+    // Clear cache so new businesses show up immediately
+    cache.flushAll();
+
+    // Calculate full category breakdown
+    const allBusinesses = Array.from(persistentBusinesses.values());
+    const fullBreakdown = {
+      Food: allBusinesses.filter(b => b.category === "Food").length,
+      Retail: allBusinesses.filter(b => b.category === "Retail").length,
+      Services: allBusinesses.filter(b => b.category === "Services").length
+    };
+
+    res.json({
+      success: true,
+      imported: importResult.imported,
+      total: importResult.total,
+      duplicatesSkipped: importResult.duplicatesSkipped,
+      newCategoryBreakdown: importResult.categoryBreakdown,
+      fullCategoryBreakdown: fullBreakdown,
+      reviewsSeeded: reviewResult.seeded,
+      totalNewReviews: reviewResult.reviews
+    });
+  } catch (error) {
+    console.error('[IMPORT] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Get all businesses

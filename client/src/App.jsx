@@ -2187,6 +2187,25 @@ function App() {
           )}
 
           <div className={styles.detailCard} style={{ maxWidth: '1400px', margin: '0 auto' }}>
+            {/* Hero Photo Gallery - above business name */}
+            {((selectedBusiness.photos && selectedBusiness.photos.length > 0) || selectedBusiness.image) && (
+              <div className={styles.photoGallery} style={{ marginBottom: 0, borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0', overflow: 'hidden' }}>
+                <div className={styles.photoGalleryScroll}>
+                  {(selectedBusiness.photos && selectedBusiness.photos.length > 0
+                    ? selectedBusiness.photos
+                    : [selectedBusiness.image]
+                  ).map((photo, idx) => (
+                    <img
+                      key={idx}
+                      src={photo}
+                      alt={`${selectedBusiness.name} photo ${idx + 1}`}
+                      className={styles.photoGalleryImage}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Compact Identity Header */}
             <div className={styles.detailHeaderNew}>
               <div className={styles.detailHeaderTop}>
@@ -2303,24 +2322,6 @@ function App() {
               </div>
             </div>
 
-            {/* Photo Gallery */}
-            {((selectedBusiness.photos && selectedBusiness.photos.length > 0) || selectedBusiness.image) && (
-              <div className={styles.photoGallery}>
-                <div className={styles.photoGalleryScroll}>
-                  {(selectedBusiness.photos && selectedBusiness.photos.length > 0
-                    ? selectedBusiness.photos
-                    : [selectedBusiness.image]
-                  ).map((photo, idx) => (
-                    <img
-                      key={idx}
-                      src={photo}
-                      alt={`${selectedBusiness.name} photo ${idx + 1}`}
-                      className={styles.photoGalleryImage}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Two-Column Layout: Main Content + Sidebar */}
             <div className={styles.detailLayout}>
