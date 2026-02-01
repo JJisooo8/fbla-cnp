@@ -1593,7 +1593,7 @@ function App() {
             </button>
             <button
               className={view === "favorites" ? styles.navButtonActive : styles.navButton}
-              onClick={() => setView("favorites")}
+              onClick={() => { setView("favorites"); window.scrollTo({ top: 0, behavior: 'instant' }); }}
               aria-current={view === "favorites" ? "page" : undefined}
               aria-label={`Favorites (${favorites.length} businesses)`}
             >
