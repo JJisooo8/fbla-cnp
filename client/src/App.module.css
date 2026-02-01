@@ -1560,6 +1560,8 @@
   margin-bottom: var(--space-4);
   box-sizing: border-box;
   transition: border-color var(--transition-fast);
+  background-color: var(--color-white);
+  color: var(--color-gray-900);
 }
 
 .input:hover {
@@ -4002,9 +4004,9 @@
 :global([data-theme="dark"]) .labelSearchInput,
 :global([data-theme="dark"]) .input,
 :global([data-theme="dark"]) .select {
-  background-color: #1f2937;
-  border-color: #4b5563;
-  color: #f0f0f0;
+  background-color: #1f2937 !important;
+  border-color: #4b5563 !important;
+  color: #f0f0f0 !important;
 }
 
 :global([data-theme="dark"]) .searchInput:focus,
