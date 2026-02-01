@@ -207,6 +207,9 @@ function App() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showAccountDetails, setShowAccountDetails] = useState(false);
 
+  // Lightbox state
+  const [lightboxImage, setLightboxImage] = useState(null);
+
   // Dark mode state
   const [darkMode, setDarkMode] = useState(() => {
     return localStorage.getItem("locallink_dark_mode") === "true";
@@ -1696,6 +1699,28 @@ function App() {
         </div>
       </header>
 
+      {/* Image Lightbox */}
+      {lightboxImage && (
+        <div className={styles.lightboxOverlay} onClick={() => setLightboxImage(null)}>
+          <button
+            className={styles.lightboxClose}
+            onClick={() => setLightboxImage(null)}
+            aria-label="Close image"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+          <img
+            src={lightboxImage}
+            alt="Enlarged business photo"
+            className={styles.lightboxImage}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
       {/* Dark Mode Confirmation Modal */}
       {showDarkModeConfirm && (
         <div className={styles.modalOverlay} onClick={() => setShowDarkModeConfirm(false)}>
@@ -2271,26 +2296,6 @@ function App() {
             <div className={styles.detailLoading}>Loading business details...</div>
           )}
 
-          {/* Hero Photo - full-width between back button and business info */}
-          {((selectedBusiness.photos && selectedBusiness.photos.length > 0) || selectedBusiness.image) && (
-            <div style={{ maxWidth: '1400px', margin: '0 auto var(--space-4) auto', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-              <div className={styles.photoGalleryScroll}>
-                {(selectedBusiness.photos && selectedBusiness.photos.length > 0
-                  ? selectedBusiness.photos
-                  : [selectedBusiness.image]
-                ).map((photo, idx) => (
-                  <img
-                    key={idx}
-                    src={photo}
-                    alt={`${selectedBusiness.name} photo ${idx + 1}`}
-                    className={styles.photoGalleryImage}
-                    style={{ width: '100%', maxHeight: '400px', objectFit: 'cover' }}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className={styles.detailCard} style={{ maxWidth: '1400px', margin: '0 auto' }}>
             {/* Compact Identity Header */}
             <div className={styles.detailHeaderNew}>
@@ -2353,16 +2358,42 @@ function App() {
                   )}
                 </div>
 
-                {/* Favorite Button - Large prominent button in detail view */}
-                <button
-                  onClick={() => toggleFavorite(selectedBusiness.id)}
-                  className={favorites.includes(selectedBusiness.id) ? styles.favoriteBtnLargeActive : styles.favoriteBtnLarge}
-                  aria-label={favorites.includes(selectedBusiness.id) ? `Remove ${selectedBusiness.name} from favorites` : (user ? `Save ${selectedBusiness.name} to favorites` : "Log in to save favorites")}
-                  title={user ? (favorites.includes(selectedBusiness.id) ? "Remove from favorites" : "Save to favorites") : "Log in to save favorites"}
-                >
-                  <HeartIcon filled={favorites.includes(selectedBusiness.id)} size={20} />
-                  <span>{favorites.includes(selectedBusiness.id) ? "Favorited" : "Favorite"}</span>
-                </button>
+                {/* Right side: Favorite Button + Image Thumbnail */}
+                <div className={styles.detailHeaderActions}>
+                  <button
+                    onClick={() => toggleFavorite(selectedBusiness.id)}
+                    className={favorites.includes(selectedBusiness.id) ? styles.favoriteBtnLargeActive : styles.favoriteBtnLarge}
+                    aria-label={favorites.includes(selectedBusiness.id) ? `Remove ${selectedBusiness.name} from favorites` : (user ? `Save ${selectedBusiness.name} to favorites` : "Log in to save favorites")}
+                    title={user ? (favorites.includes(selectedBusiness.id) ? "Remove from favorites" : "Save to favorites") : "Log in to save favorites"}
+                  >
+                    <HeartIcon filled={favorites.includes(selectedBusiness.id)} size={20} />
+                    <span>{favorites.includes(selectedBusiness.id) ? "Favorited" : "Favorite"}</span>
+                  </button>
+
+                  {/* Business Image Thumbnail */}
+                  {(selectedBusiness.image || (selectedBusiness.photos && selectedBusiness.photos.length > 0)) && (
+                    <button
+                      className={styles.imageThumbnailBtn}
+                      onClick={() => setLightboxImage(
+                        selectedBusiness.photos && selectedBusiness.photos.length > 0
+                          ? selectedBusiness.photos[0]
+                          : selectedBusiness.image
+                      )}
+                      aria-label="View enlarged image"
+                    >
+                      <img
+                        src={selectedBusiness.photos && selectedBusiness.photos.length > 0
+                          ? selectedBusiness.photos[0]
+                          : selectedBusiness.image}
+                        alt={`${selectedBusiness.name}`}
+                        className={styles.imageThumbnail}
+                      />
+                      <div className={styles.imageThumbnailOverlay}>
+                        <span>View image</span>
+                      </div>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Primary Action Row */}
