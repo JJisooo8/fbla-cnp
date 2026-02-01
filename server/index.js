@@ -2431,6 +2431,17 @@ app.get("/api/businesses", async (req, res) => {
       businesses = await enrichBusinessImages(businesses);
     }
 
+    // Always apply current review data so counts are up-to-date
+    businesses = businesses.map(biz => {
+      const summary = getLocalReviewSummary(biz.id);
+      return {
+        ...biz,
+        rating: summary.rating,
+        reviewCount: summary.reviewCount,
+        reviews: summary.reviews
+      };
+    });
+
     res.json(businesses);
   } catch (error) {
     console.error('Error in /api/businesses:', error);
