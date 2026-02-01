@@ -1210,11 +1210,11 @@
   display: inline-block;
   padding: var(--space-1) var(--space-3);
   border-radius: 9999px;
-  background-color: var(--color-secondary-100);
-  color: var(--color-secondary-700);
+  background-color: var(--color-primary-50, rgba(37, 99, 235, 0.06));
+  color: var(--color-primary-700);
   font-size: var(--text-xs);
   font-weight: 500;
-  border: 1px solid var(--color-secondary-200);
+  border: 1px solid var(--color-primary-200, rgba(37, 99, 235, 0.25));
 }
 
 .viewButton {
