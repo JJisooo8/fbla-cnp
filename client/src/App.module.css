@@ -3884,6 +3884,97 @@
    DARK MODE OVERRIDES
    Handles hardcoded colors not covered by design tokens
    ======================================== */
+
+/* --- Inputs, Search, Select, Textarea --- */
+:global([data-theme="dark"]) .searchInput,
+:global([data-theme="dark"]) .labelSearchInput,
+:global([data-theme="dark"]) .input,
+:global([data-theme="dark"]) .select {
+  background-color: #1f2937;
+  border-color: #4b5563;
+  color: #f0f0f0;
+}
+
+:global([data-theme="dark"]) .searchInput:focus,
+:global([data-theme="dark"]) .labelSearchInput:focus,
+:global([data-theme="dark"]) .input:focus,
+:global([data-theme="dark"]) .select:focus {
+  border-color: #5a9ce0;
+}
+
+:global([data-theme="dark"]) .searchInput::placeholder,
+:global([data-theme="dark"]) .labelSearchInput::placeholder,
+:global([data-theme="dark"]) .input::placeholder {
+  color: #9ca3af;
+}
+
+/* --- Hero Section --- */
+:global([data-theme="dark"]) .hero {
+  color: #ffffff;
+}
+
+:global([data-theme="dark"]) .heroTitle {
+  color: #ffffff;
+}
+
+:global([data-theme="dark"]) .heroSubtitle {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* --- Favorite Buttons --- */
+:global([data-theme="dark"]) .favoriteBtn {
+  background: #1f2937;
+  border-color: #4b5563;
+  color: #9ca3af;
+}
+
+:global([data-theme="dark"]) .favoriteBtn:hover {
+  background: #3b1a1a;
+  border-color: #dc2626;
+  color: #ef5350;
+}
+
+:global([data-theme="dark"]) .favoriteBtnActive {
+  background: #3b1a1a;
+  border-color: #dc2626;
+  color: #ef5350;
+}
+
+:global([data-theme="dark"]) .favoriteBtnActive:hover {
+  background: #4a1f1f;
+  border-color: #f87171;
+}
+
+:global([data-theme="dark"]) .favoriteBtnLarge {
+  background: #1f2937;
+  border-color: #4b5563;
+  color: #d4d4d4;
+}
+
+:global([data-theme="dark"]) .favoriteBtnLargeActive {
+  background: #3b1a1a;
+  border-color: #dc2626;
+  color: #ef5350;
+}
+
+/* --- Username in Header --- */
+:global([data-theme="dark"]) .username {
+  color: #f0f0f0;
+}
+
+:global([data-theme="dark"]) .profileUsername {
+  color: #7db4f0;
+}
+
+:global([data-theme="dark"]) .profileIndicator {
+  color: #d4d4d4;
+}
+
+:global([data-theme="dark"]) .profileIcon {
+  color: #5a9ce0;
+}
+
+/* --- Auth Buttons --- */
 :global([data-theme="dark"]) .authButtonSignup {
   background-color: #5a9ce0;
   color: #141414 !important;
@@ -3902,6 +3993,7 @@
   background-color: #7db4f0;
 }
 
+/* --- Card Tag Pills --- */
 :global([data-theme="dark"]) .cardTagPill {
   background-color: rgba(90, 156, 224, 0.12);
   color: #7db4f0;
@@ -3914,9 +4006,28 @@
   border-color: #5a9ce0;
 }
 
-:global([data-theme="dark"]) .darkModeToggle {
-  border-color: #404040;
+/* --- Tag Chips in Filter Section --- */
+:global([data-theme="dark"]) .tagChip {
+  background-color: #1f2937;
   color: #d4d4d4;
+  border-color: #4b5563;
+}
+
+:global([data-theme="dark"]) .tagChip:hover {
+  background-color: rgba(90, 156, 224, 0.15);
+  border-color: #5a9ce0;
+  color: #7db4f0;
+}
+
+:global([data-theme="dark"]) .tagChipSelected {
+  background-color: #5a9ce0;
+  color: #141414;
+}
+
+/* --- Dark Mode Toggle Button --- */
+:global([data-theme="dark"]) .darkModeToggle {
+  border-color: #4b5563;
+  color: #f0f0f0;
 }
 
 :global([data-theme="dark"]) .darkModeToggle:hover {
@@ -3925,14 +4036,34 @@
   color: #5a9ce0;
 }
 
+/* --- Modals --- */
 :global([data-theme="dark"]) .modalContent {
-  background-color: #222222;
-  border: 1px solid #404040;
+  background-color: #1f2937;
+  border: 1px solid #4b5563;
 }
 
+:global([data-theme="dark"]) .modalText {
+  color: #f0f0f0;
+}
+
+:global([data-theme="dark"]) .modalTitle {
+  color: #f0f0f0;
+}
+
+:global([data-theme="dark"]) .modalBtnSecondary {
+  background-color: #374151;
+  color: #d4d4d4;
+  border-color: #4b5563;
+}
+
+:global([data-theme="dark"]) .modalBtnSecondary:hover {
+  background-color: #4b5563;
+}
+
+/* --- Auth Card --- */
 :global([data-theme="dark"]) .authCard {
-  background-color: #222222;
-  border-color: #404040;
+  background-color: #1f2937;
+  border-color: #4b5563;
 }
 
 :global([data-theme="dark"]) .authError {
@@ -3941,20 +4072,7 @@
   color: #ef5350;
 }
 
-:global([data-theme="dark"]) .input {
-  background-color: #1e1e1e;
-  border-color: #404040;
-  color: #f0f0f0;
-}
-
-:global([data-theme="dark"]) .input:focus {
-  border-color: #5a9ce0;
-}
-
-:global([data-theme="dark"]) .strengthBarTrack {
-  background-color: #333333;
-}
-
+/* --- View Button --- */
 :global([data-theme="dark"]) .viewButton {
   background-color: #5a9ce0;
   color: #141414;
@@ -3962,4 +4080,174 @@
 
 :global([data-theme="dark"]) .viewButton:hover {
   background-color: #7db4f0;
+}
+
+/* --- Password Strength --- */
+:global([data-theme="dark"]) .strengthBarTrack {
+  background-color: #374151;
+}
+
+/* --- Business Cards --- */
+:global([data-theme="dark"]) .businessCard {
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+/* --- Browse Section --- */
+:global([data-theme="dark"]) .browseSection {
+  background-color: #1a1a1a;
+  border-color: #374151;
+}
+
+/* --- Deals Badge --- */
+:global([data-theme="dark"]) .dealBadge {
+  background-color: rgba(249, 178, 51, 0.15);
+  color: #f9b233;
+}
+
+:global([data-theme="dark"]) .deal {
+  background-color: rgba(249, 178, 51, 0.1);
+  color: #f9b233;
+}
+
+/* --- Category Badges --- */
+:global([data-theme="dark"]) .categoryBadge {
+  background-color: rgba(90, 156, 224, 0.15);
+  color: #7db4f0;
+}
+
+/* --- Chip Interactive (detail page tags) --- */
+:global([data-theme="dark"]) .chip {
+  background-color: #1f2937;
+  border-color: #4b5563;
+  color: #d4d4d4;
+}
+
+:global([data-theme="dark"]) .chipInteractive:hover {
+  background-color: #374151;
+  border-color: #5a9ce0;
+  color: #7db4f0;
+}
+
+/* --- Nav Buttons --- */
+:global([data-theme="dark"]) .navButton {
+  color: #d4d4d4;
+}
+
+:global([data-theme="dark"]) .navButton:hover {
+  color: #5a9ce0;
+}
+
+:global([data-theme="dark"]) .navButtonActive {
+  color: #5a9ce0;
+}
+
+/* --- Footer --- */
+:global([data-theme="dark"]) .footer {
+  background-color: #111111;
+  border-color: #333333;
+}
+
+/* --- Review Cards --- */
+:global([data-theme="dark"]) .reviewCard {
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+/* --- Pagination --- */
+:global([data-theme="dark"]) .paginationBtn {
+  background-color: #1f2937;
+  border-color: #4b5563;
+  color: #d4d4d4;
+}
+
+:global([data-theme="dark"]) .paginationBtn:hover {
+  background-color: #374151;
+  border-color: #5a9ce0;
+}
+
+:global([data-theme="dark"]) .paginationBtnActive {
+  background-color: #5a9ce0;
+  color: #141414;
+}
+
+/* --- Stat Cards / Insight Cards --- */
+:global([data-theme="dark"]) .statCard,
+:global([data-theme="dark"]) .insightCard,
+:global([data-theme="dark"]) .trendingCard,
+:global([data-theme="dark"]) .recommendCard {
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+/* --- Clear Filters Button --- */
+:global([data-theme="dark"]) .clearFiltersBtn {
+  border-color: #4b5563;
+  color: #d4d4d4;
+}
+
+:global([data-theme="dark"]) .clearFiltersBtn:hover {
+  border-color: #ef5350;
+  color: #ef5350;
+}
+
+/* --- Checkbox styling --- */
+:global([data-theme="dark"]) .checkbox {
+  accent-color: #5a9ce0;
+}
+
+/* --- Tooltips / Popups --- */
+:global([data-theme="dark"]) .tooltip {
+  background-color: #374151;
+  color: #f0f0f0;
+  border-color: #4b5563;
+}
+
+/* --- Back Button --- */
+:global([data-theme="dark"]) .backButton {
+  color: #d4d4d4;
+}
+
+:global([data-theme="dark"]) .backButton:hover {
+  color: #5a9ce0;
+}
+
+/* --- See More / Load More Buttons --- */
+:global([data-theme="dark"]) .seeMoreBtn {
+  background: #1f2937;
+  border-color: #4b5563;
+  color: #d4d4d4;
+}
+
+:global([data-theme="dark"]) .seeMoreBtn:hover {
+  background: #374151;
+  border-color: #5a9ce0;
+}
+
+:global([data-theme="dark"]) .hideReviewsBtn {
+  background: #1f2937;
+  border-color: #4b5563;
+  color: #d4d4d4;
+}
+
+/* --- Sort Select --- */
+:global([data-theme="dark"]) .sortSelect {
+  background-color: #1f2937;
+  border-color: #4b5563;
+  color: #d4d4d4;
+}
+
+/* --- Input Hint --- */
+:global([data-theme="dark"]) .inputHint {
+  color: #9ca3af;
+}
+
+/* --- No Labels Found text --- */
+:global([data-theme="dark"]) .noLabelsFound {
+  color: #9ca3af;
+}
+
+/* --- Selected Tags Row --- */
+:global([data-theme="dark"]) .selectedTagsLabel {
+  color: #d4d4d4;
 }
