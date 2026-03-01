@@ -216,6 +216,83 @@ function App() {
   });
   const [showDarkModeConfirm, setShowDarkModeConfirm] = useState(false);
 
+  // ============================================
+  // FAQ CHATBOT STATE
+  // Keyword-matching chatbot for common user questions
+  // ============================================
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([
+    { from: "bot", text: "Hi! I'm the LocalLink assistant. Ask me anything about using the app — like how to leave reviews, save favorites, or export data." }
+  ]);
+  const [chatInput, setChatInput] = useState("");
+
+  // FAQ knowledge base — keyword-matched responses
+  const faqEntries = [
+    { keywords: ["review", "rate", "rating", "star", "write review", "leave review", "submit review"],
+      answer: "To leave a review, click on any business card to open its details, then scroll down to the review section. You'll need to be logged in. Select a star rating (1-5), rate the business in four categories (Quality, Service, Cleanliness, Atmosphere), and optionally write a comment. Click 'Submit Review' when you're done!" },
+    { keywords: ["favorite", "save", "bookmark", "heart", "saved"],
+      answer: "To save a business to your favorites, click the heart icon on any business card. You must be logged in to use favorites. View all your saved businesses by clicking 'Favorites' in the navigation bar. Your favorites persist across sessions!" },
+    { keywords: ["export", "download", "csv", "spreadsheet", "data", "report"],
+      answer: "You can export business data using the Developer Tools section on the home page. Expand the 'Developer Tools' panel, choose JSON or CSV format, and click 'Export'. The export adapts to your current filters — so filter by category or rating first to customize your report." },
+    { keywords: ["filter", "search", "sort", "category", "find"],
+      answer: "Use the search bar to find businesses by name or keyword. You can also filter by category labels (like 'Food', 'Coffee', 'Retail'), set a minimum rating, or show only businesses with deals. Sort results by relevance, rating, review count, or name using the sort dropdown." },
+    { keywords: ["sign up", "signup", "register", "create account", "account", "join"],
+      answer: "Click 'Sign Up' in the top navigation bar. Choose a username (3-20 characters, letters/numbers/underscores), create a strong password (8+ characters with upper/lowercase, numbers, and symbols), and complete the verification step. Your account lets you leave reviews and save favorites!" },
+    { keywords: ["login", "log in", "sign in", "password", "forgot"],
+      answer: "Click 'Log In' in the navigation bar and enter your username and password. If you don't have an account yet, click 'Sign Up' to create one. Your session stays active until you log out." },
+    { keywords: ["deal", "coupon", "discount", "special", "offer", "promotion"],
+      answer: "Businesses with active deals show a special badge on their card. You can toggle 'Deals Only' in the filter section to see only businesses currently offering specials. Click on a business to see the full deal details." },
+    { keywords: ["dark mode", "theme", "light mode", "dark", "night"],
+      answer: "Toggle dark mode using the moon/sun icon in the top navigation bar. Your preference is saved automatically and persists across sessions." },
+    { keywords: ["captcha", "verification", "bot", "verify", "spam"],
+      answer: "During signup, you'll complete a CAPTCHA verification (Google reCAPTCHA or a math challenge) to prevent bot registrations. This is a one-time step — you won't need to verify again when leaving reviews." },
+    { keywords: ["recommend", "suggestion", "local gems", "for you", "personalized"],
+      answer: "The 'Local Gems For You' section on the home page shows personalized recommendations based on your favorite businesses. The more favorites you save, the better the recommendations become! The algorithm considers category preferences, ratings, and deals." },
+    { keywords: ["map", "location", "address", "directions", "where"],
+      answer: "Each business detail page includes an interactive map showing the business location. You can also find the full address and phone number in the business details. Click the address to open directions in your maps app." },
+    { keywords: ["report", "flag", "inappropriate", "abuse"],
+      answer: "If you see an inappropriate review, click the flag icon on that review and provide a reason. Reviews that receive multiple reports are automatically hidden. This helps keep the community helpful and respectful." },
+    { keywords: ["help", "how", "what", "can i", "guide", "tutorial"],
+      answer: "I can help with: leaving reviews, saving favorites, exporting data, filtering businesses, creating an account, using dark mode, and more. Just ask me a specific question!" },
+  ];
+
+  /**
+   * Matches user input against FAQ knowledge base using keyword scoring.
+   * Returns the best-matching answer or a fallback message.
+   */
+  const getChatbotResponse = (input) => {
+    const lower = input.toLowerCase();
+    let bestMatch = null;
+    let bestScore = 0;
+
+    for (const entry of faqEntries) {
+      let score = 0;
+      for (const keyword of entry.keywords) {
+        if (lower.includes(keyword)) {
+          score += keyword.split(" ").length; // Multi-word matches score higher
+        }
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = entry;
+      }
+    }
+
+    if (bestMatch && bestScore > 0) {
+      return bestMatch.answer;
+    }
+    return "I'm not sure about that one! Try asking about reviews, favorites, filtering, exporting data, deals, or account setup. You can also browse the app — most features have helpful labels and tooltips.";
+  };
+
+  const handleChatSend = () => {
+    const trimmed = chatInput.trim();
+    if (!trimmed) return;
+    const userMsg = { from: "user", text: trimmed };
+    const botMsg = { from: "bot", text: getChatbotResponse(trimmed) };
+    setChatMessages(prev => [...prev, userMsg, botMsg]);
+    setChatInput("");
+  };
+
   // Apply dark mode class to document
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
@@ -2574,8 +2651,12 @@ function App() {
                         onChange={e => setReviewForm(prev => ({ ...prev, comment: e.target.value }))}
                         className={styles.textarea}
                         rows={4}
+                        maxLength={2000}
                         aria-label="Your review (optional)"
                       />
+                      <div className={styles.charCounter} aria-live="polite">
+                        {reviewForm.comment.length} / 2,000
+                      </div>
 
 
                       <div className={styles.formButtons}>
@@ -3045,6 +3126,7 @@ function App() {
           ) : favorites.length === 0 ? (
             <div className={styles.emptyState}>
               <p className={styles.emptyText}>You haven't saved any favorites yet.</p>
+              <p className={styles.emptyHint}>Click the heart icon on any business card to save it here!</p>
               <button onClick={() => setView("home")} className={styles.browseBtn}>
                 Browse Businesses
               </button>
@@ -3442,6 +3524,75 @@ function App() {
           </span>
         </div>
       </footer>
+
+      {/* FAQ Chatbot Widget — bottom-right corner */}
+      <div className={styles.chatWidget}>
+        {chatOpen && (
+          <div className={styles.chatWindow} role="dialog" aria-label="FAQ Assistant">
+            <div className={styles.chatHeader}>
+              <span className={styles.chatHeaderTitle}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+                LocalLink Assistant
+              </span>
+              <button
+                className={styles.chatCloseBtn}
+                onClick={() => setChatOpen(false)}
+                aria-label="Close chat assistant"
+              >
+                ✕
+              </button>
+            </div>
+            <div className={styles.chatBody}>
+              {chatMessages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={msg.from === "bot" ? styles.chatMsgBot : styles.chatMsgUser}
+                >
+                  {msg.text}
+                </div>
+              ))}
+            </div>
+            <form
+              className={styles.chatInputArea}
+              onSubmit={e => { e.preventDefault(); handleChatSend(); }}
+            >
+              <input
+                type="text"
+                className={styles.chatInput}
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                placeholder="Ask a question..."
+                aria-label="Type your question"
+                maxLength={200}
+              />
+              <button type="submit" className={styles.chatSendBtn} aria-label="Send message">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+                </svg>
+              </button>
+            </form>
+          </div>
+        )}
+        <button
+          className={styles.chatFab}
+          onClick={() => setChatOpen(prev => !prev)}
+          aria-label={chatOpen ? "Close chat assistant" : "Open chat assistant"}
+          title="Need help? Ask our assistant!"
+        >
+          {chatOpen ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          )}
+        </button>
+      </div>
 
       {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (

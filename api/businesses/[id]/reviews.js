@@ -134,8 +134,11 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: "Rating must be between 1 and 5" });
       }
 
-      // Comment is optional - validate only if provided
+      // Comment is optional - validate only if provided, enforce 2000 character limit
       const reviewComment = (comment && typeof comment === "string") ? comment.trim() : "";
+      if (reviewComment.length > 2000) {
+        return res.status(400).json({ error: "Review comment must be 2,000 characters or less." });
+      }
 
       // Support both 'quality' and legacy 'foodQuality'
       const qualityRating = quality !== undefined ? quality : foodQuality;

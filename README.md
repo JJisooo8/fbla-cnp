@@ -19,6 +19,8 @@ LocalLink addresses the FBLA "Byte-Sized Business Boost" challenge by providing 
 - **Favorites System**: Save and bookmark businesses for quick access
 - **Special Deals Display**: Highlighted promotions and offers from local businesses
 - **Bot Prevention**: CAPTCHA verification (reCAPTCHA v2 or math challenge) on user signup
+- **Interactive FAQ Assistant**: Built-in chatbot widget for answering common user questions
+- **Personalized Recommendations**: Algorithm-driven "Local Gems" suggestions based on user favorites
 
 ---
 
@@ -33,7 +35,7 @@ LocalLink addresses the FBLA "Byte-Sized Business Boost" challenge by providing 
 | **CSS Modules** | Scoped styling to prevent class name conflicts |
 | **ES Modules** | Modern JavaScript module system for better code organization |
 
-**Why React?** React's component architecture allows for modular, reusable UI elements. The hooks-based approach simplifies state management without external libraries.
+**Why React?** React's Virtual DOM and reconciliation algorithm enable efficient UI updates by diffing component trees and applying minimal DOM mutations. The hooks-based API (useState, useEffect) provides a functional approach to state management and side-effect handling without external state libraries. React's component lifecycle and unidirectional data flow make the application predictable and debuggable. The ecosystem offers production-grade tooling for linting, testing, and performance profiling.
 
 ### Backend
 
@@ -45,7 +47,7 @@ LocalLink addresses the FBLA "Byte-Sized Business Boost" challenge by providing 
 | **bcryptjs** | Secure password hashing for user authentication |
 | **jsonwebtoken** | Stateless authentication via JWT tokens |
 
-**Why Express?** Express provides a lightweight foundation that doesn't impose unnecessary structure, making it ideal for a focused API server.
+**Why Express?** Express's middleware pipeline architecture allows composable request processing — each middleware function handles a specific concern (CORS, JSON parsing, authentication, route handling) in an ordered chain. Route chaining with HTTP method-specific handlers maps cleanly to RESTful API design. Express 5's native async/await support eliminates callback nesting and simplifies error propagation throughout the request lifecycle.
 
 ### Data Sources
 
@@ -55,7 +57,7 @@ LocalLink addresses the FBLA "Byte-Sized Business Boost" challenge by providing 
 | **Yelp API** (optional) | Enrichment data including photos, hours, and websites |
 | **Vercel Blob** | Serverless storage for user data and reviews in production |
 
-**Why OpenStreetMap?** Unlike Google Places, OpenStreetMap is completely free with no usage limits, making it sustainable for any deployment scale.
+**Why OpenStreetMap?** Unlike Google Places, OpenStreetMap is completely free with no usage limits, making it sustainable for any deployment scale. Its Overpass API supports complex geospatial queries, and the community-maintained dataset ensures accurate local business coverage.
 
 ### Deployment
 
@@ -210,6 +212,16 @@ fbla-cnp/
 └── README.md
 ```
 
+### Code Architecture
+
+LocalLink follows a **single-page application (SPA)** architecture with a clear separation between the React frontend and Express API backend.
+
+**Frontend approach**: The application uses a single root component (`App.jsx`) that manages all views via state-based rendering rather than client-side routing. This decision was intentional — the app has a focused feature set (browse, detail, favorites, auth) that benefits from shared state across views without the overhead of a routing library. Internal organization uses clearly delimited sections with descriptive comments separating concerns: state management, data fetching, event handlers, utility functions, and render logic.
+
+**Backend approach**: The Express server (`index.js`) centralizes all API routes in a single entry point with middleware-based request processing. Routes are organized by domain (authentication, businesses, reviews, recommendations, verification) with consistent error handling and input validation patterns. This monolithic server structure is common in Express applications and is appropriate for the API's scope.
+
+**Why this architecture?** For a competition application with a defined feature set, collocating related code reduces indirection and makes the codebase immediately navigable. Every feature can be traced from its UI trigger through the API call to the data layer without jumping between dozens of files. The tradeoff — larger individual files — is mitigated by consistent section organization and thorough commenting.
+
 ---
 
 ## API Reference
@@ -274,9 +286,50 @@ fbla-cnp/
 
 ## Data Attribution
 
-- Business data: OpenStreetMap contributors (Open Database License)
-- Optional enrichment: Yelp Fusion API
-- Stock images: Unsplash (free to use)
+- Business data: [OpenStreetMap](https://www.openstreetmap.org/) contributors — Open Database License (ODbL)
+- Optional enrichment: [Yelp Fusion API](https://docs.developer.yelp.com/) — Yelp Terms of Service
+- Stock images: [Unsplash](https://unsplash.com/) — Unsplash License (free to use)
+
+---
+
+## Open Source Dependencies & Licenses
+
+### Frontend (client/)
+
+| Package | Version | License | Purpose |
+|---------|---------|---------|---------|
+| [React](https://react.dev/) | 19.2.0 | MIT | Component-based UI rendering library |
+| [React DOM](https://react.dev/) | 19.2.0 | MIT | React renderer for web browsers |
+| [Vite](https://vite.dev/) | 7.2.4 | MIT | Frontend build tool with hot module replacement |
+| [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react) | 5.1.1 | MIT | React integration for Vite (JSX transform, Fast Refresh) |
+| [ESLint](https://eslint.org/) | 9.39.1 | MIT | JavaScript linting and code quality |
+| [eslint-plugin-react-hooks](https://www.npmjs.com/package/eslint-plugin-react-hooks) | 7.0.1 | MIT | Enforces React Hooks rules |
+| [eslint-plugin-react-refresh](https://www.npmjs.com/package/eslint-plugin-react-refresh) | 0.4.24 | MIT | Validates React Fast Refresh compatibility |
+
+### Backend (server/)
+
+| Package | Version | License | Purpose |
+|---------|---------|---------|---------|
+| [Express](https://expressjs.com/) | 5.2.1 | MIT | Web framework for RESTful API endpoints |
+| [bcryptjs](https://www.npmjs.com/package/bcryptjs) | 3.0.3 | MIT | Password hashing with bcrypt algorithm |
+| [jsonwebtoken](https://www.npmjs.com/package/jsonwebtoken) | 9.0.3 | MIT | JWT creation and verification for stateless auth |
+| [@vercel/blob](https://vercel.com/docs/storage/vercel-blob) | 2.0.0 | Apache-2.0 | Serverless object storage for user data |
+| [axios](https://axios-http.com/) | 1.13.2 | MIT | HTTP client for external API calls (Yelp, OpenStreetMap) |
+| [cors](https://www.npmjs.com/package/cors) | 2.8.5 | MIT | Cross-origin resource sharing middleware |
+| [dotenv](https://www.npmjs.com/package/dotenv) | 17.2.3 | BSD-2-Clause | Environment variable management |
+| [node-cache](https://www.npmjs.com/package/node-cache) | 5.1.2 | MIT | In-memory caching with TTL support |
+| [nodemon](https://nodemon.io/) | 3.1.11 | MIT | Development auto-restart on file changes |
+
+### External Services
+
+| Service | Usage | Terms |
+|---------|-------|-------|
+| [Google reCAPTCHA v2](https://developers.google.com/recaptcha) | Bot prevention on signup | Google Terms of Service |
+| [Vercel](https://vercel.com/) | Application hosting and serverless functions | Vercel Terms of Service |
+
+### Icons & Assets
+
+All SVG icons used in the application are custom inline SVGs created specifically for this project. No external icon library is used. All business images are sourced from public APIs (Yelp, Google) or placeholder gradients generated in CSS.
 
 ---
 
