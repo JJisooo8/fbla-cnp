@@ -1859,9 +1859,9 @@ app.post("/api/auth/signup", async (req, res) => {
       console.log('[AUTH] Validation failed: Password is required');
       return res.status(400).json({ error: 'Password is required.' });
     }
-    if (password.length < 6) {
+    if (password.length < 8) {
       console.log('[AUTH] Validation failed: Password too short');
-      return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+      return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
     }
     if (password.length > 100) {
       console.log('[AUTH] Validation failed: Password too long');
@@ -2633,8 +2633,11 @@ app.post("/api/businesses/:id/reviews", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "Rating must be between 1 and 5" });
     }
 
-    // Comment is optional - validate only if provided
+    // Comment is optional - validate only if provided, enforce 2000 character limit
     const reviewComment = (comment && typeof comment === "string") ? comment.trim() : "";
+    if (reviewComment.length > 2000) {
+      return res.status(400).json({ error: "Review comment must be 2,000 characters or less." });
+    }
 
     // Support both 'quality' and legacy 'foodQuality'
     const qualityRating = quality !== undefined ? quality : foodQuality;
@@ -2883,9 +2886,13 @@ app.put("/api/businesses/:businessId/reviews/:reviewId", requireAuth, async (req
       review.rating = rating;
     }
 
-    // Update comment if provided
+    // Update comment if provided, enforce 2000 character limit
     if (comment !== undefined) {
-      review.comment = (typeof comment === "string") ? comment.trim() : "";
+      const trimmedComment = (typeof comment === "string") ? comment.trim() : "";
+      if (trimmedComment.length > 2000) {
+        return res.status(400).json({ error: "Review comment must be 2,000 characters or less." });
+      }
+      review.comment = trimmedComment;
     }
 
     // Validate and update category ratings if provided

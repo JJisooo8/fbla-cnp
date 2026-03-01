@@ -148,8 +148,8 @@ export default async function handler(req, res) {
     if (!password || typeof password !== 'string') {
       return res.status(400).json({ error: 'Password is required.' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long.' });
     }
     if (password.length > 100) {
       return res.status(400).json({ error: 'Password must be 100 characters or less.' });
