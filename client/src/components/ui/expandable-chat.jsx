@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 
 const chatConfig = {
   dimensions: {
-    sm: "sm:max-w-sm sm:max-h-[500px]",
-    md: "sm:max-w-md sm:max-h-[600px]",
-    lg: "sm:max-w-lg sm:max-h-[700px]",
-    xl: "sm:max-w-xl sm:max-h-[800px]",
+    sm: "sm:max-w-[320px] sm:max-h-[380px]",
+    md: "sm:max-w-[360px] sm:max-h-[420px]",
+    lg: "sm:max-w-[400px] sm:max-h-[460px]",
+    xl: "sm:max-w-xl sm:max-h-[520px]",
     full: "sm:w-full sm:h-full",
   },
   positions: {
@@ -18,8 +18,8 @@ const chatConfig = {
     "bottom-left": "bottom-5 left-5",
   },
   chatPositions: {
-    "bottom-right": "sm:bottom-[calc(100%+10px)] sm:right-0",
-    "bottom-left": "sm:bottom-[calc(100%+10px)] sm:left-0",
+    "bottom-right": "sm:bottom-[calc(100%+10px)] sm:right-0 sm:max-h-[calc(100vh-120px)]",
+    "bottom-left": "sm:bottom-[calc(100%+10px)] sm:left-0 sm:max-h-[calc(100vh-120px)]",
   },
   states: {
     open: "pointer-events-auto opacity-100 visible scale-100 translate-y-0",
@@ -49,7 +49,7 @@ const ExpandableChat = ({
       <div
         ref={chatRef}
         className={cn(
-          "flex flex-col bg-background border sm:rounded-lg shadow-md overflow-hidden transition-all duration-250 ease-out sm:absolute sm:w-[90vw] sm:h-[80vh] fixed inset-0 w-full h-full sm:inset-auto",
+          "flex flex-col bg-background text-foreground border sm:rounded-lg shadow-md overflow-hidden transition-all duration-250 ease-out sm:absolute sm:w-[90vw] sm:h-[80vh] fixed inset-0 w-full h-full sm:inset-auto",
           chatConfig.chatPositions[position],
           chatConfig.dimensions[size],
           isOpen ? chatConfig.states.open : chatConfig.states.closed,
