@@ -29,17 +29,19 @@ const ChatMessageList = React.forwardRef(
         </div>
 
         {!isAtBottom && (
-          <Button
-            onClick={() => {
-              scrollToBottom();
-            }}
-            size="icon"
-            variant="outline"
-            className="absolute bottom-2 left-1/2 transform -translate-x-1/2 inline-flex rounded-full shadow-md"
-            aria-label="Scroll to bottom"
-          >
-            <ArrowDown className="h-4 w-4" />
-          </Button>
+          <div className="absolute bottom-2 left-0 right-0 flex justify-center pointer-events-none">
+            <Button
+              onClick={() => {
+                scrollToBottom();
+              }}
+              size="icon"
+              variant="outline"
+              className="pointer-events-auto h-8 w-8 rounded-full shadow-md"
+              aria-label="Scroll to bottom"
+            >
+              <ArrowDown className="h-4 w-4" />
+            </Button>
+          </div>
         )}
       </div>
     );
