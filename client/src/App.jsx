@@ -13,8 +13,23 @@
  * - Responsive design with accessibility features
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import styles from "./App.module.css";
+import { Bot, CornerDownLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  ChatBubble,
+  ChatBubbleAvatar,
+  ChatBubbleMessage,
+} from "@/components/ui/chat-bubble";
+import { ChatInput } from "@/components/ui/chat-input";
+import {
+  ExpandableChat,
+  ExpandableChatHeader,
+  ExpandableChatBody,
+  ExpandableChatFooter,
+} from "@/components/ui/expandable-chat";
+import { ChatMessageList } from "@/components/ui/chat-message-list";
 
 // API endpoint configuration - uses relative paths in production for Vercel deployment
 const API_URL = import.meta.env.DEV
@@ -220,11 +235,12 @@ function App() {
   // FAQ CHATBOT STATE
   // Keyword-matching chatbot for common user questions
   // ============================================
-  const [chatOpen, setChatOpen] = useState(false);
   const [chatMessages, setChatMessages] = useState([
-    { from: "bot", text: "Hi! I'm the LocalLink assistant. Ask me anything about using the app — like how to leave reviews, save favorites, or export data." }
+    { id: 1, from: "bot", text: "Hi! I'm the LocalLink assistant. Ask me anything about using the app — like how to leave reviews, save favorites, or export data." }
   ]);
   const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatMsgIdRef = useRef(2);
 
   // FAQ knowledge base — keyword-matched responses
   const faqEntries = [
@@ -284,13 +300,25 @@ function App() {
     return "I'm not sure about that one! Try asking about reviews, favorites, filtering, exporting data, deals, or account setup. You can also browse the app — most features have helpful labels and tooltips.";
   };
 
-  const handleChatSend = () => {
+  const handleChatSend = (e) => {
+    if (e) e.preventDefault();
     const trimmed = chatInput.trim();
-    if (!trimmed) return;
-    const userMsg = { from: "user", text: trimmed };
-    const botMsg = { from: "bot", text: getChatbotResponse(trimmed) };
-    setChatMessages(prev => [...prev, userMsg, botMsg]);
+    if (!trimmed || chatLoading) return;
+    const userMsgId = chatMsgIdRef.current++;
+    const userMsg = { id: userMsgId, from: "user", text: trimmed };
+    const response = getChatbotResponse(trimmed);
+    setChatMessages(prev => [...prev, userMsg]);
     setChatInput("");
+    setChatLoading(true);
+
+    // Simulated thinking delay (1-2 seconds)
+    const delay = 1000 + Math.random() * 1000;
+    setTimeout(() => {
+      const botMsgId = chatMsgIdRef.current++;
+      const botMsg = { id: botMsgId, from: "bot", text: response };
+      setChatMessages(prev => [...prev, botMsg]);
+      setChatLoading(false);
+    }, delay);
   };
 
   // Apply dark mode class to document
@@ -3525,74 +3553,77 @@ function App() {
         </div>
       </footer>
 
-      {/* FAQ Chatbot Widget — bottom-right corner */}
-      <div className={styles.chatWidget}>
-        {chatOpen && (
-          <div className={styles.chatWindow} role="dialog" aria-label="FAQ Assistant">
-            <div className={styles.chatHeader}>
-              <span className={styles.chatHeaderTitle}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                </svg>
-                LocalLink Assistant
-              </span>
-              <button
-                className={styles.chatCloseBtn}
-                onClick={() => setChatOpen(false)}
-                aria-label="Close chat assistant"
+      {/* FAQ Chatbot Widget — bottom-right expandable chat */}
+      <ExpandableChat
+        size="lg"
+        position="bottom-right"
+        icon={<Bot className="h-6 w-6" />}
+      >
+        <ExpandableChatHeader className="flex-col text-center justify-center">
+          <h1 className="text-xl font-semibold">LocalLink Assistant</h1>
+          <p className="text-sm text-muted-foreground">
+            Ask me anything about using the app
+          </p>
+        </ExpandableChatHeader>
+
+        <ExpandableChatBody>
+          <ChatMessageList>
+            {chatMessages.map((message) => (
+              <ChatBubble
+                key={message.id}
+                variant={message.from === "user" ? "sent" : "received"}
               >
-                ✕
-              </button>
-            </div>
-            <div className={styles.chatBody}>
-              {chatMessages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={msg.from === "bot" ? styles.chatMsgBot : styles.chatMsgUser}
+                <ChatBubbleAvatar
+                  className="h-8 w-8 shrink-0"
+                  fallback={message.from === "user" ? "You" : "LL"}
+                />
+                <ChatBubbleMessage
+                  variant={message.from === "user" ? "sent" : "received"}
                 >
-                  {msg.text}
-                </div>
-              ))}
+                  {message.text}
+                </ChatBubbleMessage>
+              </ChatBubble>
+            ))}
+
+            {chatLoading && (
+              <ChatBubble variant="received">
+                <ChatBubbleAvatar
+                  className="h-8 w-8 shrink-0"
+                  fallback="LL"
+                />
+                <ChatBubbleMessage isLoading />
+              </ChatBubble>
+            )}
+          </ChatMessageList>
+        </ExpandableChatBody>
+
+        <ExpandableChatFooter>
+          <form
+            onSubmit={handleChatSend}
+            className="relative rounded-lg border bg-background focus-within:ring-1 focus-within:ring-ring p-1"
+          >
+            <ChatInput
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleChatSend();
+                }
+              }}
+              placeholder="Ask a question..."
+              className="min-h-12 resize-none rounded-lg bg-background border-0 p-3 shadow-none focus-visible:ring-0"
+              maxLength={200}
+            />
+            <div className="flex items-center p-3 pt-0 justify-end">
+              <Button type="submit" size="sm" className="ml-auto gap-1.5" disabled={chatLoading}>
+                Send
+                <CornerDownLeft className="size-3.5" />
+              </Button>
             </div>
-            <form
-              className={styles.chatInputArea}
-              onSubmit={e => { e.preventDefault(); handleChatSend(); }}
-            >
-              <input
-                type="text"
-                className={styles.chatInput}
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                placeholder="Ask a question..."
-                aria-label="Type your question"
-                maxLength={200}
-              />
-              <button type="submit" className={styles.chatSendBtn} aria-label="Send message">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
-                </svg>
-              </button>
-            </form>
-          </div>
-        )}
-        <button
-          className={styles.chatFab}
-          onClick={() => setChatOpen(prev => !prev)}
-          aria-label={chatOpen ? "Close chat assistant" : "Open chat assistant"}
-          title="Need help? Ask our assistant!"
-        >
-          {chatOpen ? (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          ) : (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-          )}
-        </button>
-      </div>
+          </form>
+        </ExpandableChatFooter>
+      </ExpandableChat>
 
       {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
