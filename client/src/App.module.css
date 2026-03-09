@@ -4279,6 +4279,24 @@
 :global([data-theme="dark"]) .footer {
   background-color: #111111;
   border-color: #333333;
+  color: #ffffff;
+}
+
+:global([data-theme="dark"]) .footerLogo {
+  color: #ffffff;
+}
+
+:global([data-theme="dark"]) .footerSectionTitle {
+  color: var(--color-secondary-700);
+}
+
+:global([data-theme="dark"]) .footerTagline,
+:global([data-theme="dark"]) .footerLink {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+:global([data-theme="dark"]) .footerText {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* --- Review Cards --- */
