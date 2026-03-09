@@ -62,11 +62,11 @@
 }
 
 .skeletonCard {
-  background: var(--color-white);
+  background: transparent;
   border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-gray-200);
+  box-shadow: none;
+  border: none;
   /* Match business card height */
   min-height: 380px;
   height: 100%;
@@ -374,14 +374,14 @@
 }
 
 .statCard {
-  background: var(--color-white);
+  background: transparent;
   padding: var(--space-6);
   border-radius: var(--radius-lg);
   text-align: center;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   transition: all 0.2s ease;
   cursor: default;
-  border: 1px solid var(--color-gray-200);
+  border: none;
   position: relative;
   overflow: hidden;
 }
@@ -400,9 +400,8 @@
 }
 
 .statCard:hover {
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
   transform: translateY(-2px);
-  border-color: var(--color-gray-300);
 }
 
 .statCard:hover::before {
@@ -458,20 +457,19 @@
 }
 
 .trendingCard {
-  background: var(--color-white);
+  background: transparent;
   border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-gray-200);
+  box-shadow: none;
+  border: none;
   position: relative;
 }
 
 .trendingCard:hover {
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
   transform: translateY(-4px);
-  border-color: var(--color-primary-500);
 }
 
 .trendingImage {
@@ -510,20 +508,19 @@
 }
 
 .recommendCard {
-  background: var(--color-white);
+  background: transparent;
   border-radius: var(--radius-lg);
   overflow: hidden;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-gray-200);
+  box-shadow: none;
+  border: none;
   position: relative;
 }
 
 .recommendCard:hover {
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
   transform: translateY(-4px);
-  border-color: var(--color-success);
 }
 
 .cardImage {
@@ -619,12 +616,12 @@
 }
 
 .insightCard {
-  background: var(--color-white);
+  background: transparent;
   border-radius: var(--radius-lg);
   padding: var(--space-6);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   transition: all 0.2s ease;
-  border: 1px solid var(--color-gray-200);
+  border: none;
   position: relative;
   overflow: hidden;
 }
@@ -643,9 +640,8 @@
 }
 
 .insightCard:hover {
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
   transform: translateY(-3px);
-  border-color: var(--color-primary-500);
 }
 
 .insightCard:hover::before {
@@ -722,10 +718,10 @@
 .browseSection {
   margin-bottom: var(--space-6);
   padding: var(--space-6);
-  background: var(--color-white);
+  background: transparent;
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-gray-200);
+  box-shadow: none;
+  border: none;
 }
 
 .browseSectionHeader {
@@ -748,10 +744,10 @@
   gap: var(--space-4);
   flex-wrap: wrap;
   align-items: center;
-  background-color: var(--color-white);
+  background-color: transparent;
   padding: var(--space-6);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
 }
 
 .searchInput {
@@ -770,7 +766,7 @@
 
 .select {
   padding: var(--space-3) var(--space-4);
-  padding-right: var(--space-3);
+  padding-right: var(--space-8);
   border: var(--border-width) solid var(--border-color-light);
   border-radius: var(--radius-md);
   font-size: var(--text-base);
@@ -805,9 +801,9 @@
 .labelFilterSection {
   margin-top: var(--space-4);
   padding: var(--space-4);
-  background-color: var(--color-gray-50);
+  background-color: transparent;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--color-gray-200);
+  border: none;
 }
 
 .labelFilterHeader {
@@ -949,9 +945,9 @@
 }
 
 .devExportDetails {
-  background-color: var(--color-gray-50);
+  background-color: transparent;
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-gray-200);
+  border: none;
 }
 
 .devExportSummary {
@@ -1012,12 +1008,12 @@
 }
 
 .businessCard {
-  background: var(--color-white);
+  background: transparent;
   border-radius: var(--radius-lg);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
   transition: all 0.2s ease;
-  border: 1px solid var(--color-gray-200);
+  border: none;
   position: relative;
   cursor: pointer;
   display: flex;
@@ -1028,9 +1024,8 @@
 }
 
 .businessCard:hover {
-  box-shadow: var(--shadow-lg);
+  box-shadow: none;
   transform: translateY(-4px);
-  border-color: var(--color-primary-500);
 }
 
 .businessCard:focus-visible {
@@ -1878,6 +1873,7 @@
 
 .reviewSortSelect {
   padding: var(--space-2) var(--space-3);
+  padding-right: var(--space-8);
   border: 1px solid var(--color-gray-300);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
@@ -3981,7 +3977,7 @@
 }
 
 :global([data-theme="dark"]) .section {
-  background: #1a1a1a;
+  background: transparent;
 }
 
 :global([data-theme="dark"]) .sectionTitle {
@@ -3993,11 +3989,11 @@
 }
 
 :global([data-theme="dark"]) .businessGrid {
-  background: #1a1a1a;
+  background: transparent;
 }
 
 :global([data-theme="dark"]) .filters {
-  background-color: #1a1a1a;
+  background-color: transparent;
 }
 
 /* --- Favorite Buttons --- */
@@ -4168,14 +4164,14 @@
 
 /* --- Business Cards --- */
 :global([data-theme="dark"]) .businessCard {
-  background-color: #1f2937;
-  border-color: #374151;
+  background-color: transparent;
+  border-color: transparent;
 }
 
 /* --- Browse Section --- */
 :global([data-theme="dark"]) .browseSection {
-  background-color: #1a1a1a;
-  border-color: #374151;
+  background-color: transparent;
+  border-color: transparent;
 }
 
 /* --- Deals Badge --- */
@@ -4278,8 +4274,8 @@
 :global([data-theme="dark"]) .insightCard,
 :global([data-theme="dark"]) .trendingCard,
 :global([data-theme="dark"]) .recommendCard {
-  background-color: #1f2937;
-  border-color: #374151;
+  background-color: transparent;
+  border-color: transparent;
 }
 
 /* --- Clear Filters Button --- */
