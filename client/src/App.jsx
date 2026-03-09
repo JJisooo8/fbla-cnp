@@ -17,6 +17,7 @@ import { useEffect, useState, useRef } from "react";
 import styles from "./App.module.css";
 import { Bot, CornerDownLeft } from "lucide-react";
 import { TextLoop } from "@/components/ui/text-loop";
+import { ShaderCanvas } from "@/components/ui/shader-canvas";
 import { Button } from "@/components/ui/button";
 import {
   ChatBubble,
@@ -1773,6 +1774,7 @@ function App() {
             <>
               {/* Hero Section — fixed white background with centered TextLoop */}
               <section className={styles.hero} aria-label="Welcome" style={{ opacity: heroOpacity }}>
+                <ShaderCanvas style={{ position: 'absolute', inset: 0, zIndex: 0 }} />
                 <div className={styles.heroContent}>
                   <h1 className={styles.heroHeading}>Introducing LocalLink</h1>
                   <div className={styles.heroLoopText}>

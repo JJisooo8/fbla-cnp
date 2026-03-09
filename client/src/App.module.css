@@ -277,7 +277,7 @@
   left: 0;
   right: 0;
   height: 100vh;
-  background: #ffffff;
+  background: transparent;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -292,6 +292,8 @@
 }
 
 .heroContent {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -304,21 +306,23 @@
   font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: clamp(2.5rem, 5vw, 4.5rem);
   font-weight: 800;
-  color: var(--color-gray-900, #111111);
+  color: #ffffff;
   letter-spacing: -0.03em;
   line-height: 1.1;
   text-align: center;
   margin: 0;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.3);
 }
 
 .heroLoopText {
   font-family: 'Inter', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-size: clamp(2.5rem, 5vw, 4.5rem);
   font-weight: 800;
-  color: var(--color-gray-900, #111111);
+  color: #ffffff;
   letter-spacing: -0.03em;
   line-height: 1.1;
   text-align: center;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.3);
 }
 
 .heroSpacer {
@@ -3937,11 +3941,11 @@
 
 /* --- Hero Section --- */
 :global([data-theme="dark"]) .hero {
-  background: #0a0a0a;
+  background: transparent;
 }
 
 :global([data-theme="dark"]) .heroLoopText {
-  color: #f0f0f0;
+  color: #ffffff;
 }
 
 :global([data-theme="dark"]) .scrollFadeWrapper {
@@ -3957,7 +3961,7 @@
 }
 
 :global([data-theme="dark"]) .heroHeading {
-  color: #f0f0f0;
+  color: #ffffff;
 }
 
 :global([data-theme="dark"]) .statNumber {
