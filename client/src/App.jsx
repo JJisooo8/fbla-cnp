@@ -31,6 +31,7 @@ import {
   ExpandableChatFooter,
 } from "@/components/ui/expandable-chat";
 import { ChatMessageList } from "@/components/ui/chat-message-list";
+import ShaderCanvas from "@/components/ui/shader-canvas";
 
 // API endpoint configuration - uses relative paths in production for Vercel deployment
 const API_URL = import.meta.env.DEV
@@ -1771,8 +1772,11 @@ function App() {
             </div>
           ) : (
             <>
-              {/* Hero Section — fixed white background with centered TextLoop */}
+              {/* Hero Section — shader background with centered TextLoop */}
               <section className={styles.hero} aria-label="Welcome" style={{ opacity: heroOpacity }}>
+                <div className={styles.heroShaderBg}>
+                  <ShaderCanvas />
+                </div>
                 <div className={styles.heroContent}>
                   <h1 className={styles.heroHeading}>Introducing LocalLink</h1>
                   <div className={styles.heroLoopText}>
