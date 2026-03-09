@@ -271,8 +271,7 @@
   position: relative;
   overflow: hidden;
   box-shadow: var(--shadow-lg);
-  min-height: 45vh;
-  max-height: 500px;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -411,6 +410,26 @@
 @keyframes bounceArrow {
   0%, 100% { transform: translateY(0); opacity: 0.8; }
   50% { transform: translateY(8px); opacity: 1; }
+}
+
+.heroTextLoop {
+  font-size: var(--text-xl);
+  opacity: 0.95;
+  margin-top: var(--space-4);
+  line-height: var(--leading-normal);
+  position: relative;
+  z-index: var(--z-base);
+  color: var(--color-secondary-700);
+  font-weight: var(--font-semibold);
+  min-height: 2em;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.scrollFadeWrapper {
+  transition: opacity 0.05s linear;
+  will-change: opacity;
 }
 
 /* ========================================
