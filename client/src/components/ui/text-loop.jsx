@@ -28,14 +28,14 @@ export function TextLoop({
   }, [items.length, interval, onIndexChange]);
 
   const motionVariants = {
-    initial: { y: 20, opacity: 0 },
-    animate: { y: 0, opacity: 1 },
-    exit: { y: -20, opacity: 0 },
+    initial: { opacity: 0 },
+    animate: { opacity: 1 },
+    exit: { opacity: 0 },
   };
 
   return (
-    <div className={cn('relative inline-block whitespace-nowrap', className)}>
-      <AnimatePresence mode='popLayout' initial={false}>
+    <div className={cn('relative block text-center', className)}>
+      <AnimatePresence mode='wait' initial={false}>
         <motion.div
           key={currentIndex}
           initial='initial'
