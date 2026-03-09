@@ -13,7 +13,7 @@
  * - Responsive design with accessibility features
  */
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef } from "react";
 import styles from "./App.module.css";
 import { Bot, CornerDownLeft } from "lucide-react";
 import { TextLoop } from "@/components/ui/text-loop";
@@ -232,20 +232,25 @@ function App() {
   });
   const [showDarkModeConfirm, setShowDarkModeConfirm] = useState(false);
 
-  // Scroll-based fade-in for content below hero
+  // Scroll-based fade-in for content below hero + header reveal
   const [scrollFadeOpacity, setScrollFadeOpacity] = useState(0);
-  const heroRef = useRef(null);
+  const [headerVisible, setHeaderVisible] = useState(view !== "home");
 
   useEffect(() => {
-    if (view !== "home") return;
-
     const handleScroll = () => {
-      if (!heroRef.current) return;
-      const heroBottom = heroRef.current.getBoundingClientRect().bottom;
+      const scrollY = window.scrollY;
       const windowHeight = window.innerHeight;
-      // Fade starts when hero bottom enters the viewport, fully opaque when hero bottom reaches top
-      const progress = 1 - (heroBottom / windowHeight);
-      setScrollFadeOpacity(Math.min(1, Math.max(0, progress)));
+
+      if (view === "home") {
+        // Content fades in linearly as user scrolls through the first viewport
+        const progress = scrollY / windowHeight;
+        setScrollFadeOpacity(Math.min(1, Math.max(0, progress)));
+        // Header slides in once user has scrolled ~30% past the hero
+        setHeaderVisible(scrollY > windowHeight * 0.3);
+      } else {
+        setScrollFadeOpacity(1);
+        setHeaderVisible(true);
+      }
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -1722,7 +1727,7 @@ function App() {
       </a>
 
       {/* Header */}
-      <header className={styles.header} role="banner">
+      <header className={`${styles.header} ${headerVisible ? styles.headerVisible : ''}`} role="banner">
         <div className={styles.headerContent}>
           <h1
             className={styles.logo}
@@ -1874,50 +1879,21 @@ function App() {
       {/* Home View */}
       {view === "home" && (
         <main className={styles.content} id="main-content" role="main">
-          {/* Hero Section */}
-          <section className={styles.hero} aria-labelledby="hero-title" ref={heroRef}>
-            <h2 id="hero-title" className={styles.heroTitle}>
-              Discover & Support Local Businesses
-            </h2>
-            <p className={styles.heroSubtitle}>
-              Connecting you with the heart of Cumming, Georgia's business community.
-            </p>
-            <div className={styles.heroTextLoop}>
-              <TextLoop interval={3} transition={{ duration: 0.4 }}>
-                <span>Discover local businesses in Cumming</span>
-                <span>Read and write reviews</span>
-                <span>Bookmark your favorite spots</span>
-                <span>Find exclusive local deals</span>
-                <span>Support your community</span>
-                <span>Explore hidden gems nearby</span>
-                <span>Connect with local entrepreneurs</span>
+          {/* Hero Section — fixed white background with centered TextLoop */}
+          <section className={styles.hero} aria-label="Welcome">
+            <div className={styles.heroLoopText}>
+              <TextLoop interval={3} transition={{ duration: 0.5 }}>
+                <span>Discover local businesses...</span>
+                <span>Read honest reviews...</span>
+                <span>Bookmark your favorites...</span>
+                <span>Find exclusive deals...</span>
+                <span>Support your community...</span>
               </TextLoop>
             </div>
-            <div className={styles.heroActions}>
-              <div
-                className={styles.scrollArrow}
-                onClick={() => {
-                  const filtersSection = document.querySelector('[data-section="filters"]');
-                  if (filtersSection) {
-                    filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const filtersSection = document.querySelector('[data-section="filters"]');
-                    if (filtersSection) {
-                      filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                  }
-                }}
-                aria-label="Scroll down to browse businesses"
-              >
-                ↓
-              </div>
-            </div>
           </section>
+
+          {/* Spacer to push content below the fixed hero */}
+          <div className={styles.heroSpacer} />
 
           {/* Scroll-fade wrapper: content below hero fades in as user scrolls */}
           <div className={styles.scrollFadeWrapper} style={{ opacity: scrollFadeOpacity }}>
@@ -2430,7 +2406,7 @@ function App() {
               });
             }}
             className={styles.backButton}
-            style={{ margin: 'var(--space-4)' }}
+            style={{ margin: 'var(--space-4)', marginTop: '80px' }}
           >
             ← Back to Browse
           </button>
