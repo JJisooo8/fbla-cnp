@@ -2307,7 +2307,7 @@ function App() {
               });
             }}
             className={styles.backButton}
-            style={{ margin: 'var(--space-4)', marginTop: '80px' }}
+            style={{ margin: 'var(--space-4)', marginTop: '110px' }}
           >
             ← Back to Browse
           </button>
