@@ -840,6 +840,7 @@
 
 .select {
   padding: var(--space-3) var(--space-4);
+  padding-right: var(--space-3);
   border: var(--border-width) solid var(--border-color-light);
   border-radius: var(--radius-md);
   font-size: var(--text-base);
@@ -3441,7 +3442,7 @@
 .authButtonSignup {
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-md);
-  font-weight: 600;
+  font-weight: var(--font-medium);
   font-size: var(--text-sm);
   transition: all 0.2s ease;
   cursor: pointer;
