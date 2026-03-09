@@ -183,21 +183,12 @@ function App() {
 
   // Review sorting and interactions
   const [reviewSortBy, setReviewSortBy] = useState("relevant");
-  // Stable sort order - only updated on business load or sort option change (not on upvote)
+  // Stable sort order - only updated on business load or sort option change
   const [sortedReviewIds, setSortedReviewIds] = useState([]);
-  // NOTE: Upvotes are now tracked server-side in each review's upvotedBy array
-  // No localStorage tracking - follows Reddit-style architecture where vote state
-  // is tied to user accounts, not browser storage
   const [reportedReviews, setReportedReviews] = useState(() => {
     const saved = localStorage.getItem("locallink_reported_reviews");
     return saved ? JSON.parse(saved) : [];
   });
-
-  // Helper function to check if current user has upvoted a review (Reddit-style)
-  const hasUserUpvoted = (review) => {
-    if (!user || !review.upvotedBy) return false;
-    return review.upvotedBy.includes(user.id);
-  };
 
   // Demo mode status
   const [demoStatus, setDemoStatus] = useState(null);
@@ -980,23 +971,6 @@ function App() {
     </svg>
   );
 
-  // Thumbs up icon for upvoting reviews
-  const ThumbsUpIcon = ({ filled = false, size = 16 }) => (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill={filled ? "currentColor" : "none"}
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ display: 'inline-block', verticalAlign: 'middle' }}
-    >
-      <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
-    </svg>
-  );
-
   // Reset business page when filters change
   useEffect(() => {
     setBusinessPage(1);
@@ -1124,113 +1098,10 @@ function App() {
     }
   };
 
-  // Save reported reviews to localStorage (upvotes are now server-side only)
+  // Save reported reviews to localStorage
   useEffect(() => {
     localStorage.setItem("locallink_reported_reviews", JSON.stringify(reportedReviews));
   }, [reportedReviews]);
-
-  // Upvote or remove upvote from a review (Reddit-style - server-side tracking)
-  const upvoteReview = async (reviewId) => {
-    // Check if user is logged in
-    if (!user) {
-      alert("Please log in to upvote reviews.");
-      navigateToAuth("login");
-      return;
-    }
-
-    // Find the review to check if already upvoted (from upvotedBy array)
-    const review = (selectedBusiness?.reviews || []).find(r => r.id === reviewId);
-    if (!review) return;
-
-    const alreadyUpvoted = (review.upvotedBy || []).includes(user.id);
-
-    // Optimistically update the UI - update the upvotedBy array and helpful count
-    setSelectedBusiness(prev => ({
-      ...prev,
-      reviews: (prev.reviews || []).map(r => {
-        if (r.id !== reviewId) return r;
-        if (alreadyUpvoted) {
-          // Remove upvote - decrement existing count
-          const newUpvotedBy = (r.upvotedBy || []).filter(id => id !== user.id);
-          return { ...r, upvotedBy: newUpvotedBy, helpful: Math.max(0, (r.helpful || 1) - 1) };
-        } else {
-          // Add upvote - increment existing count
-          const newUpvotedBy = [...(r.upvotedBy || []), user.id];
-          return { ...r, upvotedBy: newUpvotedBy, helpful: (r.helpful || 0) + 1 };
-        }
-      })
-    }));
-
-    try {
-      const endpoint = alreadyUpvoted
-        ? `${API_URL}/businesses/${selectedBusiness.id}/reviews/${reviewId}/remove-upvote`
-        : `${API_URL}/businesses/${selectedBusiness.id}/reviews/${reviewId}/upvote`;
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders()
-        }
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        console.error("Failed to toggle upvote:", data.error);
-        if (res.status === 401) {
-          alert("Please log in to upvote reviews.");
-          navigateToAuth("login");
-        }
-        // Revert optimistic update on failure
-        setSelectedBusiness(prev => ({
-          ...prev,
-          reviews: (prev.reviews || []).map(r => {
-            if (r.id !== reviewId) return r;
-            if (alreadyUpvoted) {
-              // Restore upvote
-              const newUpvotedBy = [...(r.upvotedBy || []), user.id];
-              return { ...r, upvotedBy: newUpvotedBy, helpful: data.helpful !== undefined ? data.helpful : newUpvotedBy.length };
-            } else {
-              // Remove upvote
-              const newUpvotedBy = (r.upvotedBy || []).filter(id => id !== user.id);
-              return { ...r, upvotedBy: newUpvotedBy, helpful: data.helpful !== undefined ? data.helpful : newUpvotedBy.length };
-            }
-          })
-        }));
-      } else {
-        // Success! Update with server's actual helpful count to ensure accuracy
-        // (handles concurrent upvotes from other users)
-        if (data.helpful !== undefined) {
-          setSelectedBusiness(prev => ({
-            ...prev,
-            reviews: (prev.reviews || []).map(r => {
-              if (r.id !== reviewId) return r;
-              return { ...r, helpful: data.helpful };
-            })
-          }));
-        }
-      }
-    } catch (err) {
-      console.error("Failed to toggle upvote:", err);
-      // Revert optimistic update on error
-      setSelectedBusiness(prev => ({
-        ...prev,
-        reviews: (prev.reviews || []).map(r => {
-          if (r.id !== reviewId) return r;
-          if (alreadyUpvoted) {
-            // Restore upvote
-            const newUpvotedBy = [...(r.upvotedBy || []), user.id];
-            return { ...r, upvotedBy: newUpvotedBy, helpful: newUpvotedBy.length };
-          } else {
-            // Remove upvote
-            const newUpvotedBy = (r.upvotedBy || []).filter(id => id !== user.id);
-            return { ...r, upvotedBy: newUpvotedBy, helpful: newUpvotedBy.length };
-          }
-        })
-      }));
-    }
-  };
 
   // Edit a review
   const startEditReview = (review) => {
@@ -1367,10 +1238,10 @@ function App() {
 
     switch (reviewSortBy) {
       case "relevant":
-        // Relevance: combination of upvotes + comment length + recency
+        // Relevance: combination of comment length + recency
         sorted.sort((a, b) => {
-          const scoreA = (a.helpful || 0) * 10 + Math.min((a.comment || '').length / 20, 10) + (new Date(a.date).getTime() / 1e12);
-          const scoreB = (b.helpful || 0) * 10 + Math.min((b.comment || '').length / 20, 10) + (new Date(b.date).getTime() / 1e12);
+          const scoreA = Math.min((a.comment || '').length / 20, 10) + (new Date(a.date).getTime() / 1e12);
+          const scoreB = Math.min((b.comment || '').length / 20, 10) + (new Date(b.date).getTime() / 1e12);
           return scoreB - scoreA;
         });
         break;
@@ -1387,7 +1258,7 @@ function App() {
     return sorted;
   };
 
-  // Update sorted review order ONLY when business changes or sort option changes (not on upvote)
+  // Update sorted review order when business changes or sort option changes
   useEffect(() => {
     if (selectedBusiness?.reviews && selectedBusiness.reviews.length > 0) {
       const sorted = getSortedReviews(selectedBusiness.reviews);
@@ -1396,9 +1267,9 @@ function App() {
       setSortedReviewIds([]);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBusiness?.id, reviewSortBy]); // Only re-sort when business ID or sort option changes
+  }, [selectedBusiness?.id, reviewSortBy]);
 
-  // Get reviews in stable sorted order (preserves order during upvotes)
+  // Get reviews in stable sorted order
   const getStableSortedReviews = (reviews) => {
     if (!reviews || reviews.length === 0) return [];
 
@@ -2942,14 +2813,6 @@ function App() {
                                       </button>
                                     </>
                                   )}
-                                  <button
-                                    onClick={() => upvoteReview(review.id)}
-                                    className={hasUserUpvoted(review) ? styles.upvoteButtonActive : styles.upvoteButton}
-                                    title={hasUserUpvoted(review) ? "Click to remove your upvote" : (user ? "Mark as helpful" : "Log in to upvote")}
-                                  >
-                                    <span className={styles.upvoteIcon}><ThumbsUpIcon size={14} /></span>
-                                    <span>{review.helpful || 0}</span>
-                                  </button>
                                   <button
                                     onClick={() => {
                                       const reason = window.prompt(
