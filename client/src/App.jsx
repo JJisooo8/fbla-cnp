@@ -3605,7 +3605,7 @@ function App() {
         </ExpandableChatHeader>
 
         <ExpandableChatBody>
-          <ChatMessageList>
+          <ChatMessageList smooth>
             {chatMessages.map((message) => (
               <ChatBubble
                 key={message.id}

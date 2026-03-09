@@ -40,3 +40,9 @@
     --ring: 212.7 26.8% 83.9%;
   }
 }
+
+/* Prevent the global button:hover transform from affecting shadcn chat components */
+.fixed button:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
