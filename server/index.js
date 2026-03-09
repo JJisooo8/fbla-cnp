@@ -1417,7 +1417,7 @@ function transformYelpToBusiness(yelpBusiness) {
     description,
     address,
     phone: yelpBusiness.display_phone || "Phone not available",
-    hours: "Hours available on business page",
+    hours: null, // Populated on detail page from Yelp API or generated fallback
     image: yelpBusiness.image_url || null, // Will be filled with Google Image if null
     deal: getMockDeal(category, name),
     tags,
@@ -1754,11 +1754,11 @@ async function seedReviewsForNewBusinesses(businessIds = []) {
 
 // Format Yelp hours
 function formatYelpHours(hours = []) {
-  if (!hours.length) return "Hours not available";
+  if (!hours.length) return null;
 
   const dayMap = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const ranges = hours[0]?.open || [];
-  if (!ranges.length) return "Hours not available";
+  if (!ranges.length) return null;
 
   return ranges
     .map(range => {
@@ -1768,6 +1768,88 @@ function formatYelpHours(hours = []) {
       return `${day} ${start}-${end}`;
     })
     .join(", ");
+}
+
+// Generate realistic fake business hours based on business category and name
+// Uses a hash of the business ID for consistency (same business always gets same hours)
+function generateFakeHours(businessId, category) {
+  const hash = businessId.split('').reduce((acc, char, idx) => acc + char.charCodeAt(0) * (idx + 1), 0);
+
+  // Common hour templates by business type
+  const templates = {
+    // Restaurants/food businesses
+    Food: [
+      // Standard restaurant: open lunch through dinner
+      { weekday: { open: "11:00", close: "21:00" }, weekend: { open: "11:00", close: "22:00" }, closedDay: null },
+      // Early breakfast spot
+      { weekday: { open: "06:00", close: "14:00" }, weekend: { open: "07:00", close: "15:00" }, closedDay: null },
+      // Dinner-focused restaurant
+      { weekday: { open: "16:00", close: "22:00" }, weekend: { open: "16:00", close: "23:00" }, closedDay: "Mon" },
+      // All-day restaurant
+      { weekday: { open: "07:00", close: "21:00" }, weekend: { open: "08:00", close: "22:00" }, closedDay: null },
+      // Lunch spot, closed Sunday
+      { weekday: { open: "10:30", close: "20:00" }, weekend: { open: "10:30", close: "20:00" }, closedDay: "Sun" },
+      // Late-night food
+      { weekday: { open: "11:00", close: "23:00" }, weekend: { open: "11:00", close: "00:00" }, closedDay: null },
+      // Cafe hours
+      { weekday: { open: "06:30", close: "18:00" }, weekend: { open: "07:30", close: "17:00" }, closedDay: null },
+      // Standard with Monday closed
+      { weekday: { open: "11:00", close: "21:30" }, weekend: { open: "10:00", close: "22:00" }, closedDay: "Mon" },
+    ],
+    // Retail stores
+    Retail: [
+      // Standard retail
+      { weekday: { open: "10:00", close: "19:00" }, weekend: { open: "10:00", close: "18:00" }, closedDay: null },
+      // Closes early on weekends
+      { weekday: { open: "09:00", close: "20:00" }, weekend: { open: "10:00", close: "17:00" }, closedDay: "Sun" },
+      // Closed Sunday
+      { weekday: { open: "10:00", close: "18:00" }, weekend: { open: "10:00", close: "17:00" }, closedDay: "Sun" },
+      // Open late
+      { weekday: { open: "09:00", close: "21:00" }, weekend: { open: "10:00", close: "20:00" }, closedDay: null },
+      // Boutique hours
+      { weekday: { open: "11:00", close: "18:00" }, weekend: { open: "11:00", close: "16:00" }, closedDay: "Sun" },
+    ],
+    // Services
+    Services: [
+      // Standard 9-5 office
+      { weekday: { open: "09:00", close: "17:00" }, weekend: null, closedDay: null },
+      // Extended office hours
+      { weekday: { open: "08:00", close: "18:00" }, weekend: { open: "09:00", close: "14:00" }, closedDay: "Sun" },
+      // Salon/spa hours
+      { weekday: { open: "09:00", close: "19:00" }, weekend: { open: "09:00", close: "17:00" }, closedDay: "Mon" },
+      // Gym/fitness - long hours
+      { weekday: { open: "05:00", close: "22:00" }, weekend: { open: "07:00", close: "20:00" }, closedDay: null },
+      // Medical/dental office
+      { weekday: { open: "08:00", close: "17:00" }, weekend: null, closedDay: null },
+      // Weekdays + Saturday morning
+      { weekday: { open: "08:30", close: "17:30" }, weekend: { open: "09:00", close: "13:00" }, closedDay: "Sun" },
+    ],
+  };
+
+  const categoryTemplates = templates[category] || templates.Services;
+  const template = categoryTemplates[hash % categoryTemplates.length];
+
+  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const parts = [];
+
+  for (const day of days) {
+    if (day === template.closedDay) {
+      parts.push(`${day} Closed`);
+      continue;
+    }
+
+    const isWeekend = day === "Sat" || day === "Sun";
+
+    if (isWeekend && !template.weekend) {
+      parts.push(`${day} Closed`);
+      continue;
+    }
+
+    const hours = isWeekend ? template.weekend : template.weekday;
+    parts.push(`${day} ${hours.open}-${hours.close}`);
+  }
+
+  return parts.join(", ");
 }
 
 // Main function to fetch businesses (Yelp API first, offline as fallback only)
@@ -2610,6 +2692,11 @@ app.get("/api/businesses/:id", async (req, res) => {
         business.image = getCategoryImage(business.category);
       }
 
+      // Generate hours if not present
+      if (!business.hours) {
+        business.hours = generateFakeHours(business.id, business.category);
+      }
+
       return res.json(business);
     }
 
@@ -2646,12 +2733,19 @@ app.get("/api/businesses/:id", async (req, res) => {
     if (business.yelpId) {
       const details = await fetchYelpBusinessDetails(business.yelpId);
       if (details) {
-        business.hours = formatYelpHours(details.hours);
+        const yelpHours = formatYelpHours(details.hours);
+        business.hours = yelpHours || generateFakeHours(business.id, business.category);
         business.image = details.photos?.[0] || business.image;
         // Include all photos for gallery display
         business.photos = details.photos || (business.image ? [business.image] : []);
         business.website = business.website || details.url;
+      } else {
+        // Yelp detail fetch failed entirely - generate fake hours
+        business.hours = generateFakeHours(business.id, business.category);
       }
+    } else {
+      // No Yelp ID - generate fake hours
+      business.hours = generateFakeHours(business.id, business.category);
     }
 
     // If still no image, try Google Images
