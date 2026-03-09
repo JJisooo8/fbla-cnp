@@ -13,9 +13,10 @@
  * - Responsive design with accessibility features
  */
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import styles from "./App.module.css";
 import { Bot, CornerDownLeft } from "lucide-react";
+import { TextLoop } from "@/components/ui/text-loop";
 import { Button } from "@/components/ui/button";
 import {
   ChatBubble,
@@ -230,6 +231,27 @@ function App() {
     return localStorage.getItem("locallink_dark_mode") === "true";
   });
   const [showDarkModeConfirm, setShowDarkModeConfirm] = useState(false);
+
+  // Scroll-based fade-in for content below hero
+  const [scrollFadeOpacity, setScrollFadeOpacity] = useState(0);
+  const heroRef = useRef(null);
+
+  useEffect(() => {
+    if (view !== "home") return;
+
+    const handleScroll = () => {
+      if (!heroRef.current) return;
+      const heroBottom = heroRef.current.getBoundingClientRect().bottom;
+      const windowHeight = window.innerHeight;
+      // Fade starts when hero bottom enters the viewport, fully opaque when hero bottom reaches top
+      const progress = 1 - (heroBottom / windowHeight);
+      setScrollFadeOpacity(Math.min(1, Math.max(0, progress)));
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll(); // Initial check
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [view]);
 
   // ============================================
   // FAQ CHATBOT STATE
@@ -1853,13 +1875,24 @@ function App() {
       {view === "home" && (
         <main className={styles.content} id="main-content" role="main">
           {/* Hero Section */}
-          <section className={styles.hero} aria-labelledby="hero-title">
+          <section className={styles.hero} aria-labelledby="hero-title" ref={heroRef}>
             <h2 id="hero-title" className={styles.heroTitle}>
               Discover & Support Local Businesses
             </h2>
             <p className={styles.heroSubtitle}>
               Connecting you with the heart of Cumming, Georgia's business community.
             </p>
+            <div className={styles.heroTextLoop}>
+              <TextLoop interval={3} transition={{ duration: 0.4 }}>
+                <span>Discover local businesses in Cumming</span>
+                <span>Read and write reviews</span>
+                <span>Bookmark your favorite spots</span>
+                <span>Find exclusive local deals</span>
+                <span>Support your community</span>
+                <span>Explore hidden gems nearby</span>
+                <span>Connect with local entrepreneurs</span>
+              </TextLoop>
+            </div>
             <div className={styles.heroActions}>
               <div
                 className={styles.scrollArrow}
@@ -1885,6 +1918,9 @@ function App() {
               </div>
             </div>
           </section>
+
+          {/* Scroll-fade wrapper: content below hero fades in as user scrolls */}
+          <div className={styles.scrollFadeWrapper} style={{ opacity: scrollFadeOpacity }}>
 
           {/* Analytics Cards */}
           {analytics && (
@@ -2372,6 +2408,8 @@ function App() {
               </div>
             </details>
           </div>
+
+          </div>{/* End scroll-fade wrapper */}
         </main>
       )}
 
