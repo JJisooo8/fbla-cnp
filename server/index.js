@@ -24,7 +24,7 @@
  *
  * ACTIVE (User-initiated actions only):
  * - saveUsersAsync(): Called during user signup
- * - saveReviewsAsync(): Called for review CRUD operations (create, edit, delete, upvote)
+ * - saveReviewsAsync(): Called for review CRUD operations (create, edit, delete)
  *
  * DISABLED (Seeding/automated operations):
  * - ensureSeeded(): Disabled - returns immediately
@@ -741,8 +741,6 @@ function generateReviewsForBusiness(businessId, count) {
       rating,
       comment: selectComment(rating),
       date: generateRandomDate(),
-      helpful: Math.floor(Math.random() * 20), // 0-19 helpful votes
-      upvotedBy: [],
       source: 'seed',
       // Category ratings with natural variance per business
       quality: categoryRatings.quality,
@@ -2679,8 +2677,6 @@ app.post("/api/businesses/:id/reviews", requireAuth, async (req, res) => {
       rating,
       comment: reviewComment,
       date: new Date().toISOString(),
-      helpful: 0,
-      upvotedBy: [], // Track which users have upvoted
       source: 'local',
       // Category ratings (use 'quality' as standard field name)
       quality: qualityRating,
@@ -2701,116 +2697,14 @@ app.post("/api/businesses/:id/reviews", requireAuth, async (req, res) => {
 
     cache.flushAll();
 
-    // Return review without internal fields
-    const publicReview = {
-      ...review,
-      upvotedBy: undefined // Don't expose upvotedBy list
-    };
-
-    res.status(201).json({ message: "Review submitted successfully", review: publicReview });
+    res.status(201).json({ message: "Review submitted successfully", review });
   } catch (error) {
     console.error('Error submitting review:', error);
     res.status(500).json({ error: "Failed to submit review" });
   }
 });
 
-// Upvote review - REQUIRES AUTHENTICATION
-app.post("/api/businesses/:businessId/reviews/:reviewId/upvote", requireAuth, async (req, res) => {
-  try {
-    const { businessId, reviewId } = req.params;
-    const userId = req.user.id;
 
-    // Refresh reviews from blob to get latest data
-    await refreshReviewsFromBlob();
-
-    const reviews = localReviews.get(businessId);
-
-    if (!reviews) {
-      console.log(`[UPVOTE] Business not found: ${businessId}, localReviews has ${localReviews.size} entries`);
-      return res.status(404).json({ error: "Business not found" });
-    }
-
-    const review = reviews.find(r => r.id === reviewId);
-    if (!review) {
-      console.log(`[UPVOTE] Review not found: ${reviewId} in business ${businessId}`);
-      return res.status(404).json({ error: "Review not found" });
-    }
-
-    // Initialize upvotedBy array if it doesn't exist (for legacy reviews)
-    if (!review.upvotedBy) {
-      review.upvotedBy = [];
-    }
-
-    // Check if user already upvoted
-    if (review.upvotedBy.includes(userId)) {
-      return res.status(400).json({ error: "You have already upvoted this review", helpful: review.helpful });
-    }
-
-    // Add user to upvotedBy and increment helpful count
-    review.upvotedBy.push(userId);
-    review.helpful = review.upvotedBy.length;
-
-    const saved = await saveReviewsAsync();
-    if (!saved) {
-      // Revert changes if save failed
-      review.upvotedBy = review.upvotedBy.filter(id => id !== userId);
-      review.helpful = review.upvotedBy.length;
-      return res.status(500).json({ error: "Failed to save upvote" });
-    }
-
-    console.log(`[UPVOTE] User ${req.user.username} upvoted review ${reviewId}`);
-    res.json({ message: "Upvote recorded", helpful: review.helpful });
-  } catch (error) {
-    console.error('Error upvoting review:', error);
-    res.status(500).json({ error: "Failed to upvote review" });
-  }
-});
-
-// Remove upvote from review - REQUIRES AUTHENTICATION
-app.post("/api/businesses/:businessId/reviews/:reviewId/remove-upvote", requireAuth, async (req, res) => {
-  try {
-    const { businessId, reviewId } = req.params;
-    const userId = req.user.id;
-
-    // Refresh reviews from blob to get latest data
-    await refreshReviewsFromBlob();
-
-    const reviews = localReviews.get(businessId);
-
-    if (!reviews) return res.status(404).json({ error: "Business not found" });
-
-    const review = reviews.find(r => r.id === reviewId);
-    if (!review) return res.status(404).json({ error: "Review not found" });
-
-    // Initialize upvotedBy array if it doesn't exist
-    if (!review.upvotedBy) {
-      review.upvotedBy = [];
-    }
-
-    // Check if user has actually upvoted
-    if (!review.upvotedBy.includes(userId)) {
-      return res.status(400).json({ error: "You have not upvoted this review", helpful: review.helpful });
-    }
-
-    // Remove user from upvotedBy and update helpful count
-    review.upvotedBy = review.upvotedBy.filter(id => id !== userId);
-    review.helpful = review.upvotedBy.length;
-
-    const saved = await saveReviewsAsync();
-    if (!saved) {
-      // Revert changes if save failed
-      review.upvotedBy.push(userId);
-      review.helpful = review.upvotedBy.length;
-      return res.status(500).json({ error: "Failed to remove upvote" });
-    }
-
-    console.log(`[UPVOTE] User ${req.user.username} removed upvote from review ${reviewId}`);
-    res.json({ message: "Upvote removed", helpful: review.helpful });
-  } catch (error) {
-    console.error('Error removing upvote:', error);
-    res.status(500).json({ error: "Failed to remove upvote" });
-  }
-});
 
 // Report review
 app.post("/api/businesses/:businessId/reviews/:reviewId/report", async (req, res) => {
@@ -2947,13 +2841,7 @@ app.put("/api/businesses/:businessId/reviews/:reviewId", requireAuth, async (req
 
     console.log(`[REVIEW] User ${req.user.username} edited review ${reviewId}`);
 
-    // Return updated review without internal fields
-    const publicReview = {
-      ...review,
-      upvotedBy: undefined
-    };
-
-    res.json({ message: "Review updated successfully", review: publicReview });
+    res.json({ message: "Review updated successfully", review });
   } catch (error) {
     console.error('Error editing review:', error);
     res.status(500).json({ error: "Failed to edit review" });

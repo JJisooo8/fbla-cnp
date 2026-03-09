@@ -188,14 +188,8 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'Failed to save review.' });
       }
 
-      // Return updated review without internal fields
-      const publicReview = {
-        ...review,
-        upvotedBy: undefined
-      };
-
       console.log(`[REVIEW] Successfully updated review ${reviewId}`);
-      return res.status(200).json({ message: 'Review updated successfully.', review: publicReview });
+      return res.status(200).json({ message: 'Review updated successfully.', review });
     } catch (error) {
       console.error('[REVIEW] Error editing review:', error.message, error.stack);
       return res.status(500).json({ error: 'Failed to edit review.' });

@@ -91,14 +91,7 @@ export default async function handler(req, res) {
       const localReviews = await loadReviews();
       const reviews = localReviews.get(businessId) || [];
 
-      // Don't expose upvotedBy list to unauthorized users
-      const user = verifyToken(req.headers['authorization']);
-      const publicReviews = reviews.map(review => ({
-        ...review,
-        upvotedBy: user ? review.upvotedBy : undefined
-      }));
-
-      return res.status(200).json({ reviews: publicReviews });
+      return res.status(200).json({ reviews });
     } catch (error) {
       console.error('[REVIEW] Error fetching reviews:', error);
       return res.status(500).json({ error: 'Failed to fetch reviews' });
@@ -180,8 +173,6 @@ export default async function handler(req, res) {
         rating,
         comment: reviewComment,
         date: new Date().toISOString(),
-        helpful: 0,
-        upvotedBy: [],
         source: 'local',
         quality: qualityRating,
         service,
@@ -199,14 +190,8 @@ export default async function handler(req, res) {
         console.error('[REVIEW] Warning: Review may not have persisted to storage');
       }
 
-      // Return review without internal fields
-      const publicReview = {
-        ...review,
-        upvotedBy: undefined
-      };
-
       console.log(`[REVIEW] Successfully submitted review ${review.id} for business ${businessId}`);
-      return res.status(201).json({ message: "Review submitted successfully", review: publicReview });
+      return res.status(201).json({ message: "Review submitted successfully", review });
     } catch (error) {
       console.error('[REVIEW] Error submitting review:', error);
       return res.status(500).json({ error: "Failed to submit review" });
