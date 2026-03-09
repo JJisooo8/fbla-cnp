@@ -225,9 +225,18 @@ function App() {
 
   // Scroll-based fade-in for content below hero + header reveal
   const [scrollFadeOpacity, setScrollFadeOpacity] = useState(0);
-  const [headerVisible, setHeaderVisible] = useState(view !== "home");
+  const [heroOpacity, setHeroOpacity] = useState(1);
+  const [headerVisible, setHeaderVisible] = useState(view !== "home" || !!user);
 
   useEffect(() => {
+    // Logged-in users skip the landing animation entirely
+    if (user && view === "home") {
+      setScrollFadeOpacity(1);
+      setHeroOpacity(0);
+      setHeaderVisible(true);
+      return;
+    }
+
     const handleScroll = () => {
       const scrollY = window.scrollY;
       const windowHeight = window.innerHeight;
@@ -236,10 +245,15 @@ function App() {
         // Content fades in linearly as user scrolls through the first viewport
         const progress = scrollY / windowHeight;
         setScrollFadeOpacity(Math.min(1, Math.max(0, progress)));
+        // Hero text fades out faster — fully invisible by 50% scroll
+        // so it's gone before the stats counters reach mid-viewport
+        const heroFade = 1 - Math.min(1, (scrollY / windowHeight) * 2);
+        setHeroOpacity(Math.max(0, heroFade));
         // Header slides in once user has scrolled ~30% past the hero
         setHeaderVisible(scrollY > windowHeight * 0.3);
       } else {
         setScrollFadeOpacity(1);
+        setHeroOpacity(0);
         setHeaderVisible(true);
       }
     };
@@ -247,7 +261,7 @@ function App() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll(); // Initial check
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [view]);
+  }, [view, user]);
 
   // ============================================
   // FAQ CHATBOT STATE
@@ -1750,24 +1764,36 @@ function App() {
       {/* Home View */}
       {view === "home" && (
         <main className={styles.content} id="main-content" role="main">
-          {/* Hero Section — fixed white background with centered TextLoop */}
-          <section className={styles.hero} aria-label="Welcome">
-            <div className={styles.heroLoopText}>
-              <TextLoop interval={3} transition={{ duration: 0.5 }}>
-                <span>Discover local businesses...</span>
-                <span>Read honest reviews...</span>
-                <span>Bookmark your favorites...</span>
-                <span>Find exclusive deals...</span>
-                <span>Support your community...</span>
-              </TextLoop>
+          {/* Logged-in users skip the landing animation entirely */}
+          {user ? (
+            <div className={styles.welcomeBanner}>
+              <h1 className={styles.welcomeHeading}>Welcome to LocalLink, {user.username}!</h1>
             </div>
-          </section>
+          ) : (
+            <>
+              {/* Hero Section — fixed white background with centered TextLoop */}
+              <section className={styles.hero} aria-label="Welcome" style={{ opacity: heroOpacity }}>
+                <div className={styles.heroContent}>
+                  <h1 className={styles.heroHeading}>Introducing LocalLink</h1>
+                  <div className={styles.heroLoopText}>
+                    <TextLoop interval={3} transition={{ duration: 0.5 }}>
+                      <span>Discover local businesses...</span>
+                      <span>Read honest reviews...</span>
+                      <span>Bookmark your favorites...</span>
+                      <span>Find exclusive deals...</span>
+                      <span>Support your community...</span>
+                    </TextLoop>
+                  </div>
+                </div>
+              </section>
 
-          {/* Spacer to push content below the fixed hero */}
-          <div className={styles.heroSpacer} />
+              {/* Spacer to push content below the fixed hero */}
+              <div className={styles.heroSpacer} />
+            </>
+          )}
 
           {/* Scroll-fade wrapper: content below hero fades in as user scrolls */}
-          <div className={styles.scrollFadeWrapper} style={{ opacity: scrollFadeOpacity }}>
+          <div className={styles.scrollFadeWrapper} style={{ opacity: user ? 1 : scrollFadeOpacity }}>
 
           {/* Analytics Cards */}
           {analytics && (
