@@ -576,60 +576,108 @@ const FAKE_USERNAMES = [
   "weekend_explorer", "family_diner", "quality_seeker", "deal_hunter", "new_resident"
 ];
 
-// Pool of positive comments
-const POSITIVE_COMMENTS = [
-  "Service was great!",
-  "Will definitely come back!",
-  "Exceeded my expectations.",
-  "Staff was super friendly and helpful.",
-  "Great value for the price.",
-  "Highly recommend this place!",
-  "Clean and welcoming atmosphere.",
-  "Quick and efficient service.",
-  "Best in the area!",
-  "Never disappoints.",
-  "Amazing experience overall.",
-  "Top notch quality!",
-  "Very impressed with everything.",
-  "Fantastic place, highly recommend.",
-  "Outstanding service from start to finish.",
-  "Love this place!",
-  "Always a pleasure coming here.",
-  "Exceeded all expectations.",
-  "Five stars all the way!",
-  "Would recommend to friends and family."
+// Pool of enthusiastic positive comments (for 5-star reviews)
+const ENTHUSIASTIC_COMMENTS = [
+  "Absolutely incredible experience! This is the best spot in Cumming, hands down.",
+  "I can't say enough good things about this place. We come here every week now!",
+  "Blown away by the quality. Worth every penny and then some.",
+  "This place is a hidden gem! The staff treats you like family.",
+  "Moved here recently and this is already my favorite local spot. 10/10!",
+  "Everything was perfect from start to finish. Can't wait to come back!",
+  "Best experience I've had in years. The attention to detail is unmatched.",
+  "My whole family loves this place. It's become our go-to!",
+  "If I could give 6 stars I would. Absolutely phenomenal.",
+  "Drove 30 minutes to get here and it was totally worth it.",
+  "The owner is so passionate about what they do and it shows in everything.",
+  "This is what every local business should aspire to be. Just outstanding.",
+  "Five stars doesn't do it justice. Genuinely one of the best around.",
+  "I've recommended this place to everyone I know. Never had a bad visit.",
+  "The quality here is consistently amazing. Never once been disappointed."
 ];
 
-// Pool of negative comments
+// Pool of positive comments (for 4-star reviews)
+const POSITIVE_COMMENTS = [
+  "Really solid experience. Will definitely be coming back!",
+  "Great value for the price. Staff was friendly and helpful.",
+  "Very impressed with the quality. Just a few minor things to improve.",
+  "Highly recommend! Clean, welcoming, and well-run.",
+  "Had a great time here. Service was quick and professional.",
+  "One of the better places in the area. Would recommend to friends.",
+  "Pleasantly surprised! Much better than I expected.",
+  "Good quality and fair prices. The staff clearly cares.",
+  "Nice atmosphere and great service. Will be back for sure.",
+  "Solid experience overall. A few small things could be better but nothing major.",
+  "Really enjoyed our visit. The attention to detail was appreciated.",
+  "Great local business! Happy to support places like this.",
+  "Very good experience. Just shy of perfect but still excellent.",
+  "Would definitely come back. The quality is consistent and reliable.",
+  "Friendly staff, clean space, and good value. What more could you ask for?"
+];
+
+// Pool of mediocre comments (for 3-star reviews)
+const MEDIOCRE_COMMENTS = [
+  "It was okay. Nothing special but nothing terrible either.",
+  "Decent enough but I've had better experiences elsewhere.",
+  "Average experience. Probably wouldn't go out of my way to come back.",
+  "Some things were good, others not so much. Mixed feelings overall.",
+  "It's fine for what it is. Just don't expect to be wowed.",
+  "Had higher expectations based on the reviews. It was just alright.",
+  "The quality was inconsistent. Some things great, others mediocre.",
+  "Not bad, not great. Right in the middle for me.",
+  "Service was a bit slow but the end result was acceptable.",
+  "It gets the job done but there's room for improvement."
+];
+
+// Pool of negative comments (for 2-star reviews)
 const NEGATIVE_COMMENTS = [
-  "Could be better.",
-  "Long wait times.",
-  "Not worth the price.",
-  "Staff seemed disinterested.",
-  "Place could use some cleaning.",
-  "Wouldn't recommend.",
-  "Very disappointing experience.",
-  "Expected more based on reviews.",
-  "Not my favorite place.",
-  "Had better experiences elsewhere."
+  "Pretty disappointing overall. Expected much better based on the reviews.",
+  "Long wait times and the staff didn't seem to care. Probably won't return.",
+  "Not worth the price at all. You can find better options nearby.",
+  "The place could really use some cleaning. Felt uncomfortable the whole time.",
+  "Staff seemed disinterested and rushed. Didn't feel valued as a customer.",
+  "Had high hopes but left feeling let down. Multiple issues during our visit.",
+  "Wouldn't recommend to friends. The quality just isn't there.",
+  "Overpriced for what you get. There are better alternatives in the area.",
+  "The experience was below average. I've had much better elsewhere.",
+  "Mediocre at best. Several things need serious improvement."
+];
+
+// Pool of very negative comments (for 1-star reviews)
+const TERRIBLE_COMMENTS = [
+  "This place did not meet my expectations at all. Complete waste of money.",
+  "Waited 40 minutes and the result was terrible. Never coming back.",
+  "Honestly one of the worst experiences I've had. Avoid this place.",
+  "I don't understand the positive reviews. Everything about this was bad.",
+  "Rude staff, dirty facility, and overpriced. A total disaster.",
+  "Save your money and go literally anywhere else. Extremely disappointing.",
+  "Left halfway through because it was so bad. Unacceptable quality.",
+  "I've never written a 1-star review before but this place earned it.",
+  "Nothing was done right. From start to finish it was a nightmare.",
+  "Absolutely terrible. The owner should be embarrassed by the state of this place."
 ];
 
 // Determine the quality tier for a business (determines overall rating distribution)
-// This creates a more realistic distribution:
-// - 18% standouts (4.5+ avg rating)
-// - 67% average (3.5-4.5 avg rating)
-// - 15% underperformers (below 3.5 avg rating)
+// This creates a realistic, well-spread distribution:
+// - 20% excellent (4.5+ avg rating) - truly outstanding businesses
+// - 25% good (3.8-4.4 avg rating) - solid, reliable businesses
+// - 25% average (3.0-3.7 avg rating) - decent but unremarkable
+// - 18% below_average (2.3-3.0 avg rating) - businesses with clear issues
+// - 12% poor (1.5-2.5 avg rating) - seriously struggling businesses
 function determineBusinessQualityTier(businessId) {
   // Use business ID hash for consistent tier assignment
   const hash = businessId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const tierRoll = (hash % 100) / 100;
 
-  if (tierRoll < 0.15) {
-    return 'underperformer'; // 15% - avg rating will be 2.5-3.4
-  } else if (tierRoll < 0.82) {
-    return 'average'; // 67% - avg rating will be 3.5-4.4
+  if (tierRoll < 0.12) {
+    return 'poor'; // 12% - avg rating will be 1.5-2.5
+  } else if (tierRoll < 0.30) {
+    return 'below_average'; // 18% - avg rating will be 2.3-3.0
+  } else if (tierRoll < 0.55) {
+    return 'average'; // 25% - avg rating will be 3.0-3.7
+  } else if (tierRoll < 0.80) {
+    return 'good'; // 25% - avg rating will be 3.8-4.4
   } else {
-    return 'standout'; // 18% - avg rating will be 4.5-5.0
+    return 'excellent'; // 20% - avg rating will be 4.5-5.0
   }
 }
 
@@ -637,45 +685,60 @@ function determineBusinessQualityTier(businessId) {
 function generateRatingForTier(tier) {
   const rand = Math.random();
 
-  if (tier === 'standout') {
-    // Standout businesses: mostly 4-5 stars
-    if (rand < 0.05) return 3; // 5% get 3 stars
-    if (rand < 0.30) return 4; // 25% get 4 stars
-    return 5; // 70% get 5 stars
-  } else if (tier === 'underperformer') {
-    // Underperforming businesses: mostly 1-3 stars
-    if (rand < 0.25) return 1; // 25% get 1 star
-    if (rand < 0.50) return 2; // 25% get 2 stars
-    if (rand < 0.80) return 3; // 30% get 3 stars
-    if (rand < 0.95) return 4; // 15% get 4 stars
-    return 5; // 5% get 5 stars
+  if (tier === 'excellent') {
+    // Excellent businesses: heavily skewed toward 5 stars
+    if (rand < 0.03) return 3; // 3% get 3 stars
+    if (rand < 0.15) return 4; // 12% get 4 stars
+    return 5; // 85% get 5 stars
+  } else if (tier === 'good') {
+    // Good businesses: mostly 4-5 stars with occasional 3
+    if (rand < 0.02) return 2; // 2% get 2 stars
+    if (rand < 0.12) return 3; // 10% get 3 stars
+    if (rand < 0.55) return 4; // 43% get 4 stars
+    return 5; // 45% get 5 stars
+  } else if (tier === 'average') {
+    // Average businesses: centered around 3 stars
+    if (rand < 0.05) return 1; // 5% get 1 star
+    if (rand < 0.20) return 2; // 15% get 2 stars
+    if (rand < 0.55) return 3; // 35% get 3 stars
+    if (rand < 0.85) return 4; // 30% get 4 stars
+    return 5; // 15% get 5 stars
+  } else if (tier === 'below_average') {
+    // Below average businesses: centered around 2-3 stars
+    if (rand < 0.15) return 1; // 15% get 1 star
+    if (rand < 0.45) return 2; // 30% get 2 stars
+    if (rand < 0.75) return 3; // 30% get 3 stars
+    if (rand < 0.92) return 4; // 17% get 4 stars
+    return 5; // 8% get 5 stars
   } else {
-    // Average businesses: bell curve around 3.5-4
-    if (rand < 0.08) return 2; // 8% get 2 stars
-    if (rand < 0.25) return 3; // 17% get 3 stars
-    if (rand < 0.70) return 4; // 45% get 4 stars
-    return 5; // 30% get 5 stars
+    // Poor businesses: heavily skewed toward 1-2 stars
+    if (rand < 0.35) return 1; // 35% get 1 star
+    if (rand < 0.65) return 2; // 30% get 2 stars
+    if (rand < 0.85) return 3; // 20% get 3 stars
+    if (rand < 0.95) return 4; // 10% get 4 stars
+    return 5; // 5% get 5 stars
   }
 }
 
-// Generate category ratings with more natural variance
-// Different categories can have different strengths/weaknesses
+// Generate category ratings with meaningful variance
+// Different categories can have very different strengths/weaknesses per business
 function generateCategoryRatings(overallRating, businessId) {
   // Use business ID to create consistent category "personality"
   const hash = businessId.split('').reduce((acc, char, idx) => acc + char.charCodeAt(0) * (idx + 1), 0);
 
-  // Determine which categories this business excels at or struggles with
+  // Each business has a distinct personality - some categories strong, others weak
+  // Offsets range from -1.5 to +1.5 for meaningful differentiation
   const categoryOffsets = {
-    quality: ((hash % 7) - 3) * 0.3, // -0.9 to +0.9 offset
-    service: (((hash * 3) % 7) - 3) * 0.3,
-    cleanliness: (((hash * 7) % 7) - 3) * 0.3,
-    atmosphere: (((hash * 11) % 7) - 3) * 0.3
+    quality: ((hash % 11) - 5) * 0.3,       // -1.5 to +1.5 offset
+    service: (((hash * 3) % 11) - 5) * 0.3,
+    cleanliness: (((hash * 7) % 11) - 5) * 0.3,
+    atmosphere: (((hash * 13) % 11) - 5) * 0.3
   };
 
   // Generate each category with variance and business personality
   const generateCategory = (offset) => {
     const base = overallRating + offset;
-    const variance = (Math.random() - 0.5) * 1.5; // +/- 0.75 random variance
+    const variance = (Math.random() - 0.5) * 2.0; // +/- 1.0 random variance
     const rating = Math.round(base + variance);
     return Math.max(1, Math.min(5, rating));
   };
@@ -696,29 +759,42 @@ function generateRandomDate() {
   return new Date(randomTime).toISOString();
 }
 
-// Select a comment based on rating (40% none, 45% positive, 15% negative for low ratings)
+// Select a comment that matches the rating - comments should feel authentic
 function selectComment(rating) {
   const rand = Math.random();
 
-  // 40% chance of no comment
-  if (rand < 0.40) {
+  // 25% chance of no comment (reduced from 40% so more reviews have text)
+  if (rand < 0.25) {
     return "";
   }
 
-  // For low ratings (1-2), mostly negative comments
-  if (rating <= 2) {
-    if (rand < 0.85) {
-      return NEGATIVE_COMMENTS[Math.floor(Math.random() * NEGATIVE_COMMENTS.length)];
-    } else {
-      return POSITIVE_COMMENTS[Math.floor(Math.random() * POSITIVE_COMMENTS.length)];
+  // Match comment tone to the star rating
+  if (rating === 5) {
+    return ENTHUSIASTIC_COMMENTS[Math.floor(Math.random() * ENTHUSIASTIC_COMMENTS.length)];
+  } else if (rating === 4) {
+    // 4-star: mostly positive, occasionally enthusiastic
+    if (Math.random() < 0.15) {
+      return ENTHUSIASTIC_COMMENTS[Math.floor(Math.random() * ENTHUSIASTIC_COMMENTS.length)];
     }
-  }
-
-  // For medium-high ratings (3-5), mostly positive comments
-  if (rand < 0.95) {
     return POSITIVE_COMMENTS[Math.floor(Math.random() * POSITIVE_COMMENTS.length)];
-  } else {
+  } else if (rating === 3) {
+    // 3-star: mostly mediocre, occasionally positive or negative
+    const r = Math.random();
+    if (r < 0.10) return POSITIVE_COMMENTS[Math.floor(Math.random() * POSITIVE_COMMENTS.length)];
+    if (r < 0.20) return NEGATIVE_COMMENTS[Math.floor(Math.random() * NEGATIVE_COMMENTS.length)];
+    return MEDIOCRE_COMMENTS[Math.floor(Math.random() * MEDIOCRE_COMMENTS.length)];
+  } else if (rating === 2) {
+    // 2-star: mostly negative
+    if (Math.random() < 0.10) {
+      return MEDIOCRE_COMMENTS[Math.floor(Math.random() * MEDIOCRE_COMMENTS.length)];
+    }
     return NEGATIVE_COMMENTS[Math.floor(Math.random() * NEGATIVE_COMMENTS.length)];
+  } else {
+    // 1-star: terrible comments
+    if (Math.random() < 0.10) {
+      return NEGATIVE_COMMENTS[Math.floor(Math.random() * NEGATIVE_COMMENTS.length)];
+    }
+    return TERRIBLE_COMMENTS[Math.floor(Math.random() * TERRIBLE_COMMENTS.length)];
   }
 }
 
