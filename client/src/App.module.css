@@ -305,7 +305,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-4);
-  max-width: 900px;
+  max-width: none;
   padding: 0 var(--space-8);
 }
 
@@ -330,6 +330,9 @@
   line-height: 1.1;
   text-align: center;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  height: 1.1em;
+  overflow: hidden;
 }
 
 .heroSpacer {
