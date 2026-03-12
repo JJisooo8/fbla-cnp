@@ -1,12 +1,12 @@
 {
-  "seedDate": "2026-03-12T00:00:00.000Z",
-  "seedDateFormatted": "March 12, 2026",
-  "businessCount": 25,
+  "seedDate": "2026-03-12T01:07:40.075Z",
+  "seedDateFormatted": "March 11, 2026",
+  "businessCount": 192,
   "categories": {
-    "Food": 10,
-    "Retail": 7,
+    "Food": 184,
+    "Retail": 0,
     "Services": 8
   },
   "location": "Cumming, Georgia",
-  "source": "Local sample data for offline development"
+  "source": "Exported from production (https://fbla-cnp.vercel.app)"
 }
