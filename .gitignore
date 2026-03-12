@@ -5,3 +5,6 @@ dist
 
 # Locally generated images (not the JSON data files)
 server/data/images/
+
+# User accounts contain hashed passwords - never commit
+server/users.json

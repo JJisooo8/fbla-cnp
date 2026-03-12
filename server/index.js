@@ -3383,6 +3383,39 @@ app.get("/api/analytics", async (req, res) => {
   }
 });
 
+// GET /api/export-data - export all businesses and reviews for local development
+app.get("/api/export-data", async (req, res) => {
+  try {
+    const businesses = await fetchBusinesses();
+
+    // Attach full review data to each business
+    const enrichedBusinesses = businesses.map(biz => {
+      const reviewSummary = getLocalReviewSummary(biz.id);
+      return {
+        ...biz,
+        rating: reviewSummary.rating,
+        reviewCount: reviewSummary.reviewCount,
+        reviews: reviewSummary.reviews,
+        categoryRatings: reviewSummary.categoryRatings
+      };
+    });
+
+    // Also export the raw reviews map for the reviews.json file
+    const reviewsArray = Array.from(localReviews.entries());
+
+    res.json({
+      exportDate: new Date().toISOString(),
+      businessCount: enrichedBusinesses.length,
+      reviewCount: reviewsArray.reduce((sum, [, revs]) => sum + revs.length, 0),
+      businesses: enrichedBusinesses,
+      reviews: reviewsArray
+    });
+  } catch (error) {
+    console.error("Error exporting data:", error);
+    res.status(500).json({ error: "Failed to export data" });
+  }
+});
+
 // Export for Vercel
 export default app;
 
