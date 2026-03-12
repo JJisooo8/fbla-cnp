@@ -220,16 +220,19 @@
 }
 
 .logo {
-  font-size: 0;
+  font-size: var(--text-3xl);
+  font-weight: var(--font-bold);
+  color: var(--color-primary-700);
   margin: 0;
   cursor: pointer;
   transition: all var(--transition-base);
   display: flex;
   align-items: center;
+  gap: var(--space-2);
 }
 
 .navLogo {
-  height: 2.5rem;
+  height: 2rem;
   width: auto;
 }
 
@@ -2964,11 +2967,11 @@
   }
 
   .logo {
-    font-size: 0;
+    font-size: var(--text-xl);
   }
 
   .navLogo {
-    height: 2rem;
+    height: 1.5rem;
   }
 
   .navButton,
@@ -4225,6 +4228,11 @@
 :global([data-theme="dark"]) .chipInteractive:hover {
   background-color: #374151;
   border-color: #5a9ce0;
+  color: #7db4f0;
+}
+
+/* --- Logo --- */
+:global([data-theme="dark"]) .logo {
   color: #7db4f0;
 }
 
