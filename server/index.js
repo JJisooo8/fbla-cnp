@@ -2520,6 +2520,17 @@ app.get("/api/businesses", async (req, res) => {
 
     let businesses = await fetchBusinesses();
 
+    // Apply current review data before filtering/sorting so ratings are up-to-date
+    businesses = businesses.map(biz => {
+      const summary = getLocalReviewSummary(biz.id);
+      return {
+        ...biz,
+        rating: summary.rating,
+        reviewCount: summary.reviewCount,
+        reviews: summary.reviews
+      };
+    });
+
     // Filter by category
     if (category && category !== "All") {
       businesses = businesses.filter(b => b.category === category);
@@ -2591,17 +2602,6 @@ app.get("/api/businesses", async (req, res) => {
     if (GOOGLE_SEARCH_API_KEY && GOOGLE_SEARCH_ENGINE_ID) {
       businesses = await enrichBusinessImages(businesses);
     }
-
-    // Always apply current review data so counts are up-to-date
-    businesses = businesses.map(biz => {
-      const summary = getLocalReviewSummary(biz.id);
-      return {
-        ...biz,
-        rating: summary.rating,
-        reviewCount: summary.reviewCount,
-        reviews: summary.reviews
-      };
-    });
 
     res.json(businesses);
   } catch (error) {
