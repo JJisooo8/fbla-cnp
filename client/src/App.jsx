@@ -15,7 +15,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import styles from "./App.module.css";
-import { Bot, CornerDownLeft } from "lucide-react";
+import { Bot, ChevronDown, CornerDownLeft } from "lucide-react";
 import { TextLoop } from "@/components/ui/text-loop";
 import { Button } from "@/components/ui/button";
 import {
@@ -1800,6 +1800,7 @@ function App() {
                       <span>Support your community...</span>
                     </TextLoop>
                   </div>
+                  <ChevronDown className={styles.heroScrollArrow} size={36} strokeWidth={2} aria-hidden="true" />
                 </div>
               </section>
 
