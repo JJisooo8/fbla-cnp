@@ -823,7 +823,7 @@ function App() {
     if (searchTerm) params.append("search", searchTerm);
     if (minRating) params.append("minRating", minRating);
     if (showDealsOnly) params.append("hasDeals", "true");
-    if (sortBy) params.append("sort", sortBy);
+    params.append("sort", minRating ? "rating" : sortBy);
     params.append("limit", "300");
 
     fetch(`${API_URL}/businesses?${params}`)
@@ -1929,18 +1929,6 @@ function App() {
                 <option value="3">3+ Stars</option>
                 <option value="2">2+ Stars</option>
                 <option value="1">1+ Stars</option>
-              </select>
-
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value)}
-                className={styles.select}
-                aria-label="Sort businesses"
-              >
-                <option value="local">Sort: Relevance</option>
-                <option value="rating">Sort: Rating</option>
-                <option value="reviews">Sort: Reviews</option>
-                <option value="name">Sort: Name</option>
               </select>
 
               <label className={styles.checkbox}>
