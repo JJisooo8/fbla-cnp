@@ -1931,6 +1931,18 @@ function App() {
                 <option value="1">1+ Stars</option>
               </select>
 
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value)}
+                className={styles.select}
+                aria-label="Sort businesses"
+              >
+                <option value="local">Sort: Relevance</option>
+                <option value="rating">Sort: Rating</option>
+                <option value="reviews">Sort: Reviews</option>
+                <option value="name">Sort: Name</option>
+              </select>
+
               <label className={styles.checkbox}>
                 <input
                   type="checkbox"
