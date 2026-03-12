@@ -1776,7 +1776,7 @@ function App() {
               {/* Hero Section — shader background with centered TextLoop */}
               <section className={styles.hero} aria-label="Welcome" style={{ opacity: heroOpacity }}>
                 <div className={styles.heroShaderBg}>
-                  <ShaderCanvas />
+                  <ShaderCanvas paused={heroOpacity <= 0} />
                 </div>
                 <div className={styles.heroContent}>
                   <h1 className={styles.heroHeading}>
