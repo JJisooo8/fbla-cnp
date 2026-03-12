@@ -220,19 +220,16 @@
 }
 
 .logo {
-  font-size: var(--text-3xl);
-  font-weight: var(--font-bold);
-  color: var(--color-primary-700);
+  font-size: 0;
   margin: 0;
   cursor: pointer;
   transition: all var(--transition-base);
   display: flex;
   align-items: center;
-  gap: var(--space-2);
 }
 
 .navLogo {
-  height: 2rem;
+  height: 2.5rem;
   width: auto;
 }
 
@@ -318,10 +315,10 @@
 }
 
 .heroLogo {
-  height: clamp(5rem, 12vw, 9rem);
+  height: clamp(8rem, 18vw, 14rem);
   width: auto;
   filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.3));
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-4);
 }
 
 .heroHeading {
@@ -2967,11 +2964,11 @@
   }
 
   .logo {
-    font-size: var(--text-xl);
+    font-size: 0;
   }
 
   .navLogo {
-    height: 1.5rem;
+    height: 2rem;
   }
 
   .navButton,

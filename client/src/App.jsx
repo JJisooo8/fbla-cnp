@@ -1623,8 +1623,7 @@ function App() {
             onKeyDown={(e) => e.key === 'Enter' && setView("home")}
             aria-label="LocalLink - Go to home page"
           >
-            <img src="/locallink-logo.svg" alt="" className={styles.navLogo} aria-hidden="true" />
-            LocalLink
+            <img src="/FBLA CNP Brochure.png" alt="LocalLink" className={styles.navLogo} />
           </h1>
           <nav className={styles.nav} aria-label="Main navigation">
             <button
@@ -1779,7 +1778,7 @@ function App() {
                   <ShaderCanvas />
                 </div>
                 <div className={styles.heroContent}>
-                  <img src="/locallink-logo.svg" alt="LocalLink logo" className={styles.heroLogo} />
+                  <img src="/FBLA CNP Brochure.png" alt="LocalLink logo" className={styles.heroLogo} />
                   <h1 className={styles.heroHeading}>Introducing LocalLink</h1>
                   <div className={styles.heroLoopText}>
                     <TextLoop interval={3} transition={{ duration: 0.5 }}>
