@@ -3109,7 +3109,18 @@ app.get("/api/reviews/debug", async (req, res) => {
 app.post("/api/recommendations", async (req, res) => {
   try {
     const { favoriteIds = [], preferredCategories = [], debug = false } = req.body;
-    const businesses = await fetchBusinesses();
+    let businesses = await fetchBusinesses();
+
+    // Apply current review data so ratings are up-to-date
+    businesses = businesses.map(biz => {
+      const summary = getLocalReviewSummary(biz.id);
+      return {
+        ...biz,
+        rating: summary.rating,
+        reviewCount: summary.reviewCount,
+        reviews: summary.reviews
+      };
+    });
 
     // Build category scores from user's favorites
     let categoryScores = {};
