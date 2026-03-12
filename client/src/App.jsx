@@ -887,6 +887,7 @@ function App() {
       strokeLinecap="round"
       strokeLinejoin="round"
       style={{ display: 'block' }}
+      aria-hidden="true"
     >
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
     </svg>
@@ -904,6 +905,7 @@ function App() {
       strokeLinecap="round"
       strokeLinejoin="round"
       style={{ display: 'inline-block', verticalAlign: 'middle' }}
+      aria-hidden="true"
     >
       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
     </svg>
@@ -938,6 +940,7 @@ function App() {
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                aria-hidden="true"
               >
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
               </svg>
@@ -960,6 +963,7 @@ function App() {
       strokeLinecap="round"
       strokeLinejoin="round"
       style={{ display: 'inline-block', verticalAlign: 'middle' }}
+      aria-hidden="true"
     >
       <polyline points="20 12 20 22 4 22 4 12" />
       <rect x="2" y="7" width="20" height="5" />
@@ -981,6 +985,7 @@ function App() {
       strokeLinecap="round"
       strokeLinejoin="round"
       style={{ display: 'block', margin: '0 auto' }}
+      aria-hidden="true"
     >
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
@@ -1597,6 +1602,7 @@ function App() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className={styles.demoBannerLink}
+                    aria-label="Visit live production site (opens in new tab)"
                   >
                     {demoStatus.productionUrl.replace('https://', '')}
                   </a>
@@ -1720,7 +1726,7 @@ function App() {
 
       {/* Image Lightbox */}
       {lightboxImage && (
-        <div className={styles.lightboxOverlay} onClick={() => setLightboxImage(null)}>
+        <div className={styles.lightboxOverlay} onClick={() => setLightboxImage(null)} role="dialog" aria-label="Enlarged image view" aria-modal="true">
           <button
             className={styles.lightboxClose}
             onClick={() => setLightboxImage(null)}
@@ -1742,19 +1748,21 @@ function App() {
 
       {/* Dark Mode Confirmation Modal */}
       {showDarkModeConfirm && (
-        <div className={styles.modalOverlay} onClick={() => setShowDarkModeConfirm(false)}>
+        <div className={styles.modalOverlay} onClick={() => setShowDarkModeConfirm(false)} role="dialog" aria-label="Dark mode confirmation" aria-modal="true">
           <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
             <p className={styles.modalText}>{darkMode ? "Disable dark mode?" : "Enable dark mode?"}</p>
             <div className={styles.modalButtons}>
               <button
                 className={styles.modalBtnPrimary}
                 onClick={() => { setDarkMode(!darkMode); setShowDarkModeConfirm(false); }}
+                aria-label={darkMode ? "Yes, disable dark mode" : "Yes, enable dark mode"}
               >
                 Yes
               </button>
               <button
                 className={styles.modalBtnSecondary}
                 onClick={() => setShowDarkModeConfirm(false)}
+                aria-label="No, keep current theme"
               >
                 No
               </button>
@@ -1781,7 +1789,7 @@ function App() {
                 <div className={styles.heroContent}>
                   <h1 className={styles.heroHeading}>
                     <span className={styles.heroIntro}>Introducing</span>
-                    <img src="/locallink-logo.png" alt="LocalLink" className={styles.heroLogo} />
+                    <img src="/locallink-logo.png" alt="LocalLink logo" className={styles.heroLogo} />
                   </h1>
                   <div className={styles.heroLoopText}>
                     <TextLoop interval={3} transition={{ duration: 0.5 }}>
@@ -1834,8 +1842,12 @@ function App() {
                     key={biz.id}
                     className={styles.recommendCard}
                     onClick={() => viewBusiness(biz)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
+                    aria-label={`View ${biz.name} - Local Favorite`}
                   >
-                    <img src={biz.image} alt={biz.name} className={styles.cardImage} />
+                    <img src={biz.image} alt={`${biz.name} storefront`} className={styles.cardImage} />
                     <div className={styles.cardContent}>
                       <div className={styles.cardHeader}>
                         <h4 className={styles.cardTitle}>{biz.name}</h4>
@@ -1872,8 +1884,12 @@ function App() {
                     key={biz.id}
                     className={styles.recommendCard}
                     onClick={() => viewBusiness(biz)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === 'Enter' && viewBusiness(biz)}
+                    aria-label={`View ${biz.name} - Recommended for you`}
                   >
-                    <img src={biz.image} alt={biz.name} className={styles.cardImage} />
+                    <img src={biz.image} alt={`${biz.name} storefront`} className={styles.cardImage} />
                     <div className={styles.cardContent}>
                       <h4 className={styles.cardTitle}>{biz.name}</h4>
                       {biz.rating > 0 ? (
@@ -2191,11 +2207,12 @@ function App() {
 
           {/* Business Pagination Controls */}
           {filteredBusinesses.length > BUSINESSES_PER_PAGE && (
-            <div className={styles.paginationControls} style={{ marginTop: 'var(--space-6)', marginBottom: 'var(--space-6)' }}>
+            <nav className={styles.paginationControls} style={{ marginTop: 'var(--space-6)', marginBottom: 'var(--space-6)' }} aria-label="Business listing pagination">
               <button
                 onClick={() => changeBusinessPage(p => Math.max(1, p - 1))}
                 disabled={businessPage === 1}
                 className={styles.paginationBtn}
+                aria-label="Go to previous page"
               >
                 Previous
               </button>
@@ -2247,6 +2264,8 @@ function App() {
                         key={page}
                         onClick={() => changeBusinessPage(page)}
                         className={businessPage === page ? styles.paginationBtnActive : styles.paginationBtn}
+                        aria-label={`Go to page ${page}`}
+                        aria-current={businessPage === page ? "page" : undefined}
                       >
                         {page}
                       </button>
@@ -2258,10 +2277,11 @@ function App() {
                 onClick={() => changeBusinessPage(p => Math.min(Math.ceil(deduplicateChains(filteredBusinesses).length / BUSINESSES_PER_PAGE), p + 1))}
                 disabled={businessPage >= Math.ceil(deduplicateChains(filteredBusinesses).length / BUSINESSES_PER_PAGE)}
                 className={styles.paginationBtn}
+                aria-label="Go to next page"
               >
                 Next
               </button>
-            </div>
+            </nav>
           )}
 
           {/* Developer Export Tool */}
@@ -2276,12 +2296,16 @@ function App() {
                   <button
                     onClick={() => exportBusinesses('json')}
                     className={styles.devExportBtn}
+                    aria-label="Export business data as JSON file"
+                    title="Download business data in JSON format"
                   >
                     Export JSON
                   </button>
                   <button
                     onClick={() => exportBusinesses('csv')}
                     className={styles.devExportBtn}
+                    aria-label="Export business data as CSV file"
+                    title="Download business data in CSV format"
                   >
                     Export CSV
                   </button>
@@ -2312,6 +2336,7 @@ function App() {
             }}
             className={styles.backButton}
             style={{ margin: 'var(--space-4)', marginTop: '110px' }}
+            aria-label="Go back to browse businesses"
           >
             ← Back to Browse
           </button>
@@ -2333,6 +2358,7 @@ function App() {
                       onClick={() => applyFilter("category", selectedBusiness.category)}
                       className={styles.chipPrimaryInteractive}
                       title={`Filter by ${selectedBusiness.category}`}
+                      aria-label={`Filter businesses by ${selectedBusiness.category} category`}
                     >
                       {selectedBusiness.category}
                     </button>
@@ -2341,6 +2367,7 @@ function App() {
                       <span
                         className={styles.chip}
                         title="Price level"
+                        aria-label={`Price level: ${selectedBusiness.priceRange}`}
                       >
                         {selectedBusiness.priceRange}
                       </span>
@@ -2359,7 +2386,11 @@ function App() {
                     </div>
 
                     {selectedBusiness.isOpenNow !== undefined && (
-                      <span className={selectedBusiness.isOpenNow ? styles.statusPillOpen : styles.statusPillClosed}>
+                      <span
+                        className={selectedBusiness.isOpenNow ? styles.statusPillOpen : styles.statusPillClosed}
+                        role="status"
+                        aria-label={selectedBusiness.isOpenNow ? 'Currently open' : 'Currently closed'}
+                      >
                         {selectedBusiness.isOpenNow ? '● Open now' : '● Closed'}
                       </span>
                     )}
@@ -2374,6 +2405,7 @@ function App() {
                           onClick={() => applyFilter("tag", tag)}
                           className={styles.chipInteractive}
                           title={`Search for ${tag}`}
+                          aria-label={`Filter businesses by ${tag}`}
                         >
                           {tag}
                         </button>
@@ -2403,13 +2435,14 @@ function App() {
                           ? selectedBusiness.photos[0]
                           : selectedBusiness.image
                       )}
-                      aria-label="View enlarged image"
+                      aria-label={`View enlarged photo of ${selectedBusiness.name}`}
+                      title="Click to enlarge image"
                     >
                       <img
                         src={selectedBusiness.photos && selectedBusiness.photos.length > 0
                           ? selectedBusiness.photos[0]
                           : selectedBusiness.image}
-                        alt={`${selectedBusiness.name}`}
+                        alt={`Photo of ${selectedBusiness.name}`}
                         className={styles.imageThumbnail}
                       />
                       <div className={styles.imageThumbnailOverlay}>
@@ -2428,8 +2461,10 @@ function App() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className={styles.btnSecondary}
+                    aria-label={`Get directions to ${selectedBusiness.name} (opens in new tab)`}
+                    title="Get directions"
                   >
-                    <svg className={styles.btnIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className={styles.btnIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                     </svg>
                     Directions
@@ -2442,8 +2477,10 @@ function App() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className={styles.btnSecondary}
+                    aria-label={`Visit ${selectedBusiness.name} website (opens in new tab)`}
+                    title="Visit website"
                   >
-                    <svg className={styles.btnIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className={styles.btnIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
                     Website
@@ -2453,8 +2490,9 @@ function App() {
                     className={styles.btnSecondary}
                     disabled
                     title="No website listed"
+                    aria-label="Website not available"
                   >
-                    <svg className={styles.btnIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className={styles.btnIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
                     Website
@@ -2550,6 +2588,7 @@ function App() {
                           type="checkbox"
                           checked={reviewForm.isAnonymous}
                           onChange={e => setReviewForm(prev => ({ ...prev, isAnonymous: e.target.checked }))}
+                          aria-label="Post review anonymously"
                         />
                         <span>Post anonymously (hide your username)</span>
                       </label>
@@ -2759,6 +2798,7 @@ function App() {
                                 className={styles.textarea}
                                 rows={3}
                                 placeholder="Your review (optional)"
+                                aria-label="Edit your review comment"
                               />
 
                               <label className={styles.anonymousCheckbox}>
@@ -2766,6 +2806,7 @@ function App() {
                                   type="checkbox"
                                   checked={editForm.isAnonymous}
                                   onChange={(e) => setEditForm(prev => ({ ...prev, isAnonymous: e.target.checked }))}
+                                  aria-label="Post review anonymously"
                                 />
                                 <span>Post anonymously</span>
                               </label>
@@ -2835,6 +2876,7 @@ function App() {
                                         onClick={() => startEditReview(review)}
                                         className={styles.editButton}
                                         title="Edit your review"
+                                        aria-label="Edit your review"
                                       >
                                         Edit
                                       </button>
@@ -2842,6 +2884,7 @@ function App() {
                                         onClick={() => deleteReview(review.id)}
                                         className={styles.deleteButton}
                                         title="Delete your review"
+                                        aria-label="Delete your review"
                                       >
                                         Delete
                                       </button>
@@ -2858,6 +2901,7 @@ function App() {
                                     className={reportedReviews.includes(review.id) ? styles.reportButtonReported : styles.reportButton}
                                     disabled={reportedReviews.includes(review.id)}
                                     title={reportedReviews.includes(review.id) ? "You reported this review" : "Report this review"}
+                                    aria-label={reportedReviews.includes(review.id) ? "You have already reported this review" : "Report this review as inappropriate"}
                                   >
                                     {reportedReviews.includes(review.id) ? "Reported" : "Report"}
                                   </button>
@@ -2879,6 +2923,7 @@ function App() {
                                 setReviewsExpanded(true);
                               }}
                               className={styles.seeMoreBtn}
+                              aria-label={`Show more reviews, ${selectedBusiness.reviews.length - visibleReviewsCount} remaining`}
                             >
                               See more reviews ({selectedBusiness.reviews.length - visibleReviewsCount} remaining)
                             </button>
@@ -2890,6 +2935,7 @@ function App() {
                                 setReviewsExpanded(false);
                               }}
                               className={styles.hideReviewsBtn}
+                              aria-label="Collapse reviews to show fewer"
                             >
                               Hide reviews
                             </button>
@@ -2918,6 +2964,8 @@ function App() {
                             target="_blank"
                             rel="noopener noreferrer"
                             className={styles.interactiveLink}
+                            aria-label={`${selectedBusiness.address} - View on Google Maps (opens in new tab)`}
+                            title="View on Google Maps"
                           >
                             {selectedBusiness.address}
                           </a>
@@ -2928,17 +2976,18 @@ function App() {
                           onClick={() => copyToClipboard(selectedBusiness.address, 'address')}
                           className={copiedField === 'address' ? styles.copyActionSuccess : styles.copyAction}
                           title="Copy address"
+                          aria-label={copiedField === 'address' ? "Address copied to clipboard" : "Copy address to clipboard"}
                         >
                           {copiedField === 'address' ? (
                             <>
-                              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                               </svg>
                               Copied!
                             </>
                           ) : (
                             <>
-                              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                               </svg>
                               Copy
@@ -2957,6 +3006,8 @@ function App() {
                         <a
                           href={`tel:${selectedBusiness.phone}`}
                           className={styles.interactiveLink}
+                          aria-label={`Call ${selectedBusiness.name} at ${selectedBusiness.phone}`}
+                          title="Call this business"
                         >
                           {selectedBusiness.phone}
                         </a>
@@ -2964,17 +3015,18 @@ function App() {
                           onClick={() => copyToClipboard(selectedBusiness.phone, 'phone')}
                           className={copiedField === 'phone' ? styles.copyActionSuccess : styles.copyAction}
                           title="Copy phone number"
+                          aria-label={copiedField === 'phone' ? "Phone number copied to clipboard" : "Copy phone number to clipboard"}
                         >
                           {copiedField === 'phone' ? (
                             <>
-                              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                               </svg>
                               Copied!
                             </>
                           ) : (
                             <>
-                              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                               </svg>
                               Copy
@@ -2996,8 +3048,10 @@ function App() {
                           rel="noopener noreferrer"
                           className={styles.btnSecondary}
                           style={{ width: '100%', justifyContent: 'center' }}
+                          aria-label={`Visit ${selectedBusiness.name} website (opens in new tab)`}
+                          title="Visit website"
                         >
-                          <svg className={styles.btnIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className={styles.btnIcon} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                           </svg>
                           Visit Website
@@ -3380,7 +3434,7 @@ function App() {
       )}
 
       {/* Footer */}
-      <footer className={styles.footer}>
+      <footer className={styles.footer} role="contentinfo">
         <div className={styles.footerContent}>
           <div className={styles.footerBrand}>
             <h3 className={styles.footerLogo}>LocalLink</h3>
@@ -3394,20 +3448,20 @@ function App() {
             <button className={styles.footerLink} onClick={() => {
               setView("home");
               window.scrollTo({ top: 0, behavior: "smooth" });
-            }}>
+            }} aria-label="Browse all businesses">
               Browse Businesses
             </button>
             <button className={styles.footerLink} onClick={() => {
               setView("favorites");
               window.scrollTo({ top: 0, behavior: "smooth" });
-            }}>
+            }} aria-label="View your favorite businesses">
               Your Favorites
             </button>
             <button className={styles.footerLink} onClick={() => {
               setShowDealsOnly(true);
               setView("home");
               window.scrollTo({ top: 0, behavior: "smooth" });
-            }}>
+            }} aria-label="View businesses with active deals">
               View Deals
             </button>
           </div>
@@ -3423,7 +3477,7 @@ function App() {
                   filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
               }, 100);
-            }}>
+            }} aria-label="Browse food and dining businesses">
               Food & Dining
             </button>
             <button className={styles.footerLink} onClick={() => {
@@ -3436,7 +3490,7 @@ function App() {
                   filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
               }, 100);
-            }}>
+            }} aria-label="Browse coffee shops and bakeries">
               Coffee & Bakeries
             </button>
             <button className={styles.footerLink} onClick={() => {
@@ -3449,7 +3503,7 @@ function App() {
                   filtersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
               }, 100);
-            }}>
+            }} aria-label="Browse all businesses">
               All Businesses
             </button>
           </div>
@@ -3468,7 +3522,8 @@ function App() {
       <ExpandableChat
         size="lg"
         position="bottom-right"
-        icon={<Bot className="h-6 w-6" />}
+        icon={<Bot className="h-6 w-6" aria-hidden="true" />}
+        aria-label="LocalLink FAQ chatbot"
       >
         <ExpandableChatHeader className="flex-col text-center justify-center">
           <h1 className="text-xl font-semibold">LocalLink Assistant</h1>
@@ -3525,11 +3580,12 @@ function App() {
               placeholder="Ask a question..."
               className="min-h-12 resize-none rounded-lg bg-background border-0 p-3 shadow-none focus-visible:ring-0"
               maxLength={200}
+              aria-label="Type your question for the LocalLink assistant"
             />
             <div className="flex items-center p-3 pt-0 justify-end">
-              <Button type="submit" size="sm" className="ml-auto gap-1.5" disabled={chatLoading}>
+              <Button type="submit" size="sm" className="ml-auto gap-1.5" disabled={chatLoading} aria-label="Send message" title="Send message">
                 Send
-                <CornerDownLeft className="size-3.5" />
+                <CornerDownLeft className="size-3.5" aria-hidden="true" />
               </Button>
             </div>
           </form>
@@ -3538,15 +3594,15 @@ function App() {
 
       {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
-        <div className={styles.modalOverlay} onClick={() => setShowLogoutConfirm(false)}>
+        <div className={styles.modalOverlay} onClick={() => setShowLogoutConfirm(false)} role="dialog" aria-labelledby="logout-modal-title" aria-modal="true">
           <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
-            <h3 className={styles.modalTitle}>Confirm Logout</h3>
+            <h3 id="logout-modal-title" className={styles.modalTitle}>Confirm Logout</h3>
             <p className={styles.modalText}>Are you sure you want to log out?</p>
             <div className={styles.modalButtons}>
-              <button onClick={confirmLogout} className={styles.modalBtnPrimary}>
+              <button onClick={confirmLogout} className={styles.modalBtnPrimary} aria-label="Confirm logout">
                 Yes, Log Out
               </button>
-              <button onClick={() => setShowLogoutConfirm(false)} className={styles.modalBtnSecondary}>
+              <button onClick={() => setShowLogoutConfirm(false)} className={styles.modalBtnSecondary} aria-label="Cancel logout">
                 Cancel
               </button>
             </div>
@@ -3556,9 +3612,9 @@ function App() {
 
       {/* Account Details Modal */}
       {showAccountDetails && user && (
-        <div className={styles.modalOverlay} onClick={() => setShowAccountDetails(false)}>
+        <div className={styles.modalOverlay} onClick={() => setShowAccountDetails(false)} role="dialog" aria-labelledby="account-modal-title" aria-modal="true">
           <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
-            <h3 className={styles.modalTitle}>Account Details</h3>
+            <h3 id="account-modal-title" className={styles.modalTitle}>Account Details</h3>
             <div className={styles.accountDetailsContent}>
               <div className={styles.accountDetailRow}>
                 <span className={styles.accountDetailLabel}>Username</span>

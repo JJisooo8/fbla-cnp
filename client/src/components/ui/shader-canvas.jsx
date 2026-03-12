@@ -381,6 +381,8 @@ export default function ShaderCanvas({ className, style, paused = false }) {
         display: "block",
         ...style,
       }}
+      aria-hidden="true"
+      role="presentation"
     />
   );
 }

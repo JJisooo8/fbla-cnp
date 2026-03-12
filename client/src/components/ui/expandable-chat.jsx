@@ -62,8 +62,10 @@ const ExpandableChat = ({
           size="icon"
           className="absolute top-2 right-2 sm:hidden"
           onClick={toggleChat}
+          aria-label="Close chat"
+          title="Close chat"
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4" aria-hidden="true" />
         </Button>
       </div>
       <ExpandableChatToggle
@@ -112,12 +114,15 @@ const ExpandableChatToggle = ({
       "w-14 h-14 rounded-full shadow-md flex items-center justify-center hover:shadow-lg hover:shadow-black/30 transition-all duration-300",
       className,
     )}
+    aria-label={isOpen ? "Close chat assistant" : "Open chat assistant"}
+    title={isOpen ? "Close chat" : "Chat with LocalLink assistant"}
+    aria-expanded={isOpen}
     {...props}
   >
     {isOpen ? (
-      <X className="h-6 w-6" />
+      <X className="h-6 w-6" aria-hidden="true" />
     ) : (
-      icon || <MessageCircle className="h-6 w-6" />
+      icon || <MessageCircle className="h-6 w-6" aria-hidden="true" />
     )}
   </Button>
 );
