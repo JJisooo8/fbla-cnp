@@ -193,11 +193,44 @@ function safeLink(gl, vs, fs) {
   return { program: ok ? prog : null, log };
 }
 
-export default function ShaderCanvas({ className, style }) {
+export default function ShaderCanvas({ className, style, paused = false }) {
   const canvasRef = useRef(null);
   const rafRef = useRef(null);
   const startRef = useRef(0);
   const frameRef = useRef(0);
+  const pausedRef = useRef(paused);
+  const pauseOffsetRef = useRef(0);   // accumulated time while paused
+  const pauseStartRef = useRef(null); // when the current pause began
+  const lastFrameTimeRef = useRef(0); // for frame rate throttling
+
+  // Keep ref in sync with prop
+  useEffect(() => {
+    const wasPaused = pausedRef.current;
+    pausedRef.current = paused;
+
+    if (paused && !wasPaused) {
+      // Entering pause — record when we paused
+      pauseStartRef.current = performance.now();
+      // Cancel the running rAF loop to fully stop GPU work
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    } else if (!paused && wasPaused) {
+      // Leaving pause — accumulate the paused duration so animation resumes smoothly
+      if (pauseStartRef.current !== null) {
+        pauseOffsetRef.current += performance.now() - pauseStartRef.current;
+        pauseStartRef.current = null;
+      }
+      // Restart the rAF loop
+      if (!rafRef.current && canvasRef.current) {
+        rafRef.current = requestAnimationFrame(tickRef.current);
+      }
+    }
+  }, [paused]);
+
+  // Store tick in a ref so the paused effect can restart it
+  const tickRef = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -212,7 +245,13 @@ export default function ShaderCanvas({ className, style }) {
     let ro = null;
     let resizeScheduled = false;
 
-    const getDpr = () => Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    // Cap DPR at 1.5 to reduce GPU load — the background is subtle enough
+    // that the difference between 1.5x and 2x is imperceptible
+    const getDpr = () => Math.max(1, Math.min(1.5, window.devicePixelRatio || 1));
+
+    // Target ~30 fps — the slow-scrolling grid animation looks smooth at 30fps
+    // and halving the frame rate roughly halves GPU time spent
+    const FRAME_INTERVAL = 1000 / 30;
 
     function applySize() {
       resizeScheduled = false;
@@ -266,7 +305,7 @@ export default function ShaderCanvas({ className, style }) {
     scheduleSize();
 
     const onContextLost = (ev) => { ev.preventDefault(); if (rafRef.current) cancelAnimationFrame(rafRef.current); rafRef.current = null; };
-    const onContextRestored = () => { scheduleSize(); startRef.current = performance.now(); frameRef.current = 0; if (!rafRef.current) rafRef.current = requestAnimationFrame(tick); };
+    const onContextRestored = () => { scheduleSize(); startRef.current = performance.now(); frameRef.current = 0; pauseOffsetRef.current = 0; pauseStartRef.current = null; if (!pausedRef.current && !rafRef.current) rafRef.current = requestAnimationFrame(tick); };
 
     canvas.addEventListener("webglcontextlost", onContextLost);
     canvas.addEventListener("webglcontextrestored", onContextRestored);
@@ -276,9 +315,20 @@ export default function ShaderCanvas({ className, style }) {
 
     function tick(now) {
       if (disposed) return;
+      // If paused, don't schedule another frame — the resume logic handles restart
+      if (pausedRef.current) { rafRef.current = null; return; }
       if (gl.isContextLost()) { rafRef.current = requestAnimationFrame(tick); return; }
 
-      const t = (now - startRef.current) / 1000;
+      // Throttle to target frame rate
+      const elapsed = now - lastFrameTimeRef.current;
+      if (elapsed < FRAME_INTERVAL) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      lastFrameTimeRef.current = now - (elapsed % FRAME_INTERVAL);
+
+      // Subtract accumulated pause time so animation doesn't jump on resume
+      const t = (now - startRef.current - pauseOffsetRef.current) / 1000;
       frameRef.current += 1;
 
       try {
@@ -298,7 +348,14 @@ export default function ShaderCanvas({ className, style }) {
 
       rafRef.current = requestAnimationFrame(tick);
     }
-    rafRef.current = requestAnimationFrame(tick);
+
+    // Store tick so the pause/resume effect can reference it
+    tickRef.current = tick;
+
+    // Only start the loop if not initially paused
+    if (!pausedRef.current) {
+      rafRef.current = requestAnimationFrame(tick);
+    }
 
     function cleanup() {
       disposed = true;
