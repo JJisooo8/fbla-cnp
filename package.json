@@ -2,6 +2,12 @@
   "name": "fbla-cnp",
   "version": "1.0.0",
   "type": "module",
+  "scripts": {
+    "setup": "npm install && cd client && npm install && cd ../server && npm install",
+    "dev": "npm run dev:server & npm run dev:client",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev"
+  },
   "dependencies": {
     "axios": "^1.13.2",
     "cors": "^2.8.5",

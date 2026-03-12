@@ -1,0 +1,12 @@
+{
+  "seedDate": "2026-03-12T00:00:00.000Z",
+  "seedDateFormatted": "March 12, 2026",
+  "businessCount": 25,
+  "categories": {
+    "Food": 10,
+    "Retail": 7,
+    "Services": 8
+  },
+  "location": "Cumming, Georgia",
+  "source": "Local sample data for offline development"
+}
