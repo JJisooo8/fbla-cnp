@@ -40,7 +40,7 @@ export function ChatBubbleMessage({
       )}
     >
       {isLoading ? (
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2" role="status" aria-label="Assistant is typing">
           <MessageLoading />
         </div>
       ) : (
@@ -56,8 +56,8 @@ export function ChatBubbleAvatar({
   className,
 }) {
   return (
-    <Avatar className={cn("h-8 w-8", className)}>
-      {src && <AvatarImage src={src} />}
+    <Avatar className={cn("h-8 w-8", className)} aria-hidden="true">
+      {src && <AvatarImage src={src} alt="" />}
       <AvatarFallback>{fallback}</AvatarFallback>
     </Avatar>
   )
