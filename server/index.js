@@ -76,7 +76,6 @@ if (!envLoaded && !process.env.VERCEL) {
 // ============================================
 // OFFLINE MODE CONFIGURATION
 // ============================================
-const OFFLINE_MODE = process.env.OFFLINE_MODE === 'true';
 const DATA_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'data');
 const OFFLINE_BUSINESSES_FILE = path.join(DATA_DIR, 'businesses.json');
 const OFFLINE_METADATA_FILE = path.join(DATA_DIR, 'metadata.json');
@@ -103,9 +102,15 @@ function loadOfflineData() {
   }
 }
 
-// Load offline data on startup
-if (OFFLINE_MODE || fs.existsSync(OFFLINE_BUSINESSES_FILE)) {
-  loadOfflineData();
+// Always try to load offline data on startup
+loadOfflineData();
+
+// Auto-detect offline mode: enable if explicitly set OR if no Yelp API key and offline data exists
+const OFFLINE_MODE = process.env.OFFLINE_MODE === 'true' ||
+  (!process.env.YELP_API_KEY && !process.env.VERCEL && offlineBusinesses.length > 0);
+
+if (OFFLINE_MODE && process.env.OFFLINE_MODE !== 'true') {
+  console.log('[OFFLINE] Auto-enabled: no YELP_API_KEY set and local business data found');
 }
 
 const __filename = fileURLToPath(import.meta.url);
