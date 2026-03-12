@@ -1537,6 +1537,8 @@
   box-sizing: border-box;
   transition: border-color var(--transition-fast);
   line-height: var(--leading-normal);
+  background-color: var(--color-white);
+  color: var(--color-gray-900);
 }
 
 .textarea:hover {
@@ -3927,7 +3929,8 @@
 :global([data-theme="dark"]) .searchInput,
 :global([data-theme="dark"]) .labelSearchInput,
 :global([data-theme="dark"]) .input,
-:global([data-theme="dark"]) .select {
+:global([data-theme="dark"]) .select,
+:global([data-theme="dark"]) .textarea {
   background-color: #1f2937 !important;
   border-color: #4b5563 !important;
   color: #f0f0f0 !important;
@@ -3936,13 +3939,15 @@
 :global([data-theme="dark"]) .searchInput:focus,
 :global([data-theme="dark"]) .labelSearchInput:focus,
 :global([data-theme="dark"]) .input:focus,
-:global([data-theme="dark"]) .select:focus {
+:global([data-theme="dark"]) .select:focus,
+:global([data-theme="dark"]) .textarea:focus {
   border-color: #5a9ce0;
 }
 
 :global([data-theme="dark"]) .searchInput::placeholder,
 :global([data-theme="dark"]) .labelSearchInput::placeholder,
-:global([data-theme="dark"]) .input::placeholder {
+:global([data-theme="dark"]) .input::placeholder,
+:global([data-theme="dark"]) .textarea::placeholder {
   color: #9ca3af;
 }
 
