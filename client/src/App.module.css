@@ -356,6 +356,18 @@
   overflow: hidden;
 }
 
+.heroScrollArrow {
+  color: rgba(255, 255, 255, 0.7);
+  animation: heroArrowPulse 2s ease-in-out infinite;
+  margin-top: var(--space-4);
+  flex-shrink: 0;
+}
+
+@keyframes heroArrowPulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.9; }
+}
+
 .heroSpacer {
   height: 100vh;
   pointer-events: none;
