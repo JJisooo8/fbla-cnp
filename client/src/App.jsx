@@ -1779,8 +1779,10 @@ function App() {
                   <ShaderCanvas />
                 </div>
                 <div className={styles.heroContent}>
-                  <img src="/locallink-logo.png" alt="LocalLink logo" className={styles.heroLogo} />
-                  <h1 className={styles.heroHeading}>Introducing LocalLink</h1>
+                  <h1 className={styles.heroHeading}>
+                    <span className={styles.heroIntro}>Introducing</span>
+                    <img src="/locallink-logo.png" alt="LocalLink" className={styles.heroLogo} />
+                  </h1>
                   <div className={styles.heroLoopText}>
                     <TextLoop interval={3} transition={{ duration: 0.5 }}>
                       <span>Discover local businesses...</span>
