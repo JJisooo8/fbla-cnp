@@ -357,15 +357,16 @@
 }
 
 .heroScrollArrow {
-  color: rgba(255, 255, 255, 0.7);
-  animation: heroArrowPulse 2s ease-in-out infinite;
-  margin-top: var(--space-4);
+  color: #fff;
+  animation: heroArrowBounce 2s ease-in-out infinite;
+  margin-top: var(--space-6);
   flex-shrink: 0;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.4));
 }
 
-@keyframes heroArrowPulse {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.9; }
+@keyframes heroArrowBounce {
+  0%, 100% { opacity: 0.7; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(8px); }
 }
 
 .heroSpacer {
