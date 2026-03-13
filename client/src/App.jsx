@@ -1800,7 +1800,7 @@ function App() {
                       <span>Support your community...</span>
                     </TextLoop>
                   </div>
-                  <ChevronDown className={styles.heroScrollArrow} size={36} strokeWidth={2} aria-hidden="true" />
+                  <ChevronDown className={styles.heroScrollArrow} size={52} strokeWidth={2.5} aria-hidden="true" />
                 </div>
               </section>
 
